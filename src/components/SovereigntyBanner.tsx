@@ -9,11 +9,13 @@ import {
   BookOpen,
   PhoneCall,
   X,
+  Menu,
 } from 'lucide-react';
 
 export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
   const [activeModal, setActiveModal] = useState<'guide' | 'contact' | 'stats' | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Tự động nhận diện đường dẫn ảnh banner và logo phù hợp với cả Localhost và GitHub Pages (/canhbao)
   const [bannerSrc, setBannerSrc] = useState<string>('/images/banner_easup_nature.jpg');
@@ -33,6 +35,7 @@ export const SovereigntyBanner: React.FC = () => {
 
   const handleNavClick = (menuKey: string, targetId?: string) => {
     setActiveMenu(menuKey);
+    setIsMobileMenuOpen(false);
     if (menuKey === 'guide') {
       setActiveModal('guide');
       return;
@@ -60,11 +63,38 @@ export const SovereigntyBanner: React.FC = () => {
       {/* 1. THANH NÚT CÔNG CỤ ĐIỀU HƯỚNG TRÊN CÙNG CỦA TRANG WEB */}
       <nav
         aria-label="Thanh điều hướng nhanh trên cùng trang web"
-        className="relative z-20 w-full bg-slate-950/95 border-b border-slate-800/90 px-3 py-1.5 backdrop-blur-md shadow-md"
+        className="relative z-30 w-full bg-slate-950/95 border-b border-slate-800/90 px-3 py-1.5 backdrop-blur-md shadow-md"
       >
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2">
-          {/* Danh sách các nút menu dạng pill */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
+          {/* Thanh trên cùng trên điện thoại: Nút 3 gạch ngang (Hamburger) + Tiêu đề rút gọn */}
+          <div className="flex sm:hidden items-center justify-between w-full py-0.5">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-xs font-semibold text-slate-200">Menu Điều hành</span>
+            </div>
+
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 focus:outline-none transition-all shadow-sm"
+              aria-label="Mở menu công cụ điều hướng"
+              title="Mở menu công cụ điều hướng"
+            >
+              {isMobileMenuOpen ? (
+                <>
+                  <X className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-medium text-emerald-400">Đóng</span>
+                </>
+              ) : (
+                <>
+                  <Menu className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[11px] font-medium text-slate-300">Công cụ</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Danh sách các nút menu trên Máy tính & Tablet (Ẩn trên điện thoại) */}
+          <div className="hidden sm:flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => handleNavClick('home')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
@@ -143,6 +173,83 @@ export const SovereigntyBanner: React.FC = () => {
               <span>Liên hệ</span>
             </button>
           </div>
+
+          {/* Menu xổ xuống trên điện thoại khi bấm vào nút 3 gạch ngang */}
+          {isMobileMenuOpen && (
+            <div className="sm:hidden w-full pt-2 pb-1 border-t border-slate-800 flex flex-col gap-1.5 animate-fadeIn">
+              <button
+                onClick={() => handleNavClick('home')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'home'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <Home className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Trang chủ</span>
+              </button>
+
+              <button
+                onClick={() => handleNavClick('map', 'gis-map-section')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'map'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Bản đồ giám sát</span>
+              </button>
+
+              <button
+                onClick={() => handleNavClick('alert', 'audio-alert-section')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'alert'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <BellRing className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Cảnh báo & Thông tin</span>
+              </button>
+
+              <button
+                onClick={() => handleNavClick('stats', 'villages-matrix-section')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'stats'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Thống kê</span>
+              </button>
+
+              <button
+                onClick={() => handleNavClick('guide')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'guide'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <BookOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Hướng dẫn</span>
+              </button>
+
+              <button
+                onClick={() => handleNavClick('contact')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
+                  activeMenu === 'contact'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                }`}
+              >
+                <PhoneCall className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Liên hệ</span>
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
