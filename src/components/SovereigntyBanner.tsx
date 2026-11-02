@@ -57,8 +57,97 @@ export const SovereigntyBanner: React.FC = () => {
 
   return (
     <>
-      {/* 1. HEADER BANNER - ẢNH THIÊN NHIÊN EA SÚP VỚI LOGO TRUNG TÂM ĐIỀU HÀNH */}
-      <header className="relative w-full overflow-hidden border-b border-emerald-600/40 shadow-2xl bg-[#0a192f] min-h-[175px] sm:min-h-[210px] flex flex-col justify-between">
+      {/* 1. THANH NÚT CÔNG CỤ ĐIỀU HƯỚNG TRÊN CÙNG CỦA TRANG WEB */}
+      <nav
+        aria-label="Thanh điều hướng nhanh trên cùng trang web"
+        className="relative z-20 w-full bg-slate-950/95 border-b border-slate-800/90 px-3 py-1.5 backdrop-blur-md shadow-md"
+      >
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2">
+          {/* Danh sách các nút menu dạng pill */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => handleNavClick('home')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'home'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Về đầu trang chủ"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Trang chủ</span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('map', 'gis-map-section')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'map'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Cuộn tới Bản đồ Giám sát WebGIS"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Bản đồ giám sát</span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('alert', 'audio-alert-section')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'alert'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Cuộn tới Bản tin Cảnh báo Phát thanh"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              <span>Cảnh báo & Thông tin</span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('stats', 'villages-matrix-section')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'stats'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Xem Thống kê An toàn 20 Thôn Buôn"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Thống kê</span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('guide')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'guide'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Xem Hướng dẫn Quy trình Vận hành PCTT"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Hướng dẫn</span>
+            </button>
+
+            <button
+              onClick={() => handleNavClick('contact')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                activeMenu === 'contact'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+              }`}
+              title="Xem Thông tin Liên hệ Trực ban PCTT"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>Liên hệ</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* 2. HEADER BANNER - ẢNH THIÊN NHIÊN EA SÚP VỚI LOGO TRUNG TÂM ĐIỀU HÀNH */}
+      <header className="relative w-full overflow-hidden border-b border-emerald-600/40 shadow-2xl bg-[#0a192f] min-h-[145px] sm:min-h-[170px] flex items-center">
         {/* Thẻ ảnh <img> toàn cảnh thiên nhiên Ea Súp */}
         <img
           src={bannerSrc}
@@ -78,8 +167,8 @@ export const SovereigntyBanner: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/35 to-transparent pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none" />
 
-        {/* Bố cục tiêu đề với Logo mới (Đã lược bỏ cụm Trực chiến & Tọa độ theo Ảnh 2) */}
-        <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 flex-1">
+        {/* Bố cục tiêu đề với Logo mới */}
+        <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-4 sm:py-5 flex items-center justify-between gap-3 flex-1">
           {/* Cụm Tiêu đề: Logo mới (Ảnh 5), Tên đề tài, Tiêu đề chính & Khẩu hiệu */}
           <div className="flex items-center gap-3.5 sm:gap-4 text-center md:text-left">
             {/* LOGO TIÊU ĐỀ WEBSITE (Ảnh 5) */}
@@ -122,95 +211,6 @@ export const SovereigntyBanner: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* 2. THANH MENU ĐIỀU HƯỚNG DẠNG PILL (NAVBAR) - Đã lược bỏ chữ bên phải theo Ảnh 2 */}
-        <nav
-          aria-label="Thanh điều hướng nhanh"
-          className="relative z-10 w-full bg-slate-950/92 border-t border-slate-800/90 px-3 py-1.5 backdrop-blur-md"
-        >
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2">
-            {/* Danh sách các nút menu dạng pill */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <button
-                onClick={() => handleNavClick('home')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'home'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Về đầu trang chủ"
-              >
-                <Home className="w-3.5 h-3.5" />
-                <span>Trang chủ</span>
-              </button>
-
-              <button
-                onClick={() => handleNavClick('map', 'gis-map-section')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'map'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Cuộn tới Bản đồ Giám sát WebGIS"
-              >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Bản đồ giám sát</span>
-              </button>
-
-              <button
-                onClick={() => handleNavClick('alert', 'audio-alert-section')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'alert'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Cuộn tới Bản tin Cảnh báo Phát thanh"
-              >
-                <BellRing className="w-3.5 h-3.5" />
-                <span>Cảnh báo & Thông tin</span>
-              </button>
-
-              <button
-                onClick={() => handleNavClick('stats', 'villages-matrix-section')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'stats'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Xem Thống kê An toàn 20 Thôn Buôn"
-              >
-                <BarChart3 className="w-3.5 h-3.5" />
-                <span>Thống kê</span>
-              </button>
-
-              <button
-                onClick={() => handleNavClick('guide')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'guide'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Xem Hướng dẫn Quy trình Vận hành PCTT"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Hướng dẫn</span>
-              </button>
-
-              <button
-                onClick={() => handleNavClick('contact')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeMenu === 'contact'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
-                }`}
-                title="Xem Thông tin Liên hệ Trực ban PCTT"
-              >
-                <PhoneCall className="w-3.5 h-3.5" />
-                <span>Liên hệ</span>
-              </button>
-            </div>
-          </div>
-        </nav>
       </header>
 
       {/* 3. MODAL HƯỚNG DẪN QUY TRÌNH PCTT */}
