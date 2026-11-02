@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, Download, Volume2, RotateCcw } from 'lucide-react';
+import { Play, Pause } from 'lucide-react';
 
 export interface ArticleAudioPlayerProps {
   bulletinId: string;
   title: string;
-  audioUrl: string;
+  audioUrl?: string;
   voiceLabel?: string;
   content?: string;
 }
@@ -14,53 +14,83 @@ export interface ArticleAudioPlayerProps {
 export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   bulletinId,
   title,
-  audioUrl,
+  audioUrl = '/storage/tts/sample_annhien_alert.mp3',
   voiceLabel = 'Nữ (1.4X)',
   content,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(25); // Ước lượng ~25s ở tốc độ 1.4X cho đoạn tin
+  const [duration, setDuration] = useState(22); // Ước lượng ~22s ở tốc độ 1.4X
   const [playbackRate, setPlaybackRate] = useState<number>(1.4);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const textToRead = content || title || 'Bản tin cảnh báo thiên tai và giám sát rừng xã Ea Súp.';
+  // Nội dung cần đọc: ưu tiên nội dung cảnh báo chi tiết bên dưới
+  const textToRead =
+    content ||
+    title ||
+    'Ủy ban nhân dân và Ban Chỉ huy Phòng chống thiên tai và Tìm kiếm cứu nạn xã Ea Súp thông báo tình hình thiên tai.';
 
-  // Tìm giọng đọc nữ tiếng Việt
+  // Tìm giọng đọc nữ tiếng Việt Nam
   const getFemaleVietnameseVoice = useCallback((): SpeechSynthesisVoice | null => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
     const voices = window.speechSynthesis.getVoices();
-    // 1. Tìm giọng tiếng Việt nữ (như HoaiMy, Mai, Linh, Lan, Chi...)
+    if (!voices || voices.length === 0) return null;
+
+    // 1. Lọc tất cả các giọng tiếng Việt (vi, vi-VN, vi_VN, vietnam)
     const viVoices = voices.filter(
-      (v) => v.lang.toLowerCase().includes('vi') || v.lang.toLowerCase().includes('vn')
+      (v) =>
+        v.lang.toLowerCase().startsWith('vi') ||
+        v.lang.toLowerCase().includes('vn') ||
+        v.lang.toLowerCase().includes('vietnam')
     );
+
     if (viVoices.length > 0) {
-      const female = viVoices.find(
-        (v) =>
-          v.name.toLowerCase().includes('female') ||
-          v.name.toLowerCase().includes('hoaimy') ||
-          v.name.toLowerCase().includes('nu') ||
-          v.name.toLowerCase().includes('mai') ||
-          v.name.toLowerCase().includes('an') ||
-          !v.name.toLowerCase().includes('male')
-      );
-      return female || viVoices[0];
+      // Ưu tiên giọng nữ tiếng Việt rõ ràng (như HoaiMy, Mai, Linh, An, Chi, Ngọc...)
+      const femaleViVoice = viVoices.find((v) => {
+        const name = v.name.toLowerCase();
+        return (
+          name.includes('hoaimy') ||
+          name.includes('female') ||
+          name.includes('nu') ||
+          name.includes('nữ') ||
+          name.includes('mai') ||
+          name.includes('linh') ||
+          name.includes('chi') ||
+          name.includes('an') ||
+          name.includes('ngoc') ||
+          name.includes('ngọc') ||
+          name.includes('natural') ||
+          (!name.includes('nam') && !name.includes('male'))
+        );
+      });
+      return femaleViVoice || viVoices[0];
     }
-    // 2. Fallback tìm giọng nữ bất kỳ
-    return voices.find((v) => v.name.toLowerCase().includes('female')) || null;
+
+    // 2. Fallback tìm voice nữ bất kỳ trong hệ thống nếu máy tính chưa nạp gói tiếng Việt
+    const anyFemaleVoice = voices.find((v) => {
+      const name = v.name.toLowerCase();
+      return (
+        name.includes('female') ||
+        name.includes('woman') ||
+        name.includes('zira') ||
+        name.includes('samantha')
+      );
+    });
+    return anyFemaleVoice || null;
   }, []);
 
-  // Khởi tạo giọng đọc trong trình duyệt khi mount
+  // Khởi tạo và nạp giọng đọc trong trình duyệt khi mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => {
-        getFemaleVietnameseVoice();
+        window.speechSynthesis.getVoices();
       };
     }
-  }, [getFemaleVietnameseVoice]);
+  }, []);
 
-  // Dọn dẹp SpeechSynthesis khi unmount
+  // Dọn dẹp khi unmount
   useEffect(() => {
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -89,18 +119,19 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
+
       const utterance = new SpeechSynthesisUtterance(textToRead);
       utterance.lang = 'vi-VN';
-      utterance.rate = rate; // Đặt tốc độ 1.4X
+      utterance.rate = rate; // Đặt chuẩn tốc độ 1.4X
 
       const femaleVoice = getFemaleVietnameseVoice();
       if (femaleVoice) {
         utterance.voice = femaleVoice;
       }
 
-      // Ước tính thời gian đọc dựa vào số từ và tốc độ (trung bình 180 từ/phút ở 1.0X)
+      // Ước tính thời gian đọc theo số từ và tốc độ (khoảng 170 từ/phút ở 1.0X)
       const wordsCount = textToRead.split(/\s+/).length;
-      const estimatedSecs = Math.max(10, Math.round((wordsCount / (180 * rate)) * 60));
+      const estimatedSecs = Math.max(10, Math.round((wordsCount / (170 * rate)) * 60));
       setDuration(estimatedSecs);
 
       utterance.onstart = () => {
@@ -115,7 +146,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
           } else {
             setCurrentTime(elapsed);
           }
-        }, 200);
+        }, 150);
       };
 
       utterance.onend = () => {
@@ -125,7 +156,6 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       };
 
       utterance.onerror = () => {
-        // Fallback sang HTML5 audio nếu SpeechSynthesis gặp lỗi
         fallbackPlayAudio(rate);
       };
 
@@ -178,30 +208,17 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     <div
       className="p-3 my-2 rounded-lg border border-slate-700 bg-slate-900/90 text-slate-100 shadow-md backdrop-blur-sm"
       role="region"
-      aria-label="Trình phát thanh bản tin"
+      aria-label="Trình máy đọc giọng nữ tiếng Việt"
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-      {/* Header bar: Bỏ dòng chữ "Giọng đọc AI: An Nhiên...", chỉ giữ Nút Tải về MP3 */}
-      <div className="flex items-center justify-end gap-2 mb-2 pb-1 border-b border-slate-800">
-        <a
-          href={audioUrl}
-          download={`${bulletinId}.mp3`}
-          className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs rounded bg-slate-800 hover:bg-slate-700 active:bg-slate-900 focus-visible:ring-2 focus-visible:ring-emerald-400 text-slate-300 hover:text-white transition-colors"
-          title="Tải file .mp3 phát qua cụm loa truyền thanh thôn buôn"
-        >
-          <Download className="w-3 h-3" />
-          <span>Tải MP3</span>
-        </a>
-      </div>
-
-      {/* Main player controls */}
+      {/* Main player controls (Đã bỏ hoàn toàn nút Tải MP3) */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <button
           onClick={togglePlay}
           className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400 text-white transition-all transform active:scale-95 shadow-sm"
-          aria-label={isPlaying ? 'Tạm dừng phát thanh' : 'Bắt đầu máy đọc giọng nữ bản tin'}
-          title={isPlaying ? 'Tạm dừng phát' : 'Máy đọc giọng nữ (1.4X) nội dung bản tin'}
+          aria-label={isPlaying ? 'Tạm dừng máy đọc' : 'Bắt đầu máy đọc giọng nữ tiếng Việt'}
+          title={isPlaying ? 'Tạm dừng phát' : 'Máy đọc giọng nữ tiếng Việt (1.4X) nội dung cảnh báo'}
         >
           {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
         </button>
@@ -212,16 +229,16 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
           <input
             type="range"
             min={0}
-            max={duration || 25}
+            max={duration || 22}
             value={currentTime}
             onChange={handleSeek}
             className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-            aria-label="Thanh trượt thời lượng âm thanh"
+            aria-label="Thanh trượt thời lượng máy đọc"
           />
-          <span className="w-8">{formatTime(duration || 25)}</span>
+          <span className="w-8">{formatTime(duration || 22)}</span>
         </div>
 
-        {/* Speed Selector Buttons: Mặc định 1.4X */}
+        {/* Speed Selector Buttons: Mặc định tốc độ 1.4X */}
         <div className="flex items-center gap-1 bg-slate-800/80 p-0.5 rounded border border-slate-700/60">
           {([1, 1.25, 1.4, 1.5, 2] as const).map((rate) => (
             <button
