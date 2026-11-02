@@ -8,7 +8,6 @@ import {
   BarChart3,
   BookOpen,
   PhoneCall,
-  ShieldCheck,
   X,
 } from 'lucide-react';
 
@@ -16,15 +15,18 @@ export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
   const [activeModal, setActiveModal] = useState<'guide' | 'contact' | 'stats' | null>(null);
 
-  // Tự động nhận diện đường dẫn ảnh phù hợp với cả Localhost và GitHub Pages (/canhbao)
+  // Tự động nhận diện đường dẫn ảnh banner và logo phù hợp với cả Localhost và GitHub Pages (/canhbao)
   const [bannerSrc, setBannerSrc] = useState<string>('/images/banner_easup_nature.jpg');
+  const [logoSrc, setLogoSrc] = useState<string>('/images/logo_easup.png');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (window.location.pathname.startsWith('/canhbao')) {
         setBannerSrc('/canhbao/images/banner_easup_nature.jpg');
+        setLogoSrc('/canhbao/images/logo_easup.png');
       } else {
         setBannerSrc('/images/banner_easup_nature.jpg');
+        setLogoSrc('/images/logo_easup.png');
       }
     }
   }, []);
@@ -55,9 +57,9 @@ export const SovereigntyBanner: React.FC = () => {
 
   return (
     <>
-      {/* 1. HEADER BANNER - ẢNH TOÀN CẢNH THIÊN NHIÊN NÚI RỪNG HỒ EA SÚP */}
+      {/* 1. HEADER BANNER - ẢNH THIÊN NHIÊN EA SÚP VỚI LOGO TRUNG TÂM ĐIỀU HÀNH */}
       <header className="relative w-full overflow-hidden border-b border-emerald-600/40 shadow-2xl bg-[#0a192f] min-h-[175px] sm:min-h-[210px] flex flex-col justify-between">
-        {/* Thẻ ảnh <img> đảm bảo hiển thị 100% trên mọi nền tảng (Localhost & GitHub Pages) */}
+        {/* Thẻ ảnh <img> toàn cảnh thiên nhiên Ea Súp */}
         <img
           src={bannerSrc}
           alt="Toàn cảnh thiên nhiên núi rừng, hồ Ea Súp và chòi quan sát canh rừng"
@@ -72,23 +74,32 @@ export const SovereigntyBanner: React.FC = () => {
           }}
         />
 
-        {/* Lớp phủ chuyển sắc nhẹ nhàng: Giữ hình ảnh thiên nhiên tươi sáng, trong lành, đồng thời giúp chữ sắc nét tuyệt đối */}
+        {/* Lớp phủ gradient nhẹ nhàng làm nổi bật chữ */}
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/35 to-transparent pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none" />
 
-        {/* Bố cục các khối chữ tiêu đề và nút sắp xếp hài hòa */}
-        <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col md:flex-row items-center justify-between gap-3 flex-1">
-          {/* Cụm Trái: Quốc huy, Tên đề tài, Tiêu đề chính & Khẩu hiệu */}
+        {/* Bố cục tiêu đề với Logo mới (Đã lược bỏ cụm Trực chiến & Tọa độ theo Ảnh 2) */}
+        <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3 flex-1">
+          {/* Cụm Tiêu đề: Logo mới (Ảnh 5), Tên đề tài, Tiêu đề chính & Khẩu hiệu */}
           <div className="flex items-center gap-3.5 sm:gap-4 text-center md:text-left">
-            {/* Quốc huy Việt Nam sắc nét */}
-            <div className="relative shrink-0 w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-rose-600 via-amber-400 to-rose-700 p-0.5 shadow-[0_0_20px_rgba(244,63,94,0.6)] flex items-center justify-center">
-              <div className="w-full h-full rounded-full bg-rose-700 flex flex-col items-center justify-center border-2 border-amber-300">
-                <span className="text-amber-300 font-serif text-xl sm:text-2xl font-black leading-none drop-shadow">★</span>
-                <span className="text-[7.5px] text-amber-200 font-bold uppercase tracking-tighter mt-0.5">VIỆT NAM</span>
-              </div>
+            {/* LOGO TIÊU ĐỀ WEBSITE (Ảnh 5) */}
+            <div className="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-0.5 shadow-[0_0_20px_rgba(0,168,120,0.6)] flex items-center justify-center">
+              <img
+                src={logoSrc}
+                alt="Logo Trung Tâm Điều Hành Cảnh Báo Sớm Thiên Tai & Giám Sát Rừng Xã Ea Súp"
+                className="w-full h-full object-contain rounded-full border-2 border-emerald-400 drop-shadow-md bg-slate-950/40"
+                onError={(e) => {
+                  const currentSrc = e.currentTarget.src;
+                  if (!currentSrc.includes('/canhbao/')) {
+                    e.currentTarget.src = '/canhbao/images/logo_easup.png';
+                  } else {
+                    e.currentTarget.src = 'images/logo_easup.png';
+                  }
+                }}
+              />
             </div>
 
-            {/* Khối chữ Tiêu đề Banner có đổ bóng sâu chống chói */}
+            {/* Khối chữ Tiêu đề Banner */}
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 sm:gap-2">
                 <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-amber-300 bg-slate-950/80 border border-amber-400/60 px-2.5 py-0.5 rounded-full font-mono shadow-md backdrop-blur-sm">
@@ -110,25 +121,14 @@ export const SovereigntyBanner: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Cụm Phải: Badge Trực chiến 24/7 & Tọa độ địa phương */}
-          <div className="hidden md:flex flex-col items-end gap-1.5 font-mono text-xs">
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/85 border border-emerald-400/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.35)] backdrop-blur-md">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="font-bold text-white tracking-wide">HỆ THỐNG TRỰC CHIẾN 24/7</span>
-            </div>
-            <span className="text-[11px] text-slate-200 bg-black/60 px-2.5 py-0.5 rounded-full border border-white/20 backdrop-blur-sm">
-              Tọa độ: 13°15′B - 107°54′Đ • 20 Thôn Buôn
-            </span>
-          </div>
         </div>
 
-        {/* 2. THANH MENU ĐIỀU HƯỚNG DẠNG PILL (NAVBAR) GỌN GÀNG, HIỆN ĐẠI */}
+        {/* 2. THANH MENU ĐIỀU HƯỚNG DẠNG PILL (NAVBAR) - Đã lược bỏ chữ bên phải theo Ảnh 2 */}
         <nav
           aria-label="Thanh điều hướng nhanh"
           className="relative z-10 w-full bg-slate-950/92 border-t border-slate-800/90 px-3 py-1.5 backdrop-blur-md"
         >
-          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2">
             {/* Danh sách các nút menu dạng pill */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
@@ -208,12 +208,6 @@ export const SovereigntyBanner: React.FC = () => {
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Liên hệ</span>
               </button>
-            </div>
-
-            {/* Trạng thái mạng liên xã bên phải */}
-            <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="hidden sm:inline">Trạm Ea Súp: Hoạt động bình thường</span>
             </div>
           </div>
         </nav>

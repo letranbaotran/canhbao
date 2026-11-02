@@ -97,77 +97,59 @@ export const CommandCenterDashboard: React.FC = () => {
       {/* 1. Mốc Khẳng định Chủ quyền Quốc gia & Hoàng Sa, Trường Sa */}
       <SovereigntyBanner />
 
-      {/* 2. Header Trung tâm Chỉ huy Điều hành PCTT Xã Ea Súp */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 py-3 shadow-lg">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">
-              TRUNG TÂM ĐIỀU HÀNH CẢNH BÁO SỚM THIÊN TAI & GIÁM SÁT RỪNG
-            </h1>
-            <p className="text-xs text-slate-400">
-              Hệ thống tích hợp ảnh vệ tinh NASA & Mạng cảm biến IoT thủy văn, lâm nghiệp
-            </p>
+      {/* 2. Thanh Chỉ số Giám sát Trọng điểm Thời gian thực */}
+      <header className="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 shadow-lg backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2.5 text-xs font-mono">
+          {/* 1. Trạm TK-293 */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+              isTk293Red
+                ? 'emergency-flash text-rose-200'
+                : 'bg-slate-800/80 border-slate-700'
+            }`}
+          >
+            <Flame className={`w-4 h-4 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
+            <div>
+              <div className="text-[10px] text-slate-400">Trạm TK-293 (Lâm Nghiệp)</div>
+              <div className={`font-bold ${isTk293Red ? 'text-white' : 'text-amber-300'}`}>
+                {iotData.tk293.temperature}°C {isTk293Red ? '🚨 BÁO ĐỘNG CHÁY!' : '(Ổn định)'}
+              </div>
+            </div>
           </div>
 
-          {/* Quick Metrics Bar: Phản ánh trực tiếp số liệu thời gian thực, nhấp nháy đỏ & còi hú */}
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            {/* 1. Trạm TK-293 */}
-            <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                isTk293Red
-                  ? 'emergency-flash text-rose-200'
-                  : 'bg-slate-800/80 border-slate-700'
-              }`}
-            >
-              <Flame className={`w-4 h-4 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
-              <div>
-                <div className="text-[10px] text-slate-400">Trạm TK-293 (Lâm Nghiệp)</div>
-                <div className={`font-bold ${isTk293Red ? 'text-white' : 'text-amber-300'}`}>
-                  {iotData.tk293.temperature}°C {isTk293Red ? '🚨 BÁO ĐỘNG CHÁY!' : '(Ổn định)'}
-                </div>
+          {/* 2. Trạm Hồ Thượng */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+              isHoThuongRed
+                ? 'emergency-flash text-rose-200'
+                : iotData.hoThuong.elevation >= 208.5
+                ? 'bg-amber-950/80 border-amber-600 text-amber-300'
+                : 'bg-slate-800/80 border-slate-700'
+            }`}
+          >
+            <Droplets className={`w-4 h-4 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
+            <div>
+              <div className="text-[10px] text-slate-400">Hồ Ea Súp Thượng</div>
+              <div className={`font-bold ${isHoThuongRed ? 'text-white' : 'text-blue-300'}`}>
+                {iotData.hoThuong.elevation}m ({isHoThuongRed ? '🌊 XẢ LŨ CẤP III' : iotData.hoThuong.elevation >= 208.5 ? 'Báo động II' : 'An toàn'})
               </div>
             </div>
+          </div>
 
-            {/* 2. Trạm Hồ Thượng */}
-            <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                isHoThuongRed
-                  ? 'emergency-flash text-rose-200'
-                  : iotData.hoThuong.elevation >= 208.5
-                  ? 'bg-amber-950/80 border-amber-600 text-amber-300'
-                  : 'bg-slate-800/80 border-slate-700'
-              }`}
-            >
-              <Droplets className={`w-4 h-4 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
-              <div>
-                <div className="text-[10px] text-slate-400">Hồ Ea Súp Thượng</div>
-                <div className={`font-bold ${isHoThuongRed ? 'text-white' : 'text-blue-300'}`}>
-                  {iotData.hoThuong.elevation}m ({isHoThuongRed ? '🌊 XẢ LŨ CẤP III' : iotData.hoThuong.elevation >= 208.5 ? 'Báo động II' : 'An toàn'})
-                </div>
+          {/* 3. Trạm Hồ Hạ */}
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+              isHoHaRed
+                ? 'emergency-flash text-rose-200'
+                : 'bg-emerald-950/60 border-emerald-800'
+            }`}
+          >
+            <ShieldAlert className={`w-4 h-4 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
+            <div>
+              <div className="text-[10px] text-emerald-300">Hồ Ea Súp Hạ</div>
+              <div className={`font-bold ${isHoHaRed ? 'text-white' : 'text-emerald-200'}`}>
+                {isHoHaRed ? `⛔ CÓ ${iotData.hoHa.illegalCages} LỒNG BÈ VI PHẠM!` : 'Nguồn nước sinh hoạt (Bảo vệ)'}
               </div>
-            </div>
-
-            {/* 3. Trạm Hồ Hạ */}
-            <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
-                isHoHaRed
-                  ? 'emergency-flash text-rose-200'
-                  : 'bg-emerald-950/60 border-emerald-800'
-              }`}
-            >
-              <ShieldAlert className={`w-4 h-4 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
-              <div>
-                <div className="text-[10px] text-emerald-300">Hồ Ea Súp Hạ</div>
-                <div className={`font-bold ${isHoHaRed ? 'text-white' : 'text-emerald-200'}`}>
-                  {isHoHaRed ? `⛔ CÓ ${iotData.hoHa.illegalCages} LỒNG BÈ VI PHẠM!` : 'Nguồn nước sinh hoạt (Bảo vệ)'}
-                </div>
-              </div>
-            </div>
-
-            {/* 4. Chỉ báo mạng đồng bộ trực tuyến WSS */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-[11px] text-slate-300">
-              <span className={`inline-block w-2 h-2 rounded-full ${mqttStatus === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
-              <span>{mqttStatus === 'connected' ? 'Đồng bộ đa thiết bị' : 'Đang kết nối...'}</span>
             </div>
           </div>
         </div>
@@ -441,16 +423,6 @@ export const CommandCenterDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-end">
-                <button
-                  onClick={() => setTelemetryTab('SIMULATOR')}
-                  className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
-                >
-                  <Sliders className="w-3 h-3 text-amber-400" />
-                  Mở Tab Mô Phỏng Kiểm Chứng
-                </button>
               </div>
             </section>
           )}
