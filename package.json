@@ -17,6 +17,7 @@
     "crypto-js": "^4.2.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.460.0",
+    "mqtt": "^5.16.1",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -7,6 +7,7 @@ import { ArticleAudioPlayer } from './ArticleAudioPlayer';
 import { IoTSimulatorTab, DEFAULT_IOT_DATA, IoTTelemetryData } from './IoTSimulatorTab';
 import { EASUP_VILLAGES, NEIGHBOR_COMMUNES } from '@/data/administrative_boundaries';
 import { alarmSystem } from '@/utils/alarmSound';
+import { realtimeSync } from '@/services/realtimeSyncService';
 import {
   Flame,
   Droplets,
@@ -20,6 +21,7 @@ import {
   CheckCircle2,
   Cpu,
   Activity,
+  Wifi,
 } from 'lucide-react';
 
 export const CommandCenterDashboard: React.FC = () => {
@@ -27,6 +29,27 @@ export const CommandCenterDashboard: React.FC = () => {
   const [iotData, setIotData] = useState<IoTTelemetryData>(DEFAULT_IOT_DATA);
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
+  const [networkSyncMsg, setNetworkSyncMsg] = useState<string | null>(null);
+  const [mqttStatus, setMqttStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
+
+  // Lắng nghe tín hiệu đồng bộ từ các máy khác qua MQTT Broker / BroadcastChannel
+  useEffect(() => {
+    const unsubscribeSync = realtimeSync.onSync((msg) => {
+      setIotData(msg.data);
+      const timeStr = new Date(msg.timestamp).toLocaleTimeString('vi-VN');
+      setNetworkSyncMsg(`📡 Nhận tín hiệu đồng bộ từ thiết bị khác lúc ${timeStr}: Số liệu & cảnh báo đã đồng loạt cập nhật!`);
+      setTimeout(() => setNetworkSyncMsg(null), 5000);
+    });
+
+    const unsubscribeStatus = realtimeSync.onStatus((status) => {
+      setMqttStatus(status);
+    });
+
+    return () => {
+      unsubscribeSync();
+      unsubscribeStatus();
+    };
+  }, []);
 
   // Tính toán điều kiện chuyển sang màu đỏ (Báo động đỏ)
   const isTk293Red = iotData.tk293.temperature > 45 || iotData.tk293.smokeCo > 50;
@@ -140,9 +163,26 @@ export const CommandCenterDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* 4. Chỉ báo mạng đồng bộ trực tuyến WSS */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/60 text-[11px] text-slate-300">
+              <span className={`inline-block w-2 h-2 rounded-full ${mqttStatus === 'connected' ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
+              <span>{mqttStatus === 'connected' ? 'Đồng bộ đa thiết bị' : 'Đang kết nối...'}</span>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* 2.1 Thông báo nhận tín hiệu đồng bộ khẩn cấp từ thiết bị khác */}
+      {networkSyncMsg && (
+        <div className="bg-emerald-950/95 border-b border-emerald-500/60 text-emerald-300 px-4 py-2 text-xs font-mono flex items-center justify-between shadow-2xl animate-pulse">
+          <div className="flex items-center gap-2">
+            <Radio className="w-4 h-4 text-emerald-400 animate-spin" />
+            <span className="font-bold">{networkSyncMsg}</span>
+          </div>
+          <span className="text-[10px] text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-700">MQTT WSS Đồng Bộ Thời Gian Thực</span>
+        </div>
+      )}
 
       {/* 3. Main Dashboard Bento Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
