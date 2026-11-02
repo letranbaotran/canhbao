@@ -55,8 +55,18 @@ select:disabled {
 }
 
 .custom-map-marker {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
+  white-space: nowrap !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.custom-map-marker > div {
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
 }
 
 @keyframes pulseGlow {
