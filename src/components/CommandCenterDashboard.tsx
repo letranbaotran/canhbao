@@ -5,7 +5,7 @@ import { SovereigntyBanner } from './SovereigntyBanner';
 import { WebGISMap } from './WebGISMap';
 import { ArticleAudioPlayer } from './ArticleAudioPlayer';
 import { IoTSimulatorTab, DEFAULT_IOT_DATA, IoTTelemetryData } from './IoTSimulatorTab';
-import { EASUP_VILLAGES, NEIGHBOR_COMMUNES } from '@/data/administrative_boundaries';
+import { EASUP_VILLAGES } from '@/data/administrative_boundaries';
 import { alarmSystem } from '@/utils/alarmSound';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import {
@@ -105,7 +105,7 @@ export const CommandCenterDashboard: React.FC = () => {
               TRUNG TÂM ĐIỀU HÀNH CẢNH BÁO SỚM THIÊN TAI & GIÁM SÁT RỪNG
             </h1>
             <p className="text-xs text-slate-400">
-              Hệ thống tích hợp ảnh vệ tinh NASA FIRMS/GIBS & Mạng cảm biến IoT thủy văn, lâm nghiệp
+              Hệ thống tích hợp ảnh vệ tinh NASA & Mạng cảm biến IoT thủy văn, lâm nghiệp
             </p>
           </div>
 
@@ -198,7 +198,7 @@ export const CommandCenterDashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                Cụm Loa Truyền Thanh Số AI - Giọng Đọc An Nhiên
+                Cụm Loa Truyền Thanh Số
               </h2>
               <span className="text-[11px] font-mono text-slate-400">Tự động phát thanh đa kênh</span>
             </div>
@@ -207,6 +207,7 @@ export const CommandCenterDashboard: React.FC = () => {
               title={sampleBulletin.title}
               audioUrl={sampleBulletin.audioUrl}
               voiceLabel={sampleBulletin.voiceLabel}
+              content={sampleBulletin.content}
             />
             <p className="text-[11px] text-slate-400 mt-1 italic">
               {sampleBulletin.content}
@@ -303,7 +304,6 @@ export const CommandCenterDashboard: React.FC = () => {
                         <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
                         Trạm Lâm Nghiệp TK-293
                       </span>
-                      <span className="text-slate-400 font-normal">LoRaWAN</span>
                     </div>
                     <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
                       <div>
@@ -443,8 +443,7 @@ export const CommandCenterDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-[10px] text-slate-500">Mô hình chính quyền 2 cấp xã Ea Súp</span>
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-end">
                 <button
                   onClick={() => setTelemetryTab('SIMULATOR')}
                   className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
@@ -468,25 +467,7 @@ export const CommandCenterDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Vùng Liên Xã Giáp Ranh */}
-          <section
-            aria-label="Vùng liên xã giáp ranh"
-            className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-md text-xs"
-          >
-            <h3 className="font-bold text-amber-400 uppercase tracking-wider mb-1.5">
-              Vùng Đệm Liên Xã Biên Giới (Bán kính 5km)
-            </h3>
-            <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
-              {NEIGHBOR_COMMUNES.map((nc) => (
-                <span
-                  key={nc}
-                  className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300"
-                >
-                  {nc}
-                </span>
-              ))}
-            </div>
-          </section>
+
         </div>
       </main>
 

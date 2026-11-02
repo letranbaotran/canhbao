@@ -35,19 +35,19 @@ import {
 
 const BASEMAP_TILES = {
   SATELLITE: {
-    name: 'Vệ tinh Esri',
+    name: 'Vệ tinh',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Ea Súp WebGIS',
     maxZoom: 18,
   },
   STREETS: {
-    name: 'Bản đồ OSM',
+    name: 'Bản đồ',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: 'OSM',
     maxZoom: 19,
   },
   TOPO: {
-    name: 'Địa hình Topo',
+    name: 'Địa hình',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Esri Topo',
     maxZoom: 18,
