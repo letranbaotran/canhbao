@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: easup_web
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-easup_admin}:${POSTGRES_PASSWORD:-EasupPCTT2026!}@db:5432/${POSTGRES_DB:-canhbao_easup}?schema=public
+      - REDIS_URL=redis://redis:6379
+      - MQTT_BROKER_URL=mqtt://mosquitto:1883
+      - IOT_HMAC_SECRET=${IOT_HMAC_SECRET:-easup-iot-secret-2026}
+      - VBEE_APP_ID=${VBEE_APP_ID}
+      - VBEE_ACCESS_TOKEN=${VBEE_ACCESS_TOKEN}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - tts_storage:/app/public/storage/tts
+    depends_on:
+      - db
+      - redis
+      - mosquitto
+
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: easup_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-easup_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-EasupPCTT2026!}
+      POSTGRES_DB: ${POSTGRES_DB:-canhbao_easup}
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7-alpine
+    container_name: easup_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0-alpine
+    container_name: easup_mosquitto
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+      - '9001:9001'
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  nginx:
+    image: nginx:alpine
+    container_name: easup_nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - web
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: easup_dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - '8888:8080'
+
+volumes:
+  postgis_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_log:
+  tts_storage:

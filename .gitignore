@@ -1,0 +1,32 @@
+# Node dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build
+.next/
+out/
+build/
+dist/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Storage
+public/storage/tts/*.mp3
+!public/storage/tts/sample_annhien_alert.mp3
+mosquitto/data/*
+mosquitto/log/*

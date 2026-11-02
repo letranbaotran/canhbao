@@ -1,0 +1,300 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis()]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+enum UnitType {
+  COMMUNE_CORE       // Ea Súp
+  COMMUNE_NEIGHBOR   // Ea Bung, Ea Rốk, Ia Lốp, Ia Rvê
+  VILLAGE            // 20 thôn buôn
+}
+
+enum ForestType {
+  RUNG_KHOP_TU_NHIEN
+  RUNG_PHONG_HO
+  RUNG_TRONG
+  DAT_LAM_NGHIEP
+}
+
+enum SatelliteSource {
+  VIIRS_SNPP
+  VIIRS_NOAA20
+  MODIS_TERRA
+}
+
+enum VerificationStatus {
+  PENDING
+  CONFIRMED_FIRE
+  CONTROLLED_BURN
+  FALSE_ALARM
+}
+
+enum InspectionStatus {
+  FLAGGED_RED
+  ASSIGNED
+  INSPECTED_VIOLATION
+  INSPECTED_LEGAL
+}
+
+enum StationType {
+  HYDRO_ULTRASONIC_RADAR
+  FOREST_FIRE_LORAWAN
+  SOIL_MOISTURE_AGRI
+}
+
+enum AlertLevel {
+  NORMAL
+  LEVEL_1
+  LEVEL_2
+  LEVEL_3_CRITICAL
+}
+
+enum DroughtColor {
+  GREEN_OPTIMAL
+  YELLOW_WARNING
+  RED_CRITICAL
+}
+
+enum AlertCategory {
+  FIRE_ALERT
+  FOREST_ENCROACHMENT
+  FLOOD_DISCHARGE
+  DROUGHT_IRRIGATION
+}
+
+enum Severity {
+  INFO
+  WARNING
+  EMERGENCY_SOS
+}
+
+enum UserRole {
+  PUBLIC
+  VILLAGE_LEADER
+  NEIGHBOR_COMMUNE
+  SPECIALIST_FORCE
+  EXECUTIVE_COMMAND
+}
+
+// 1. AdministrativeUnit
+model AdministrativeUnit {
+  id              String               @id @default(uuid())
+  code            String               @unique
+  name            String
+  unitType        UnitType
+  parentCode      String?
+  boundaryGeoJson Json?
+  population      Int                  @default(0)
+  householdsCount Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  
+  hotspots        SatelliteFireHotspot[]
+  forestChanges   ForestCoverChange[]
+  irrigationZones DroughtZone[]
+  auditLogs       AuditLog[]
+
+  @@map("administrative_units")
+}
+
+// 2. ForestCompartment
+model ForestCompartment {
+  id              String               @id @default(uuid())
+  compartmentCode String               @unique // ví dụ: 'TK-277'
+  subZone         String?
+  communeCode     String
+  forestType      ForestType           @default(RUNG_KHOP_TU_NHIEN)
+  protectionLevel String               @default("NGHIEM_NGAT")
+  boundaryGeoJson Json?
+  areaHectares    Float                @default(0.0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  hotspots        SatelliteFireHotspot[]
+  forestChanges   ForestCoverChange[]
+
+  @@map("forest_compartments")
+}
+
+// 3. SatelliteFireHotspot (NASA FIRMS)
+model SatelliteFireHotspot {
+  id                 String             @id @default(uuid())
+  satelliteSource    SatelliteSource    @default(VIIRS_SNPP)
+  latitude           Float
+  longitude          Float
+  brightnessTempK    Float
+  frpMW              Float              // Công suất bức xạ lửa (MW)
+  confidenceLevel    String             // 'low', 'nominal', 'high'
+  acqDateTime        DateTime
+  compartmentId      String?
+  villageCode        String?
+  communeCode        String?
+  distanceToWaterM   Float?
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedById       String?
+  fieldPhotos        Json?              // Danh sách URL ảnh hiện trường
+  createdAt          DateTime           @default(now())
+
+  compartment        ForestCompartment? @relation(fields: [compartmentId], references: [id])
+  administrativeUnit AdministrativeUnit? @relation(fields: [communeCode], references: [code])
+
+  @@map("satellite_fire_hotspots")
+}
+
+// 4. ForestCoverChange (Delta-NDVI)
+model ForestCoverChange {
+  id                    String            @id @default(uuid())
+  compartmentId         String?
+  communeCode           String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  ndviBefore            Float
+  ndviAfter             Float
+  deltaNdvi             Float             // Độ sụt giảm NDVI
+  affectedAreaM2        Float             // Diện tích ảnh hưởng (m2 >= 500m2)
+  boundaryGeoJson       Json?
+  satelliteImageBeforeUrl String?
+  satelliteImageAfterUrl  String?
+  inspectionStatus      InspectionStatus  @default(FLAGGED_RED)
+  inspectionNotes       String?
+  createdAt             DateTime          @default(now())
+
+  compartment           ForestCompartment? @relation(fields: [compartmentId], references: [id])
+  administrativeUnit    AdministrativeUnit? @relation(fields: [communeCode], references: [code])
+
+  @@map("forest_cover_changes")
+}
+
+// 5. IoTSensorStation & HydroStation
+model IoTSensorStation {
+  id                String             @id @default(uuid())
+  stationCode       String             @unique
+  stationName       String
+  stationType       StationType
+  locationName      String             // Hồ Ea Súp Thượng, Hồ Ea Súp Hạ, Tiểu khu 277, Đoàn Kết...
+  latitude          Float
+  longitude         Float
+  batteryVoltage    Float              @default(12.6)
+  solarStatus       Boolean            @default(true)
+  signalRssi        Int                @default(-75)
+  warningThreshold1 Float              // Mức cảnh báo 1
+  warningThreshold2 Float              // Mức cảnh báo 2
+  warningThreshold3 Float              // Mức cảnh báo 3 (khẩn cấp)
+  isActive          Boolean            @default(true)
+  isStrictProtected Boolean            @default(false) // Hồ Ea Súp Hạ: cấm nuôi cá
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  telemetryReadings TelemetryReading[]
+
+  @@map("iot_sensor_stations")
+}
+
+// 6. TelemetryReading
+model TelemetryReading {
+  id              String            @id @default(uuid())
+  stationId       String
+  recordedAt      DateTime          @default(now())
+  waterLevelM     Float?            // Cao trình mực nước (m)
+  waterFlowM3s    Float?            // Lưu lượng m3/s
+  rainfallMm      Float?            // Lượng mưa mm
+  smokePpm        Float?            // Nồng độ khói CO/CO2
+  airTempC        Float?            // Nhiệt độ không khí
+  airHumidityPct  Float?            // Độ ẩm không khí %
+  windSpeedMs     Float?            // Tốc độ gió m/s
+  windDirectionDeg Float?           // Hướng gió độ
+  soilMoisturePct Float?            // Độ ẩm đất %
+  waterDoMgL      Float?            // Oxy hòa tan DO cho hồ cá Đoàn Kết
+  waterPh         Float?            // Độ pH
+  alertLevel      AlertLevel        @default(NORMAL)
+
+  station         IoTSensorStation  @relation(fields: [stationId], references: [id])
+
+  @@map("telemetry_readings")
+}
+
+// 7. DroughtZone & IrrigationSchedule
+model DroughtZone {
+  id                    String             @id @default(uuid())
+  zoneName              String
+  communeCode           String
+  villageCode           String?
+  smapSoilMoistureIndex Float              @default(0.35)
+  ndviHealthIndex       Float              @default(0.65)
+  droughtColor          DroughtColor       @default(GREEN_OPTIMAL)
+  canalName             String?            // Kênh chính Đông, Kênh chính Tây
+  gateOpenTime          DateTime?
+  gateCloseTime         DateTime?
+  flowRateAllocated     Float?             // Lưu lượng phân bổ (m3/s)
+  approvedById          String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  administrativeUnit    AdministrativeUnit @relation(fields: [communeCode], references: [code])
+
+  @@map("drought_zones")
+}
+
+// 8. EmergencyAlertBulletin (Loa truyền thanh AI An Nhiên & Telegram)
+model EmergencyAlertBulletin {
+  id             String         @id @default(uuid())
+  bulletinCode   String         @unique
+  alertCategory  AlertCategory
+  severity       Severity       @default(WARNING)
+  title          String
+  summary        String
+  contentBody    String
+  targetCommunes String[]
+  targetVillages String[]
+  audioUrl       String?        // Đường dẫn file .mp3 trên VPS
+  audioDuration  Int?           // Giây
+  voiceLabel     String         @default("An Nhiên")
+  contentHash    String         // SHA-256
+  ttsProvider    String         @default("vbee") // 'vbee' hoặc 'edge-tts'
+  telegramSent   Boolean        @default(false)
+  createdById    String?
+  publishedAt    DateTime       @default(now())
+
+  @@map("emergency_alert_bulletins")
+}
+
+// 9. User & AuditLog (ABAC + RBAC)
+model User {
+  id           String     @id @default(uuid())
+  username     String     @unique
+  fullName     String
+  role         UserRole   @default(PUBLIC)
+  communeCode  String?    // Giới hạn địa bàn
+  villageCode  String?    // Giới hạn thôn buôn (cho VILLAGE_LEADER)
+  organization String?    // Kiểm lâm, Công an, BCHQS, UBND...
+  passwordHash String
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id           String              @id @default(uuid())
+  userId       String?
+  communeCode  String?
+  action       String              // 'TRIGGER_ALARM', 'VERIFY_FIRE', 'DISPATCH_TTS', 'UPDATE_WATER_GATE'
+  resource     String
+  payload      Json?
+  ipAddress    String?
+  createdAt    DateTime            @default(now())
+
+  user         User?               @relation(fields: [userId], references: [id])
+  commune      AdministrativeUnit? @relation(fields: [communeCode], references: [code])
+
+  @@map("audit_logs")
+}
