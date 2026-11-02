@@ -34,25 +34,31 @@ describe('KIỂM CHỨNG DỮ LIỆU KHỞI TẠO (SEED DATA VERIFICATION)', () 
     );
   });
 
-  it('phải nạp lâm phần Tiểu khu 277 với mức bảo vệ nghiêm ngặt', () => {
-    const tk277 = seed.forestCompartments.find((f) => f.code === 'TK-277');
-    expect(tk277).toBeDefined();
-    expect(tk277?.protectionLevel).toBe('NGHIEM_NGAT');
+  it('phải nạp lâm phần Tiểu khu 293 với mức bảo vệ nghiêm ngặt và tọa độ chuẩn', () => {
+    const tk293 = seed.forestCompartments.find((f) => f.code === 'TK-293');
+    expect(tk293).toBeDefined();
+    expect(tk293?.name).toBe('Lâm phần Tiểu khu 293');
+    expect(tk293?.protectionLevel).toBe('NGHIEM_NGAT');
+    expect(tk293?.coordinates).toEqual([12.982216, 107.886961]);
   });
 
-  it('phải có 4 trọng điểm thủy văn, trong đó Hồ Ea Súp Hạ CẤM NUÔI CÁ', () => {
+  it('phải có 4 trọng điểm thủy văn với tọa độ chuẩn, trong đó Hồ Ea Súp Hạ CẤM NUÔI CÁ', () => {
     expect(seed.hydroStations).toHaveLength(4);
 
     const hoHa = seed.hydroStations.find((h) => h.code === 'HO_EASUP_HA');
     expect(hoHa).toBeDefined();
     expect(hoHa?.isStrictProtected).toBe(true); // QUY TẮC BẤT BIẾN
+    expect(hoHa?.coordinates).toEqual([13.05685, 107.894562]);
 
     const hoThuong = seed.hydroStations.find((h) => h.code === 'HO_EASUP_THUONG');
     expect(hoThuong).toBeDefined();
+    expect(hoThuong?.coordinates).toEqual([13.043116, 107.937218]);
 
-    const doanKet = seed.hydroStations.find((h) => h.code === 'HO_CA_THON_DOAN_KET');
-    expect(doanKet).toBeDefined();
-    expect(doanKet?.isStrictProtected).toBe(false);
+    const hoTrungChuyen = seed.hydroStations.find((h) => h.code === 'HO_TRUNG_CHUYEN');
+    expect(hoTrungChuyen).toBeDefined();
+    expect(hoTrungChuyen?.name).toBe('Hồ Trung Chuyển');
+    expect(hoTrungChuyen?.isStrictProtected).toBe(false);
+    expect(hoTrungChuyen?.coordinates).toEqual([13.069298, 107.881527]);
 
     const songEaSup = seed.hydroStations.find((h) => h.code === 'SONG_EASUP');
     expect(songEaSup).toBeDefined();

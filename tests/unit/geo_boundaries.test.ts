@@ -38,16 +38,26 @@ describe('PHẦN 1: Bối cảnh Hành chính & Địa bàn Ea Súp', () => {
     expect(isNeighborCommune('Xã Cư M\'gar')).toBe(false);
   });
 
-  it('phải định nghĩa đúng 4 trọng điểm giám sát đặc biệt', () => {
-    expect(KEY_MONITORING_TARGETS.FOREST_TK277).toBeDefined();
+  it('phải định nghĩa đúng 4 trọng điểm giám sát với tọa độ cập nhật', () => {
+    // Tiểu khu 293 (12.982216, 107.886961)
+    expect(KEY_MONITORING_TARGETS.FOREST_TK293).toBeDefined();
+    expect(KEY_MONITORING_TARGETS.FOREST_TK293.coordinates).toEqual([12.982216, 107.886961]);
+
+    // Hồ Ea Súp Thượng (13.043116, 107.937218)
     expect(KEY_MONITORING_TARGETS.HO_EASUP_THUONG).toBeDefined();
+    expect(KEY_MONITORING_TARGETS.HO_EASUP_THUONG.coordinates).toEqual([13.043116, 107.937218]);
+
+    // Hồ Ea Súp Hạ (13.056850, 107.894562)
     expect(KEY_MONITORING_TARGETS.HO_EASUP_HA).toBeDefined();
-    expect(KEY_MONITORING_TARGETS.SONG_EASUP).toBeDefined();
-    expect(KEY_MONITORING_TARGETS.HO_CA_THON_DOAN_KET).toBeDefined();
+    expect(KEY_MONITORING_TARGETS.HO_EASUP_HA.coordinates).toEqual([13.05685, 107.894562]);
+
+    // Hồ Trung Chuyển (13.069298, 107.881527)
+    expect(KEY_MONITORING_TARGETS.HO_TRUNG_CHUYEN).toBeDefined();
+    expect(KEY_MONITORING_TARGETS.HO_TRUNG_CHUYEN.coordinates).toEqual([13.069298, 107.881527]);
   });
 
   it('phải có luật bất di bất dịch: TUYỆT ĐỐI CẤM NUÔI CÁ LỒNG BÈ TẠI HỒ EA SÚP HẠ', () => {
     expect(isStrictAquacultureProhibited('Hồ Ea Súp Hạ')).toBe(true);
-    expect(isStrictAquacultureProhibited('Hồ cá Thôn Đoàn Kết')).toBe(false);
+    expect(isStrictAquacultureProhibited('Hồ Trung Chuyển')).toBe(false);
   });
 });

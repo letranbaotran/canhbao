@@ -41,42 +41,48 @@ export interface MonitoringTarget {
   isStrictAquacultureProhibited: boolean;
 }
 
+const TK293_TARGET: MonitoringTarget = {
+  name: 'Lâm phần Tiểu khu 293',
+  type: 'FOREST',
+  description: 'Vùng rừng khộp tự nhiên dễ cháy mùa khô giáp ranh nương rẫy',
+  coordinates: [12.982216, 107.886961],
+  isStrictAquacultureProhibited: false,
+};
+
+const HO_TRUNG_CHUYEN_TARGET: MonitoringTarget = {
+  name: 'Hồ Trung Chuyển',
+  type: 'AQUACULTURE_ZONE',
+  description: 'Khu vực hồ trung chuyển điều tiết nước và nuôi trồng thủy sản có cảm biến IoT giám sát DO và pH',
+  coordinates: [13.069298, 107.881527],
+  isStrictAquacultureProhibited: false,
+};
+
 export const KEY_MONITORING_TARGETS: Record<string, MonitoringTarget> = {
-  FOREST_TK277: {
-    name: 'Lâm phần Tiểu khu 277',
-    type: 'FOREST',
-    description: 'Vùng rừng khộp tự nhiên dễ cháy mùa khô giáp ranh nương rẫy',
-    coordinates: [13.255, 107.822],
-    isStrictAquacultureProhibited: false,
-  },
+  FOREST_TK293: TK293_TARGET,
+  FOREST_TK277: TK293_TARGET, // Alias tương thích
   HO_EASUP_THUONG: {
     name: 'Hồ Ea Súp Thượng',
     type: 'HYDRO_LAKE',
     description: 'Công trình đại thủy nông, dung tích 146 triệu m3, đập chính và tràn xả lũ',
-    coordinates: [13.218, 107.915],
+    coordinates: [13.043116, 107.937218],
     isStrictAquacultureProhibited: false,
   },
   HO_EASUP_HA: {
     name: 'Hồ Ea Súp Hạ',
     type: 'HYDRO_LAKE',
     description: 'Vùng bảo vệ nghiêm ngặt nguồn nước thô sinh hoạt - TUYỆT ĐỐI CẤM NUÔI THỦY SẢN',
-    coordinates: [13.235, 107.876],
+    coordinates: [13.05685, 107.894562],
     isStrictAquacultureProhibited: true,
   },
   SONG_EASUP: {
     name: 'Toàn tuyến Sông Ea Súp',
     type: 'HYDRO_RIVER',
     description: 'Trục tiêu thoát lũ chính đi qua các thôn trũng',
-    coordinates: [13.242, 107.854],
+    coordinates: [13.0512, 107.9105],
     isStrictAquacultureProhibited: false,
   },
-  HO_CA_THON_DOAN_KET: {
-    name: 'Hồ cá Thôn Đoàn Kết',
-    type: 'AQUACULTURE_ZONE',
-    description: 'Khu nuôi trồng thủy sản tập trung có cảm biến IoT giám sát Oxy hòa tan DO và pH',
-    coordinates: [13.248, 107.868],
-    isStrictAquacultureProhibited: false,
-  },
+  HO_TRUNG_CHUYEN: HO_TRUNG_CHUYEN_TARGET,
+  HO_CA_THON_DOAN_KET: HO_TRUNG_CHUYEN_TARGET, // Alias tương thích
 };
 
 export function isEaSupVillage(name: string): boolean {

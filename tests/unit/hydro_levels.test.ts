@@ -44,9 +44,9 @@ describe('PHẦN 5: Động cơ Giám sát Thủy văn, Lũ lụt & Hồ Ea Súp
     expect(violationReport.severity).toBe('EMERGENCY_SOS');
   });
 
-  it('không báo vi phạm khi hoạt động nuôi cá ở đúng khu vực được quy hoạch là Thôn Đoàn Kết', () => {
+  it('không báo vi phạm khi hoạt động nuôi cá ở đúng khu vực được quy hoạch là Hồ Trung Chuyển (Thôn Đoàn Kết)', () => {
     const normalReport = checkAquacultureViolation({
-      locationName: 'Hồ cá Thôn Đoàn Kết',
+      locationName: 'Hồ Trung Chuyển',
       hasFishCages: true,
       turbidityDoAnomaly: false,
     });

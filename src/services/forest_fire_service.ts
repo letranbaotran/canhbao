@@ -26,12 +26,12 @@ export interface FireAlertResult {
   reason?: string;
 }
 
-// Bounding Box [107.55, 13.00, 108.10, 13.50]
+// Bounding Box [107.50, 12.90, 108.15, 13.50] bao trùm toàn xã Ea Súp, Tiểu khu 293 và 4 xã lân cận
 export const EASUP_BOUNDING_BOX = {
-  minLng: 107.55,
-  minLat: 13.0,
-  maxLng: 108.1,
-  maxLat: 13.5,
+  minLng: 107.50,
+  minLat: 12.90,
+  maxLng: 108.15,
+  maxLat: 13.50,
 };
 
 /**

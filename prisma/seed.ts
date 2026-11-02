@@ -37,10 +37,10 @@ export function generateSeedData(): SeedDataset {
 
   const forestCompartments = [
     {
-      code: 'TK-277',
-      name: KEY_MONITORING_TARGETS.FOREST_TK277.name,
+      code: 'TK-293',
+      name: KEY_MONITORING_TARGETS.FOREST_TK293.name,
       protectionLevel: 'NGHIEM_NGAT',
-      coordinates: KEY_MONITORING_TARGETS.FOREST_TK277.coordinates,
+      coordinates: KEY_MONITORING_TARGETS.FOREST_TK293.coordinates,
     },
   ];
 
@@ -64,10 +64,10 @@ export function generateSeedData(): SeedDataset {
       coordinates: KEY_MONITORING_TARGETS.SONG_EASUP.coordinates,
     },
     {
-      code: 'HO_CA_THON_DOAN_KET',
-      name: KEY_MONITORING_TARGETS.HO_CA_THON_DOAN_KET.name,
-      isStrictProtected: KEY_MONITORING_TARGETS.HO_CA_THON_DOAN_KET.isStrictAquacultureProhibited,
-      coordinates: KEY_MONITORING_TARGETS.HO_CA_THON_DOAN_KET.coordinates,
+      code: 'HO_TRUNG_CHUYEN',
+      name: KEY_MONITORING_TARGETS.HO_TRUNG_CHUYEN.name,
+      isStrictProtected: KEY_MONITORING_TARGETS.HO_TRUNG_CHUYEN.isStrictAquacultureProhibited,
+      coordinates: KEY_MONITORING_TARGETS.HO_TRUNG_CHUYEN.coordinates,
     },
   ];
 
@@ -86,8 +86,8 @@ export async function runSeed(): Promise<SeedDataset> {
   console.log(`- 01 Xã trung tâm: ${data.coreCommune.name}`);
   console.log(`- ${data.villages.length} Thôn, buôn trực thuộc xã Ea Súp`);
   console.log(`- ${data.neighborCommunes.length} Xã vùng đệm liên kết`);
-  console.log(`- ${data.forestCompartments.length} Lâm phần trọng điểm (Tiểu khu 277)`);
-  console.log(`- ${data.hydroStations.length} Trọng điểm thủy hệ (Hồ Thượng, Hồ Hạ cấm nuôi cá, Sông Ea Súp, Hồ cá Đoàn Kết)`);
+  console.log(`- ${data.forestCompartments.length} Lâm phần trọng điểm (Tiểu khu 293)`);
+  console.log(`- ${data.hydroStations.length} Trọng điểm thủy hệ (Hồ Thượng, Hồ Hạ cấm nuôi cá, Sông Ea Súp, Hồ Trung Chuyển)`);
   return data;
 }
 

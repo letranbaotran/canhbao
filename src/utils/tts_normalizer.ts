@@ -8,9 +8,9 @@ const ABBREVIATION_MAP: [RegExp, string][] = [
   [/\bUBND\b/g, 'Ủy ban nhân dân'],
   [/\bHĐND\b/g, 'Hội đồng nhân dân'],
   [/\bPCTT\s*&\s*TKCN\b/g, 'Phòng chống thiên tai và Tìm kiếm cứu nạn'],
-  [/\bPCTT\b/g, 'Phòng chống thiên tai'],
   [/\bBCHQS\b/g, 'Ban Chỉ huy Quân sự'],
   [/\bDTTS\b/g, 'dân tộc thiểu số'],
+  [/\bTK\s*[-]?\s*293\b/gi, 'Tiểu khu 293'],
   [/\bTK\s*[-]?\s*277\b/gi, 'Tiểu khu 277'],
   [/\bTK\s*[-]?\s*(\d+)\b/gi, 'Tiểu khu $1'],
 ];

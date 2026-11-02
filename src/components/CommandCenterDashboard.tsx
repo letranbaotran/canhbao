@@ -70,7 +70,7 @@ export const CommandCenterDashboard: React.FC = () => {
               <Flame className="w-4 h-4 text-amber-400" />
               <div>
                 <div className="text-[10px] text-slate-400">Điểm nhiệt NASA</div>
-                <div className="font-bold text-amber-300">01 (Tiểu khu 277)</div>
+                <div className="font-bold text-amber-300">01 (Tiểu khu 293)</div>
               </div>
             </div>
 
@@ -167,16 +167,16 @@ export const CommandCenterDashboard: React.FC = () => {
             </p>
             <div className="flex flex-col gap-1.5">
               <button
-                onClick={() => handleSimulate('CHÁY RỪNG TIỂU KHU 277 (NHIỆT ĐỘ 52°C, KHÓI)')}
+                onClick={() => handleSimulate('CHÁY RỪNG TIỂU KHU 293 (NHIỆT ĐỘ 52°C, KHÓI)')}
                 className="w-full text-left px-2.5 py-1.5 rounded bg-slate-800 hover:bg-rose-900/60 active:bg-rose-800 border border-slate-700 hover:border-rose-500 text-xs text-rose-300 transition-colors"
               >
-                🔥 Diễn tập: Báo cháy khẩn cấp Tiểu khu 277
+                🔥 Diễn tập: Báo cháy khẩn cấp Tiểu khu 293
               </button>
               <button
                 onClick={() => handleSimulate('HỒ EA SÚP THƯỢNG XẢ LŨ TRÀN TỰ DO > 210M')}
                 className="w-full text-left px-2.5 py-1.5 rounded bg-slate-800 hover:bg-blue-900/60 active:bg-blue-800 border border-slate-700 hover:border-blue-500 text-xs text-blue-300 transition-colors"
               >
-                🌊 Diễn tập: Xả lũ Hồ Ea Súp Thượng đe dọa Thôn Đoàn Kết
+                🌊 Diễn tập: Xả lũ Hồ Ea Súp Thượng đe dọa Hồ Trung Chuyển
               </button>
               <button
                 onClick={() => handleSimulate('CẢNH BÁO VI PHẠM CẤM NUÔI CÁ TẠI HỒ EA SÚP HẠ')}
@@ -204,10 +204,10 @@ export const CommandCenterDashboard: React.FC = () => {
             </h3>
 
             <div className="space-y-2 text-xs font-mono">
-              {/* TK 277 */}
+              {/* TK 293 */}
               <div className="p-2 rounded bg-slate-800/80 border border-slate-700">
                 <div className="flex justify-between font-semibold text-emerald-400">
-                  <span>Trạm Lâm Nghiệp TK-277</span>
+                  <span>Trạm Lâm Nghiệp TK-293</span>
                   <span className="text-slate-400">LoRaWAN</span>
                 </div>
                 <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
@@ -246,10 +246,10 @@ export const CommandCenterDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Ao cá Đoàn Kết */}
+              {/* Hồ Trung Chuyển */}
               <div className="p-2 rounded bg-slate-800/80 border border-slate-700">
                 <div className="flex justify-between font-semibold text-cyan-400">
-                  <span>Hồ Cá Thôn Đoàn Kết</span>
+                  <span>Hồ Trung Chuyển</span>
                   <span className="text-slate-400">IoT Thủy Sản</span>
                 </div>
                 <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">

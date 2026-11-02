@@ -9,11 +9,14 @@ import {
 
 describe('PHẦN 5: Động cơ Phát hiện & Cảnh báo Cháy Rừng (FIRMS + IoT)', () => {
   it('phải kiểm tra tọa độ nằm trong Bounding Box [107.55, 13.00, 108.10, 13.50]', () => {
+    // Tọa độ Tiểu khu 293: 12.982216, 107.886961
+    expect(isWithinEaSupBoundingBox(12.982216, 107.886961)).toBe(true);
+
     // Tọa độ Tiểu khu 277: 13.25, 107.82
     expect(isWithinEaSupBoundingBox(13.25, 107.82)).toBe(true);
 
-    // Tọa độ ngoài vùng (Buôn Ma Thuột: 12.68, 108.05)
-    expect(isWithinEaSupBoundingBox(12.68, 108.05)).toBe(false);
+    // Tọa độ ngoài vùng (Gia Lai: 13.98, 108.05)
+    expect(isWithinEaSupBoundingBox(13.98, 108.05)).toBe(false);
   });
 
   it('phải lọc điểm nhiệt FIRMS: loại bỏ confidence low và FRP < 5MW', () => {

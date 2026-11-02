@@ -6,11 +6,11 @@
 - **Cơ quan đồng chủ trì**: Ủy ban nhân dân và Ủy ban MTTQ Việt Nam xã Ea Súp (vận hành theo mô hình chính quyền 2 cấp: cấp xã trực thuộc tỉnh, không còn cấp huyện).
 - **Phạm vi địa lý trọng điểm**:
   - **20 thôn, buôn trực thuộc xã Ea Súp**: Thôn 1, Thôn 2, Thôn 3, Thôn 4, Thôn 5, Thôn 6, Thôn 7, Thôn 8, Thôn 9, Thôn 10, Thôn 11, Thôn 12, Thôn 13, Thôn Thắng Lợi, Thôn Đoàn Kết, Thôn Hòa Bình, Thôn Bình Lợi, Buôn A, Buôn B, Buôn C.
-  - **Khu vực rừng trọng điểm**: Lâm phần Tiểu khu 277 (vùng rừng khộp dễ cháy mùa khô giáp ranh nương rẫy).
+  - **Khu vực rừng trọng điểm**: Lâm phần Tiểu khu 293 (tọa độ: 12.982216, 107.886961 - vùng rừng khộp dễ cháy mùa khô giáp ranh nương rẫy).
   - **Thủy hệ trọng điểm**:
-    - Hồ Ea Súp Thượng: Công trình đại thủy nông dung tích 146 triệu m³, đập chính và tràn xả lũ tự do.
-    - Hồ Ea Súp Hạ: Vùng bảo vệ nghiêm ngặt nguồn nước thô sinh hoạt - **QUY TẮC BẤT BIẾN: TUYỆT ĐỐI CẤM NUÔI TRỒNG THỦY SẢN LỒNG BÈ**.
-    - Hồ cá Thôn Đoàn Kết: Khu nuôi cá thâm canh tập trung, có cảm biến IoT giám sát Oxy hòa tan DO, pH và cảnh báo ngập bờ ao.
+    - Hồ Ea Súp Thượng (tọa độ: 13.043116, 107.937218): Công trình đại thủy nông dung tích 146 triệu m³, đập chính và tràn xả lũ tự do.
+    - Hồ Ea Súp Hạ (tọa độ: 13.056850, 107.894562): Vùng bảo vệ nghiêm ngặt nguồn nước thô sinh hoạt - **QUY TẮC BẤT BIẾN: TUYỆT ĐỐI CẤM NUÔI TRỒNG THỦY SẢN LỒNG BÈ**.
+    - Hồ Trung Chuyển (tọa độ: 13.069298, 107.881527 - Thôn Đoàn Kết): Khu vực hồ trung chuyển điều tiết nước và nuôi thủy sản, có cảm biến IoT giám sát Oxy hòa tan DO, pH và cảnh báo ngập bờ.
     - Tuyến sông & kênh: Toàn tuyến Sông Ea Súp, Kênh chính Đông, Kênh chính Tây.
   - **Vùng đệm sinh thái liên xã (bán kính 5km)**: Xã Ea Bung, Xã Ea Rốk, Xã Ia Lốp, Xã Ia Rvê.
 
