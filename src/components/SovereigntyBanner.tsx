@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   MapPin,
@@ -10,12 +10,24 @@ import {
   PhoneCall,
   ShieldCheck,
   X,
-  Radio,
 } from 'lucide-react';
 
 export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
   const [activeModal, setActiveModal] = useState<'guide' | 'contact' | 'stats' | null>(null);
+
+  // Tự động nhận diện đường dẫn ảnh phù hợp với cả Localhost và GitHub Pages (/canhbao)
+  const [bannerSrc, setBannerSrc] = useState<string>('/images/banner_easup_nature.jpg');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/canhbao')) {
+        setBannerSrc('/canhbao/images/banner_easup_nature.jpg');
+      } else {
+        setBannerSrc('/images/banner_easup_nature.jpg');
+      }
+    }
+  }, []);
 
   const handleNavClick = (menuKey: string, targetId?: string) => {
     setActiveMenu(menuKey);
@@ -43,74 +55,81 @@ export const SovereigntyBanner: React.FC = () => {
 
   return (
     <>
-      {/* 1. HEADER BANNER - ẢNH THIÊN NHIÊN EA SÚP SẮC NÉT & BỐ CỤC CHUYÊN NGHIỆP */}
-      <header className="relative w-full overflow-hidden border-b border-emerald-500/30 shadow-xl bg-slate-950">
-        {/* Nền ảnh thiên nhiên Ea Súp chính xác từ ảnh người dùng tải lên */}
-        <div
-          className="absolute inset-0 bg-cover bg-center sm:bg-top filter contrast-[1.08] brightness-[0.98]"
-          style={{
-            backgroundImage: "url('/images/banner_easup_nature.jpg')",
+      {/* 1. HEADER BANNER - ẢNH TOÀN CẢNH THIÊN NHIÊN NÚI RỪNG HỒ EA SÚP */}
+      <header className="relative w-full overflow-hidden border-b border-emerald-600/40 shadow-2xl bg-[#0a192f] min-h-[175px] sm:min-h-[210px] flex flex-col justify-between">
+        {/* Thẻ ảnh <img> đảm bảo hiển thị 100% trên mọi nền tảng (Localhost & GitHub Pages) */}
+        <img
+          src={bannerSrc}
+          alt="Toàn cảnh thiên nhiên núi rừng, hồ Ea Súp và chòi quan sát canh rừng"
+          className="absolute inset-0 w-full h-full object-cover object-center select-none"
+          onError={(e) => {
+            const currentSrc = e.currentTarget.src;
+            if (!currentSrc.includes('/canhbao/')) {
+              e.currentTarget.src = '/canhbao/images/banner_easup_nature.jpg';
+            } else {
+              e.currentTarget.src = 'images/banner_easup_nature.jpg';
+            }
           }}
         />
 
-        {/* Lớp phủ gradient chuyển sắc tinh tế: làm nổi bật khối chữ bên trái và giữ trọn vẹn cảnh núi hồ, chòi canh bên phải */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-slate-950/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
+        {/* Lớp phủ chuyển sắc nhẹ nhàng: Giữ hình ảnh thiên nhiên tươi sáng, trong lành, đồng thời giúp chữ sắc nét tuyệt đối */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/35 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none" />
 
-        {/* Bố cục nội dung trên banner */}
-        <div className="relative max-w-7xl mx-auto px-4 py-4 sm:py-5 flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Cụm Trái: Quốc huy, Cơ quan / Đề tài, Tiêu đề chính & Khẩu hiệu */}
+        {/* Bố cục các khối chữ tiêu đề và nút sắp xếp hài hòa */}
+        <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-3 sm:py-4 flex flex-col md:flex-row items-center justify-between gap-3 flex-1">
+          {/* Cụm Trái: Quốc huy, Tên đề tài, Tiêu đề chính & Khẩu hiệu */}
           <div className="flex items-center gap-3.5 sm:gap-4 text-center md:text-left">
-            {/* Quốc huy Việt Nam trang nghiêm */}
-            <div className="relative shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-rose-600 via-amber-500 to-rose-700 p-0.5 shadow-[0_0_15px_rgba(244,63,94,0.5)] flex items-center justify-center">
-              <div className="w-full h-full rounded-full bg-rose-700 flex flex-col items-center justify-center border border-amber-300">
-                <span className="text-amber-300 font-serif text-lg sm:text-xl font-bold leading-none">★</span>
-                <span className="text-[7px] text-amber-200 font-bold uppercase tracking-tighter mt-0.5">VIỆT NAM</span>
+            {/* Quốc huy Việt Nam sắc nét */}
+            <div className="relative shrink-0 w-13 h-13 sm:w-16 sm:h-16 rounded-full bg-gradient-to-tr from-rose-600 via-amber-400 to-rose-700 p-0.5 shadow-[0_0_20px_rgba(244,63,94,0.6)] flex items-center justify-center">
+              <div className="w-full h-full rounded-full bg-rose-700 flex flex-col items-center justify-center border-2 border-amber-300">
+                <span className="text-amber-300 font-serif text-xl sm:text-2xl font-black leading-none drop-shadow">★</span>
+                <span className="text-[7.5px] text-amber-200 font-bold uppercase tracking-tighter mt-0.5">VIỆT NAM</span>
               </div>
             </div>
 
-            {/* Khối chữ Tiêu đề Banner */}
-            <div>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                <span className="text-[10px] sm:text-[11px] font-bold tracking-wider uppercase text-amber-300 bg-amber-950/70 border border-amber-500/50 px-2 py-0.5 rounded font-mono shadow-sm">
+            {/* Khối chữ Tiêu đề Banner có đổ bóng sâu chống chói */}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 sm:gap-2">
+                <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-amber-300 bg-slate-950/80 border border-amber-400/60 px-2.5 py-0.5 rounded-full font-mono shadow-md backdrop-blur-sm">
                   ĐỀ TÀI NGHIÊN CỨU KHOA HỌC • TRƯỜNG THPT EA SÚP
                 </span>
-                <span className="hidden sm:inline-block text-[11px] text-slate-200 font-mono">
-                  Bảo Trân (10a1) - Phương Trang (10a3)
+                <span className="text-[10px] sm:text-xs text-slate-100 font-mono bg-black/50 px-2 py-0.5 rounded-full border border-white/20 backdrop-blur-sm hidden sm:inline-block">
+                  Nhóm thực hiện: Bảo Trân (10a1) - Phương Trang (10a3)
                 </span>
               </div>
 
-              <h1 className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white uppercase drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] mt-1">
+              <h1 className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] drop-shadow-[0_4px_20px_rgba(0,0,0,0.85)]">
                 TRUNG TÂM ĐIỀU HÀNH CẢNH BÁO SỚM THIÊN TAI & GIÁM SÁT RỪNG
               </h1>
 
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-emerald-300 font-medium italic mt-0.5 drop-shadow-md">
+              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-emerald-300 font-semibold italic drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)]">
                 <span>"Vì một Ea Súp xanh – sạch – an toàn"</span>
                 <span className="inline-block text-emerald-400 not-italic">🌿</span>
-                <span className="text-slate-400 not-italic hidden lg:inline">• Xã Ea Súp, Tỉnh Đắk Lắk</span>
+                <span className="text-slate-200 not-italic hidden lg:inline font-sans font-normal">• Xã Ea Súp, Tỉnh Đắk Lắk</span>
               </div>
             </div>
           </div>
 
-          {/* Cụm Phải: Badge Trực chiến 24/7 & Tọa độ địa bàn */}
+          {/* Cụm Phải: Badge Trực chiến 24/7 & Tọa độ địa phương */}
           <div className="hidden md:flex flex-col items-end gap-1.5 font-mono text-xs">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-950/80 border border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.25)] backdrop-blur-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="font-semibold text-white">HỆ THỐNG TRỰC CHIẾN 24/7</span>
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/85 border border-emerald-400/80 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.35)] backdrop-blur-md">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="font-bold text-white tracking-wide">HỆ THỐNG TRỰC CHIẾN 24/7</span>
             </div>
-            <span className="text-[11px] text-slate-300 bg-black/40 px-2 py-0.5 rounded border border-slate-700/60">
+            <span className="text-[11px] text-slate-200 bg-black/60 px-2.5 py-0.5 rounded-full border border-white/20 backdrop-blur-sm">
               Tọa độ: 13°15′B - 107°54′Đ • 20 Thôn Buôn
             </span>
           </div>
         </div>
 
-        {/* 2. THANH MENU ĐIỀU HƯỚNG DẠNG PILL (NAVBAR) HÀI HÒA & CHUYÊN NGHIỆP */}
+        {/* 2. THANH MENU ĐIỀU HƯỚNG DẠNG PILL (NAVBAR) GỌN GÀNG, HIỆN ĐẠI */}
         <nav
           aria-label="Thanh điều hướng nhanh"
-          className="relative w-full bg-slate-950/90 border-t border-slate-800/80 px-3 py-1.5 backdrop-blur-md"
+          className="relative z-10 w-full bg-slate-950/92 border-t border-slate-800/90 px-3 py-1.5 backdrop-blur-md"
         >
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-            {/* Danh sách các nút menu */}
+            {/* Danh sách các nút menu dạng pill */}
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => handleNavClick('home')}
