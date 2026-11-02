@@ -5,13 +5,14 @@
   "description": "Hệ thống Cảnh báo sớm Cháy rừng và Giám sát Mực nước Lũ hạn xã Ea Súp, tỉnh Đắk Lắk",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build && node scripts/copy-static.js",
+    "start": "node .next/standalone/server.js",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@esri/wayback-core": "^1.1.0",
     "@prisma/client": "^5.22.0",
     "crypto-js": "^4.2.0",
     "leaflet": "^1.9.4",

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SovereigntyBanner } from './SovereigntyBanner';
 import { WebGISMap } from './WebGISMap';
 import { ArticleAudioPlayer } from './ArticleAudioPlayer';
+import { IoTSimulatorTab, DEFAULT_IOT_DATA, IoTTelemetryData } from './IoTSimulatorTab';
 import { EASUP_VILLAGES, NEIGHBOR_COMMUNES } from '@/data/administrative_boundaries';
+import { alarmSystem } from '@/utils/alarmSound';
 import {
   Flame,
   Droplets,
@@ -16,11 +18,39 @@ import {
   Send,
   Sliders,
   CheckCircle2,
+  Cpu,
+  Activity,
 } from 'lucide-react';
 
 export const CommandCenterDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'MAP' | 'ALERTS' | 'SIMULATION'>('MAP');
+  const [telemetryTab, setTelemetryTab] = useState<'LIVE' | 'SIMULATOR'>('LIVE');
+  const [iotData, setIotData] = useState<IoTTelemetryData>(DEFAULT_IOT_DATA);
   const [simulationStatus, setSimulationStatus] = useState<string | null>(null);
+  const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
+
+  // Tính toán điều kiện chuyển sang màu đỏ (Báo động đỏ)
+  const isTk293Red = iotData.tk293.temperature > 45 || iotData.tk293.smokeCo > 50;
+  const isHoThuongRed = iotData.hoThuong.elevation >= 210 || iotData.hoThuong.riseRate > 30;
+  const isHoHaRed = iotData.hoHa.illegalCages > 0;
+  const isHoTrungChuyenRed =
+    iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ||
+    iotData.hoTrungChuyen.overflowRisk === 'Cao' ||
+    iotData.hoTrungChuyen.dykeStatus === 'Tràn bờ';
+
+  const isAnyRedAlert = isTk293Red || isHoThuongRed || isHoHaRed || isHoTrungChuyenRed;
+
+  // Tự động kích hoạt còi hú báo động âm thanh khi chuyển sang màu đỏ
+  useEffect(() => {
+    if (isAnyRedAlert) {
+      alarmSystem.play();
+    } else {
+      alarmSystem.stop();
+    }
+
+    return () => {
+      alarmSystem.stop();
+    };
+  }, [isAnyRedAlert]);
 
   // Mẫu bản tin phát thanh khẩn cấp AI An Nhiên
   const sampleBulletin = {
@@ -48,45 +78,66 @@ export const CommandCenterDashboard: React.FC = () => {
       <header className="bg-slate-900 border-b border-slate-800 px-4 py-3 shadow-lg">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold tracking-wider uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
-                Chính Quyền 2 Cấp
-              </span>
-              <span className="text-xs text-slate-400 font-mono">
-                UBND & UBMTTQ VN XÃ EA SÚP • TỈNH ĐẮK LẮK
-              </span>
-            </div>
-            <h1 className="text-lg md:text-xl font-bold tracking-tight text-white mt-1">
+            <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">
               TRUNG TÂM ĐIỀU HÀNH CẢNH BÁO SỚM THIÊN TAI & GIÁM SÁT RỪNG
             </h1>
             <p className="text-xs text-slate-400">
-              Hệ thống tích hợp ảnh vệ tinh NASA FIRMS/GIBS & Mạng cảm biến IoT thủy văn, lâm nghiệp | canhbao.easupso.com
+              Hệ thống tích hợp ảnh vệ tinh NASA FIRMS/GIBS & Mạng cảm biến IoT thủy văn, lâm nghiệp
             </p>
           </div>
 
-          {/* Quick Metrics Bar */}
+          {/* Quick Metrics Bar: Phản ánh trực tiếp số liệu thời gian thực, nhấp nháy đỏ & còi hú */}
           <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-              <Flame className="w-4 h-4 text-amber-400" />
+            {/* 1. Trạm TK-293 */}
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                isTk293Red
+                  ? 'emergency-flash text-rose-200'
+                  : 'bg-slate-800/80 border-slate-700'
+              }`}
+            >
+              <Flame className={`w-4 h-4 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
               <div>
-                <div className="text-[10px] text-slate-400">Điểm nhiệt NASA</div>
-                <div className="font-bold text-amber-300">01 (Tiểu khu 293)</div>
+                <div className="text-[10px] text-slate-400">Trạm TK-293 (Lâm Nghiệp)</div>
+                <div className={`font-bold ${isTk293Red ? 'text-white' : 'text-amber-300'}`}>
+                  {iotData.tk293.temperature}°C {isTk293Red ? '🚨 BÁO ĐỘNG CHÁY!' : '(Ổn định)'}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
-              <Droplets className="w-4 h-4 text-blue-400" />
+            {/* 2. Trạm Hồ Thượng */}
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                isHoThuongRed
+                  ? 'emergency-flash text-rose-200'
+                  : iotData.hoThuong.elevation >= 208.5
+                  ? 'bg-amber-950/80 border-amber-600 text-amber-300'
+                  : 'bg-slate-800/80 border-slate-700'
+              }`}
+            >
+              <Droplets className={`w-4 h-4 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
               <div>
                 <div className="text-[10px] text-slate-400">Hồ Ea Súp Thượng</div>
-                <div className="font-bold text-blue-300">206.8m (An toàn)</div>
+                <div className={`font-bold ${isHoThuongRed ? 'text-white' : 'text-blue-300'}`}>
+                  {iotData.hoThuong.elevation}m ({isHoThuongRed ? '🌊 XẢ LŨ CẤP III' : iotData.hoThuong.elevation >= 208.5 ? 'Báo động II' : 'An toàn'})
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-950/60 border border-rose-800">
-              <ShieldAlert className="w-4 h-4 text-rose-400" />
+            {/* 3. Trạm Hồ Hạ */}
+            <div
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
+                isHoHaRed
+                  ? 'emergency-flash text-rose-200'
+                  : 'bg-emerald-950/60 border-emerald-800'
+              }`}
+            >
+              <ShieldAlert className={`w-4 h-4 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
               <div>
-                <div className="text-[10px] text-rose-300">Hồ Ea Súp Hạ</div>
-                <div className="font-bold text-rose-200">CẤM NUÔI CÁ (Nghiêm ngặt)</div>
+                <div className="text-[10px] text-emerald-300">Hồ Ea Súp Hạ</div>
+                <div className={`font-bold ${isHoHaRed ? 'text-white' : 'text-emerald-200'}`}>
+                  {isHoHaRed ? `⛔ CÓ ${iotData.hoHa.illegalCages} LỒNG BÈ VI PHẠM!` : 'Nguồn nước sinh hoạt (Bảo vệ)'}
+                </div>
               </div>
             </div>
           </div>
@@ -153,114 +204,229 @@ export const CommandCenterDashboard: React.FC = () => {
 
         {/* Right Column: Alert Center & Command Telemetry (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
-          {/* Disaster Simulation Control */}
-          <section
-            aria-label="Diễn tập tình huống"
-            className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-md"
-          >
-            <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              Diễn Tập Tình Huống PCTT Khẩn Cấp
-            </h3>
-            <p className="text-[11px] text-slate-400 mb-2">
-              Kích hoạt giả lập dữ liệu cảm biến để kiểm thử phản ứng nhanh của 20 thôn buôn:
-            </p>
-            <div className="flex flex-col gap-1.5">
-              <button
-                onClick={() => handleSimulate('CHÁY RỪNG TIỂU KHU 293 (NHIỆT ĐỘ 52°C, KHÓI)')}
-                className="w-full text-left px-2.5 py-1.5 rounded bg-slate-800 hover:bg-rose-900/60 active:bg-rose-800 border border-slate-700 hover:border-rose-500 text-xs text-rose-300 transition-colors"
-              >
-                🔥 Diễn tập: Báo cháy khẩn cấp Tiểu khu 293
-              </button>
-              <button
-                onClick={() => handleSimulate('HỒ EA SÚP THƯỢNG XẢ LŨ TRÀN TỰ DO > 210M')}
-                className="w-full text-left px-2.5 py-1.5 rounded bg-slate-800 hover:bg-blue-900/60 active:bg-blue-800 border border-slate-700 hover:border-blue-500 text-xs text-blue-300 transition-colors"
-              >
-                🌊 Diễn tập: Xả lũ Hồ Ea Súp Thượng đe dọa Hồ Trung Chuyển
-              </button>
-              <button
-                onClick={() => handleSimulate('CẢNH BÁO VI PHẠM CẤM NUÔI CÁ TẠI HỒ EA SÚP HẠ')}
-                className="w-full text-left px-2.5 py-1.5 rounded bg-slate-800 hover:bg-amber-900/60 active:bg-amber-800 border border-slate-700 hover:border-amber-500 text-xs text-amber-300 transition-colors"
-              >
-                🚫 Diễn tập: Phát hiện vi phạm nuôi cá lồng bè Hồ Hạ
-              </button>
+          {/* TAB CHUYỂN MẠCH: TRỰC CHIẾN LIVE <-> TAB ẨN MÔ PHỎNG IoT */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl shadow-md">
+            <button
+              onClick={() => setTelemetryTab('LIVE')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+                telemetryTab === 'LIVE'
+                  ? 'bg-emerald-600 text-slate-950 shadow-md ring-1 ring-emerald-400'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>SỐ LIỆU TRỰC CHIẾN</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 font-normal">LIVE</span>
+            </button>
+
+            <button
+              onClick={() => setTelemetryTab('SIMULATOR')}
+              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+                telemetryTab === 'SIMULATOR'
+                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-300'
+                  : 'text-amber-400 hover:text-amber-300 hover:bg-slate-800'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span>TAB MÔ PHỎNG IoT</span>
+              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/80 text-amber-300 font-normal">LAB</span>
+            </button>
+          </div>
+
+          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN (KHỚP 100% GIAO DIỆN HÌNH ẢNH) */}
+          {telemetryTab === 'LIVE' && (
+            <section
+              aria-label="Chuỗi số liệu quan trắc trực chiến"
+              className="bg-[#0b1220] border border-slate-800 rounded-xl p-3.5 shadow-2xl flex-1 flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">
+                    CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN
+                  </h3>
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 animate-pulse">
+                    ● LIVE
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 text-xs font-mono">
+                  {/* Trạm Lâm Nghiệp TK-293 */}
+                  <div
+                    className={`p-2.5 rounded-lg border transition-all ${
+                      isTk293Red
+                        ? 'emergency-flash text-rose-200'
+                        : 'bg-slate-800/60 border-slate-700/80'
+                    }`}
+                  >
+                    <div className="flex justify-between font-semibold text-emerald-400">
+                      <span className="flex items-center gap-1.5">
+                        <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
+                        Trạm Lâm Nghiệp TK-293
+                      </span>
+                      <span className="text-slate-400 font-normal">LoRaWAN</span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                      <div>
+                        Nhiệt độ:{' '}
+                        <strong className={isTk293Red ? 'text-white font-black' : 'text-white'}>
+                          {iotData.tk293.temperature}°C
+                        </strong>
+                      </div>
+                      <div>
+                        Độ ẩm: <strong className="text-white">{iotData.tk293.humidity}%</strong>
+                      </div>
+                      <div>
+                        Khói CO:{' '}
+                        <strong className={isTk293Red ? 'text-white font-black' : 'text-white'}>
+                          {iotData.tk293.smokeCo} ppm
+                        </strong>
+                      </div>
+                      <div>
+                        Gió: <strong className="text-white">{iotData.tk293.windSpeed} m/s</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Trạm Thủy Văn Hồ Thượng */}
+                  <div
+                    className={`p-2.5 rounded-lg border transition-all ${
+                      isHoThuongRed
+                        ? 'emergency-flash text-rose-200'
+                        : 'bg-slate-800/60 border-slate-700/80'
+                    }`}
+                  >
+                    <div className="flex justify-between font-semibold text-blue-400">
+                      <span className="flex items-center gap-1.5">
+                        <Droplets className={`w-3.5 h-3.5 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
+                        Trạm Thủy Văn Hồ Thượng
+                      </span>
+                      <span className="text-slate-400 font-normal">Radar Siêu Âm</span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                      <div>
+                        Cao trình:{' '}
+                        <strong className={isHoThuongRed ? 'text-white font-black' : 'text-white'}>
+                          {iotData.hoThuong.elevation} m
+                        </strong>
+                      </div>
+                      <div>
+                        Lưu lượng xả: <strong className="text-white">{iotData.hoThuong.discharge} m³/s</strong>
+                      </div>
+                      <div>
+                        Dung tích: <strong className="text-white">{iotData.hoThuong.capacity}M m³</strong>
+                      </div>
+                      <div>
+                        Tốc độ dâng:{' '}
+                        <strong className={isHoThuongRed ? 'text-white font-bold' : 'text-emerald-400'}>
+                          {iotData.hoThuong.riseRate > 0 ? `+${iotData.hoThuong.riseRate}` : iotData.hoThuong.riseRate} cm/h
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hồ Ea Súp Hạ (Cấp Nước) */}
+                  <div
+                    className={`p-2.5 rounded-lg border transition-all ${
+                      isHoHaRed
+                        ? 'emergency-flash text-rose-200'
+                        : 'bg-emerald-950/40 border-emerald-800/80'
+                    }`}
+                  >
+                    <div className="flex justify-between font-semibold text-emerald-300">
+                      <span className="flex items-center gap-1.5">
+                        <ShieldAlert className={`w-3.5 h-3.5 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
+                        Hồ Ea Súp Hạ (Cấp Nước)
+                      </span>
+                      <span className="text-emerald-400 font-bold">Nguồn sinh hoạt</span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                      <div>
+                        Trạng thái:{' '}
+                        <strong className={isHoHaRed ? 'text-white font-bold' : 'text-emerald-400'}>
+                          {iotData.hoHa.status}
+                        </strong>
+                      </div>
+                      <div>
+                        Độ đục:{' '}
+                        <strong className={iotData.hoHa.turbidity > 5 ? 'text-amber-300' : 'text-white'}>
+                          {iotData.hoHa.turbidity} NTU
+                        </strong>
+                      </div>
+                      <div>
+                        Lồng bè vi phạm:{' '}
+                        <strong className={isHoHaRed ? 'text-white font-black' : 'text-emerald-400'}>
+                          {iotData.hoHa.illegalCages}
+                        </strong>
+                      </div>
+                      <div>
+                        Mực nước: <strong className="text-white">{iotData.hoHa.capacityPct}% dung tích</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hồ Trung Chuyển */}
+                  <div
+                    className={`p-2.5 rounded-lg border transition-all ${
+                      isHoTrungChuyenRed
+                        ? 'emergency-flash text-rose-200'
+                        : 'bg-slate-800/60 border-slate-700/80'
+                    }`}
+                  >
+                    <div className="flex justify-between font-semibold text-cyan-400">
+                      <span className="flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                        Hồ Trung Chuyển
+                      </span>
+                      <span className="text-slate-400 font-normal">IoT Thủy Sản</span>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                      <div>
+                        Oxy hòa tan DO:{' '}
+                        <strong className={iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ? 'text-rose-400 font-black' : 'text-white'}>
+                          {iotData.hoTrungChuyen.dissolvedOxygen} mg/L
+                        </strong>
+                      </div>
+                      <div>
+                        Độ pH: <strong className="text-white">{iotData.hoTrungChuyen.ph}</strong>
+                      </div>
+                      <div>
+                        Nguy cơ ngập tràn:{' '}
+                        <strong className={iotData.hoTrungChuyen.overflowRisk === 'Cao' ? 'text-rose-400' : 'text-emerald-400'}>
+                          {iotData.hoTrungChuyen.overflowRisk}
+                        </strong>
+                      </div>
+                      <div>
+                        Bờ bao: <strong className="text-white">{iotData.hoTrungChuyen.dykeStatus}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between">
+                <span className="text-[10px] text-slate-500">Mô hình chính quyền 2 cấp xã Ea Súp</span>
+                <button
+                  onClick={() => setTelemetryTab('SIMULATOR')}
+                  className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+                >
+                  <Sliders className="w-3 h-3 text-amber-400" />
+                  Mở Tab Mô Phỏng Kiểm Chứng
+                </button>
+              </div>
+            </section>
+          )}
+
+          {/* NỘI DUNG 2: TAB ẨN MÔ PHỎNG IoT VỚI CHỈ SỐ ĐO LƯỜNG THỰC TẾ */}
+          {telemetryTab === 'SIMULATOR' && (
+            <div className="flex-1">
+              <IoTSimulatorTab
+                currentData={iotData}
+                onUpdateData={setIotData}
+                isOpen={true}
+                onToggle={() => setTelemetryTab('LIVE')}
+              />
             </div>
-            {simulationStatus && (
-              <div className="mt-2 p-2 rounded bg-slate-800/90 border border-emerald-500/50 text-[11px] text-emerald-300 font-mono flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{simulationStatus}</span>
-              </div>
-            )}
-          </section>
-
-          {/* Telemetry Live Feed */}
-          <section
-            aria-label="Chuỗi số liệu quan trắc"
-            className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-md flex-1"
-          >
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
-              <span>Chuỗi Số Liệu Quan Trắc Trực Chiến</span>
-              <span className="text-[10px] text-emerald-400 font-mono animate-pulse">● LIVE</span>
-            </h3>
-
-            <div className="space-y-2 text-xs font-mono">
-              {/* TK 293 */}
-              <div className="p-2 rounded bg-slate-800/80 border border-slate-700">
-                <div className="flex justify-between font-semibold text-emerald-400">
-                  <span>Trạm Lâm Nghiệp TK-293</span>
-                  <span className="text-slate-400">LoRaWAN</span>
-                </div>
-                <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                  <div>Nhiệt độ: <strong className="text-white">32.4°C</strong></div>
-                  <div>Độ ẩm: <strong className="text-white">58%</strong></div>
-                  <div>Khói CO: <strong className="text-white">12 ppm</strong></div>
-                  <div>Gió: <strong className="text-white">2.8 m/s</strong></div>
-                </div>
-              </div>
-
-              {/* Hồ Thượng */}
-              <div className="p-2 rounded bg-slate-800/80 border border-slate-700">
-                <div className="flex justify-between font-semibold text-blue-400">
-                  <span>Trạm Thủy Văn Hồ Thượng</span>
-                  <span className="text-slate-400">Radar Siêu Âm</span>
-                </div>
-                <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                  <div>Cao trình: <strong className="text-white">206.8 m</strong></div>
-                  <div>Lưu lượng xả: <strong className="text-white">0 m³/s</strong></div>
-                  <div>Dung tích: <strong className="text-white">118M m³</strong></div>
-                  <div>Tốc độ dâng: <strong className="text-emerald-400">+2 cm/h</strong></div>
-                </div>
-              </div>
-
-              {/* Hồ Hạ */}
-              <div className="p-2 rounded bg-rose-950/40 border border-rose-800">
-                <div className="flex justify-between font-semibold text-rose-300">
-                  <span>Hồ Ea Súp Hạ (Cấp Nước)</span>
-                  <span className="text-rose-400 font-bold">CẤM NUÔI CÁ</span>
-                </div>
-                <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                  <div>Trạng thái: <strong className="text-emerald-400">An toàn</strong></div>
-                  <div>Độ đục: <strong className="text-white">4.2 NTU</strong></div>
-                  <div>Lồng bè vi phạm: <strong className="text-emerald-400">0</strong></div>
-                  <div>Mực nước: <strong className="text-white">82% dung tích</strong></div>
-                </div>
-              </div>
-
-              {/* Hồ Trung Chuyển */}
-              <div className="p-2 rounded bg-slate-800/80 border border-slate-700">
-                <div className="flex justify-between font-semibold text-cyan-400">
-                  <span>Hồ Trung Chuyển</span>
-                  <span className="text-slate-400">IoT Thủy Sản</span>
-                </div>
-                <div className="mt-1 grid grid-cols-2 gap-1 text-[11px] text-slate-300">
-                  <div>Oxy hòa tan DO: <strong className="text-white">6.8 mg/L</strong></div>
-                  <div>Độ pH: <strong className="text-white">7.4</strong></div>
-                  <div>Nguy cơ ngập tràn: <strong className="text-emerald-400">Thấp</strong></div>
-                  <div>Bờ bao: <strong className="text-white">Ổn định</strong></div>
-                </div>
-              </div>
-            </div>
-          </section>
+          )}
 
           {/* Vùng Liên Xã Giáp Ranh */}
           <section
@@ -284,13 +450,13 @@ export const CommandCenterDashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* 4. Footer Thông Tin Công Vụ */}
+      {/* 4. Footer Thông Tin Đề Tài */}
       <footer className="bg-slate-900 border-t border-slate-800 py-3 px-4 text-center text-xs text-slate-500 font-mono">
         <p>
-          Hệ sinh thái Chuyển đổi số Xã Ea Súp, Tỉnh Đắk Lắk • Ban Chỉ huy Phòng chống thiên tai & Tìm kiếm cứu nạn xã Ea Súp
+          ĐỀ TÀI NGHIÊN CỨU KHOA HỌC KỸ THUẬT • TRƯỜNG THPT EA SÚP, TỈNH ĐẮK LẮK
         </p>
-        <p className="mt-0.5 text-[11px] text-slate-600">
-          Cổng thông tin tích hợp viễn thám NASA & Trạm quan trắc IoT • Bản đồ số chủ quyền quốc gia Việt Nam
+        <p className="mt-0.5 text-[11px] text-slate-400">
+          Nhóm thực hiện: Lê Trần Bảo Trân (10a1) - Lê Phương Trang (10a3) TRƯỜNG THPT EA SÚP
         </p>
       </footer>
     </div>

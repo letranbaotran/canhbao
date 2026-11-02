@@ -19,53 +19,53 @@ export interface GibsLayerDefinition {
 export const NASA_GIBS_LAYERS: Record<string, GibsLayerDefinition> = {
   THERMAL_ANOMALIES: {
     id: 'VIIRS_SNPP_Thermal_Anomalies_375m_All',
-    name: 'Điểm nhiệt VIIRS 375m',
+    name: 'Điểm ảnh nhiệt',
     layerTag: 'VIIRS_SNPP_Thermal_Anomalies_375m_All',
     format: 'image/png',
     timeRange: '2012-nay',
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png',
-    description: 'Ảnh vệ tinh phát hiện điểm cháy rừng và bất thường nhiệt độ mặt đất 375m',
+    description: 'Ảnh vệ tinh phát hiện điểm cháy rừng và bất thường nhiệt độ mặt đất',
   },
   TRUE_COLOR: {
     id: 'VIIRS_SNPP_CorrectedReflectance_TrueColor',
-    name: 'Ảnh thực VIIRS TrueColor',
+    name: 'Ảnh vệ tinh tự nhiên',
     layerTag: 'VIIRS_SNPP_CorrectedReflectance_TrueColor',
     format: 'image/jpeg',
     timeRange: '2012-nay',
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
-    description: 'Ảnh vệ tinh quang học màu tự nhiên độ phân giải cao',
+    description: 'Ảnh vệ tinh quang học màu tự nhiên độ nét cao',
   },
   NDVI_VEGETATION: {
     id: 'MODIS_Terra_NDVI_8Day',
-    name: 'Chỉ số thực vật NDVI MODIS',
+    name: 'Độ che phủ rừng',
     layerTag: 'MODIS_Terra_NDVI_8Day',
     format: 'image/png',
     timeRange: '2000-nay',
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_8Day/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png',
-    description: 'Chỉ số sức khỏe thảm phủ thực vật và độ che phủ rừng khộp Ea Súp chu kỳ 8 ngày',
+    description: 'Mức độ tươi tốt và độ che phủ rừng trên địa bàn xã Ea Súp',
   },
   SOIL_MOISTURE: {
     id: 'SMAP_L4_Analyzed_Root_Zone_Soil_Moisture',
-    name: 'Độ ẩm đất rễ cây SMAP',
+    name: 'Độ ẩm đất',
     layerTag: 'SMAP_L4_Analyzed_Root_Zone_Soil_Moisture',
     format: 'image/png',
     timeRange: '2015-nay',
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/SMAP_L4_Analyzed_Root_Zone_Soil_Moisture/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png',
-    description: 'Quan sát độ ẩm tầng rễ phục vụ phân vùng hạn hán và nguy cơ cháy ngầm',
+    description: 'Quan sát độ ẩm tầng rễ đất phục vụ phân vùng hạn hán',
   },
   FLOOD_SURFACE: {
     id: 'MODIS_Combined_Flood_250m',
-    name: 'Bản đồ ngập lụt MODIS 250m',
+    name: 'Bản đồ ngập lụt',
     layerTag: 'MODIS_Combined_Flood_250m',
     format: 'image/png',
     timeRange: '2011-nay',
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_Flood_250m/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png',
-    description: 'Mặt nước dâng ngập vùng hạ du đập Ea Súp Thượng và các thôn trũng ven sông',
+    description: 'Mặt nước dâng ngập vùng hạ du và các vùng trũng ven sông',
   },
 };
 

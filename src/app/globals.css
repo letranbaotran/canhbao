@@ -1,8 +1,8 @@
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import 'leaflet/dist/leaflet.css';
 
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -81,3 +81,122 @@ select:disabled {
 .glow-red {
   animation: pulseGlow 1.8s infinite;
 }
+
+/* Custom Satellite Timeline Slider (Pixel-Perfect Geospatial Dark Theme) */
+.satellite-timeline-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #1e293b;
+  outline: none;
+  border-radius: 9999px;
+  height: 8px;
+}
+
+.satellite-timeline-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: #1e293b;
+  border-radius: 9999px;
+}
+
+.satellite-timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fbbf24;
+  cursor: pointer;
+  border: 2px solid #d97706;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  margin-top: -5px;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.satellite-timeline-slider::-webkit-slider-thumb:hover {
+  background: #fde047;
+  transform: scale(1.15);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.85);
+}
+
+.satellite-timeline-slider::-moz-range-track {
+  height: 8px;
+  background: #1e293b;
+  border-radius: 9999px;
+  border: none;
+}
+
+.satellite-timeline-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fbbf24;
+  cursor: pointer;
+  border: 2px solid #d97706;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.satellite-timeline-slider::-moz-range-thumb:hover {
+  background: #fde047;
+  transform: scale(1.15);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.85);
+}
+
+/* Tinh giảm thanh ghi nhận nguồn Leaflet gọn gàng nhất, không che khuất bản đồ */
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  background: rgba(15, 23, 42, 0.7) !important;
+  color: #94a3b8 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  margin: 0 4px 4px 0 !important;
+  border: 1px solid rgba(51, 65, 85, 0.4) !important;
+  backdrop-filter: blur(4px);
+  white-space: nowrap !important;
+  max-width: 320px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.leaflet-control-attribution a {
+  color: #38bdf8 !important;
+  text-decoration: none !important;
+}
+
+/* Hiệu ứng nhấp nháy báo động đỏ chuyên nghiệp PCTT */
+@keyframes emergency-strobe {
+  0%, 100% {
+    background-color: rgba(159, 18, 57, 0.95);
+    border-color: #f43f5e;
+    box-shadow: 0 0 25px rgba(244, 63, 94, 0.9), inset 0 0 15px rgba(225, 29, 72, 0.6);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(76, 5, 25, 0.4);
+    border-color: #881337;
+    box-shadow: 0 0 6px rgba(244, 63, 94, 0.25);
+    transform: scale(1);
+  }
+}
+
+.emergency-flash {
+  animation: emergency-strobe 0.75s ease-in-out infinite !important;
+}
+
+@keyframes siren-ring {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  20%, 60% {
+    transform: rotate(-16deg);
+  }
+  40%, 80% {
+    transform: rotate(16deg);
+  }
+}
+
+.siren-wobble {
+  animation: siren-ring 0.6s infinite ease-in-out;
+}
+
+
