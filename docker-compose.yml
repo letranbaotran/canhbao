@@ -20,6 +20,7 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       - tts_storage:/app/public/storage/tts
+      - ./public/storage/kml:/app/public/storage/kml
 
   db:
     image: postgis/postgis:16-3.4-alpine

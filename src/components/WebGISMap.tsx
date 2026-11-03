@@ -10,6 +10,12 @@ import { NASA_GIBS_LAYERS } from '@/services/nasaSatelliteService';
 import { SatelliteTimelineSlider } from './SatelliteTimelineSlider';
 import { getSatelliteTileUrl } from '@/services/satelliteTileService';
 import {
+  loadAllPersistedKmlState,
+  persistNewKmlLayer,
+  persistKmlLayerUpdate,
+  removePersistedKmlLayer,
+} from '@/services/kmlPersistenceService';
+import {
   Layers,
   Flame,
   Droplets,
@@ -1097,43 +1103,63 @@ export const WebGISMap: React.FC = () => {
     layerGroup.addTo(map);
   };
 
-  // Tự động nạp manifest.json của file ban_ve,_mat_cat.kmz và hiển thị lớp bản đồ gộp khi bản đồ sẵn sàng
+  // Tự động nạp manifest.json + khôi phục toàn bộ các file .KML đã tải lên (từ Server & IndexedDB) khi bản đồ sẵn sàng
   useEffect(() => {
     if (!mapLoaded) return;
     let isSubscribed = true;
 
-    fetch(resolveKmzUrl('/data/kmz/manifest.json'))
-      .then((r) => r.json())
-      .then(async (manifestList: KmzLayerManifestItem[]) => {
-        if (!isSubscribed || !Array.isArray(manifestList)) return;
+    Promise.all([
+      fetch(resolveKmzUrl('/data/kmz/manifest.json'))
+        .then((r) => r.json())
+        .catch(() => []),
+      loadAllPersistedKmlState(),
+    ])
+      .then(async ([manifestList, persisted]) => {
+        if (!isSubscribed) return;
 
-        let savedNames: Record<string, string> = {};
-        try {
-          const rawSaved = localStorage.getItem('easup_kml_custom_names');
-          if (rawSaved) savedNames = JSON.parse(rawSaved);
-        } catch {}
+        const baseList: KmzLayerManifestItem[] = Array.isArray(manifestList) ? manifestList : [];
+        const { customItems, cachedDataMap, customNames, enabledStates } = persisted;
 
-        const mergedList = manifestList.map((item) => ({
-          ...item,
-          label: savedNames[item.id] || item.label,
-        }));
+        // Nạp trước dữ liệu hình học từ IndexedDB vào bộ nhớ đệm
+        for (const [k, v] of Object.entries(cachedDataMap)) {
+          kmzDataCacheRef.current[k] = v;
+        }
 
+        // Gộp danh sách lớp mặc định và các lớp file .KML người dùng đã tải lên
+        const combinedMap = new Map<string, KmzLayerManifestItem>();
+        for (const item of baseList) {
+          combinedMap.set(item.id, {
+            ...item,
+            label: customNames[item.id] || item.label,
+          });
+        }
+        for (const cItem of customItems) {
+          combinedMap.set(cItem.id, {
+            ...cItem,
+            label: customNames[cItem.id] || cItem.label,
+          });
+        }
+
+        const mergedList = Array.from(combinedMap.values());
         setKmzManifest(mergedList);
 
         const initialEnabled: Record<string, boolean> = {};
         for (const item of mergedList) {
-          initialEnabled[item.id] = item.defaultOn;
+          initialEnabled[item.id] =
+            typeof enabledStates[item.id] === 'boolean'
+              ? enabledStates[item.id]
+              : item.defaultOn;
         }
         setEnabledKmzLayers(initialEnabled);
 
         for (const item of mergedList) {
-          if (item.defaultOn && isSubscribed) {
+          if (initialEnabled[item.id] && isSubscribed) {
             await renderKmzLayerOnMap(item);
           }
         }
       })
       .catch((err) => {
-        console.error('Error loading KMZ manifest:', err);
+        console.error('Error loading KMZ & persisted KML layers:', err);
       });
 
     return () => {
@@ -1141,7 +1167,7 @@ export const WebGISMap: React.FC = () => {
     };
   }, [mapLoaded]);
 
-  // Chỉnh sửa tên lớp bản đồ theo file .KML / .KMZ
+  // Chỉnh sửa tên lớp bản đồ theo file .KML / .KMZ (lưu bền vững)
   const handleStartEditLayerName = (item: KmzLayerManifestItem) => {
     setEditingLayerId(item.id);
     setEditingLayerName(item.label);
@@ -1156,12 +1182,7 @@ export const WebGISMap: React.FC = () => {
       if (kmzDataCacheRef.current[id]) {
         kmzDataCacheRef.current[id].label = trimmed;
       }
-      try {
-        const rawSaved = localStorage.getItem('easup_kml_custom_names');
-        const savedNames = rawSaved ? JSON.parse(rawSaved) : {};
-        savedNames[id] = trimmed;
-        localStorage.setItem('easup_kml_custom_names', JSON.stringify(savedNames));
-      } catch {}
+      persistKmlLayerUpdate(id, { label: trimmed });
     }
     setEditingLayerId(null);
   };
@@ -1172,6 +1193,7 @@ export const WebGISMap: React.FC = () => {
 
     const nextState = !enabledKmzLayers[item.id];
     setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: nextState }));
+    persistKmlLayerUpdate(item.id, { enabled: nextState });
 
     if (nextState) {
       await renderKmzLayerOnMap(item);
@@ -1183,11 +1205,31 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
+  const handleDeleteKmzLayer = async (item: KmzLayerManifestItem) => {
+    const map = leafletMapRef.current;
+    const existing = kmzLayerGroupsRef.current[item.id];
+    if (existing && map && map.hasLayer(existing)) {
+      map.removeLayer(existing);
+    }
+    delete kmzLayerGroupsRef.current[item.id];
+    delete kmzDataCacheRef.current[item.id];
+
+    setKmzManifest((prev) => prev.filter((m) => m.id !== item.id));
+    setEnabledKmzLayers((prev) => {
+      const copy = { ...prev };
+      delete copy[item.id];
+      return copy;
+    });
+
+    await removePersistedKmlLayer(item.id);
+  };
+
   const handleFlyToKmzLayer = async (item: KmzLayerManifestItem) => {
     const map = leafletMapRef.current;
     if (!map) return;
     if (!enabledKmzLayers[item.id]) {
       setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: true }));
+      persistKmlLayerUpdate(item.id, { enabled: true });
       await renderKmzLayerOnMap(item);
     }
     if (item.bounds && item.bounds.length === 2) {
@@ -1217,26 +1259,39 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  // Cho phép người dùng tải thêm file .KML từ máy tính: Gom hết các lớp trong mỗi file .KML thành 1 lớp duy nhất
+  // Cho phép người dùng tải thêm file .KML từ máy tính: Gom thành 1 lớp & Lưu trữ bền vững vào hệ thống (Server + IndexedDB)
   const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const text = await file.text();
+      const palette = ['#ff1744', '#00e676', '#ff9100', '#d500f9', '#00b0ff', '#ffea00'];
+      const layerColor = palette[kmzManifest.length % palette.length];
+
       const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
       let m;
       const lines: [number, number][][] = [];
-      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      let minLat = 90,
+        maxLat = -90,
+        minLng = 180,
+        maxLng = -180;
+
       while ((m = coordRegex.exec(text)) !== null) {
         const rawPts = m[1].trim().split(/\s+/);
         const pts: [number, number][] = [];
         for (const rp of rawPts) {
           const parts = rp.split(',');
           if (parts.length >= 2) {
-            const lng = parseFloat(parts[0]);
-            const lat = parseFloat(parts[1]);
+            const lng = Number(parseFloat(parts[0]).toFixed(5));
+            const lat = Number(parseFloat(parts[1]).toFixed(5));
             if (!isNaN(lat) && !isNaN(lng)) {
-              pts.push([lat, lng]);
+              if (
+                pts.length === 0 ||
+                Math.abs(pts[pts.length - 1][0] - lat) > 1e-5 ||
+                Math.abs(pts[pts.length - 1][1] - lng) > 1e-5
+              ) {
+                pts.push([lat, lng]);
+              }
               if (lat < minLat) minLat = lat;
               if (lat > maxLat) maxLat = lat;
               if (lng < minLng) minLng = lng;
@@ -1246,8 +1301,10 @@ export const WebGISMap: React.FC = () => {
         }
         if (pts.length >= 2) lines.push(pts);
       }
+
       if (lines.length > 0) {
-        const customId = `USER_${Date.now()}`;
+        const safeSlug = file.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
+        const customId = `KML_${safeSlug}_${Date.now()}`;
         const defaultLayerName = file.name.replace(/\.(kml|kmz|xml)$/i, '') || file.name;
         const newItem: KmzLayerManifestItem = {
           id: customId,
@@ -1255,22 +1312,41 @@ export const WebGISMap: React.FC = () => {
           label: defaultLayerName,
           category: 'Lớp Bản Đồ KML / KMZ',
           defaultOn: true,
-          color: '#ff1744',
-          bounds: [[minLat, minLng], [maxLat, maxLng]],
+          color: layerColor,
+          bounds: [
+            [minLat, minLng],
+            [maxLat, maxLng],
+          ],
           geomCount: lines.length,
           file: '',
           sizeKb: Math.round(file.size / 1024),
         };
-        kmzDataCacheRef.current[customId] = {
+
+        const layerData: KmzLayerData = {
           ...newItem,
-          groups: [{ color: '#ff1744', fillColor: '#ff1744', weight: 2, outline: true, lines, polys: [] }],
+          groups: [
+            {
+              color: layerColor,
+              fillColor: layerColor,
+              weight: 2.2,
+              outline: true,
+              lines,
+              polys: [],
+            },
+          ],
         };
-        setKmzManifest((prev) => [...prev, newItem]);
-        setEnabledKmzLayers((prev) => ({ ...prev, [customId]: true }));
-        setEditingLayerId(customId);
-        setEditingLayerName(defaultLayerName);
-        await renderKmzLayerOnMap(newItem);
-        handleFlyToKmzLayer(newItem);
+
+        // Lưu trữ bền vững vào hệ thống (IndexedDB + Server /api/kml/layers) để không mất khi reload
+        const savedItem = await persistNewKmlLayer(newItem, layerData);
+        kmzDataCacheRef.current[savedItem.id] = {
+          ...layerData,
+          file: savedItem.file,
+        };
+
+        setKmzManifest((prev) => [...prev, savedItem]);
+        setEnabledKmzLayers((prev) => ({ ...prev, [savedItem.id]: true }));
+        await renderKmzLayerOnMap(savedItem);
+        handleFlyToKmzLayer(savedItem);
       }
     } catch (err) {
       console.error('Upload KML error:', err);
@@ -1761,6 +1837,15 @@ export const WebGISMap: React.FC = () => {
                           >
                             <Crosshair className="w-3 h-3" />
                           </button>
+                          {(item.id.startsWith('KML_') || item.id.startsWith('USER_')) && (
+                            <button
+                              onClick={() => handleDeleteKmzLayer(item)}
+                              className="p-1 rounded bg-white hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 transition-colors"
+                              title="Xóa lớp .KML này khỏi hệ thống"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

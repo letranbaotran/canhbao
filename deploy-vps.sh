@@ -55,3 +55,4 @@ echo "======================================================"
 echo "🎉 HOÀN TẤT! Dịch vụ đang lắng nghe tại: http://0.0.0.0:$PORT"
 echo "🌐 Tên miền Nginx Proxy Manager: https://canhbao.easupso.com"
 echo "======================================================"
+

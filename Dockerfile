@@ -27,12 +27,12 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Tạo thư mục lưu vĩnh viễn tts audio
-RUN mkdir -p /app/public/storage/tts && chown -R nextjs:nodejs /app/public/storage
-
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Tạo thư mục lưu vĩnh viễn tts audio và lớp bản đồ kml người dùng tải lên
+RUN mkdir -p /app/public/storage/tts /app/public/storage/kml && chown -R nextjs:nodejs /app/public/storage
 
 USER nextjs
 EXPOSE 3000
