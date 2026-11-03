@@ -16,6 +16,11 @@ import {
   removePersistedKmlLayer,
 } from '@/services/kmlPersistenceService';
 import {
+  AUTH_CHANGED_EVENT,
+  getCurrentSessionUser,
+  MapUserRole,
+} from '@/services/authRoleService';
+import {
   Layers,
   Flame,
   Droplets,
@@ -283,7 +288,7 @@ export const WebGISMap: React.FC = () => {
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
 
-  // Refs & State cho Định vị GPS và Quản lý nhiều lớp bản đồ KMZ (ban_ve,_mat_cat.kmz)
+  // Refs & State cho Định vị GPS và Quản lý lớp bản đồ
   const canvasRendererRef = useRef<any>(null);
   const userLocationLayerRef = useRef<any>(null);
   const systemMarkersGroupRef = useRef<any>(null);
@@ -291,6 +296,9 @@ export const WebGISMap: React.FC = () => {
   const kmzLayerGroupsRef = useRef<Record<string, any>>({});
   const kmzDataCacheRef = useRef<Record<string, KmzLayerData>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const layerManagerPanelRef = useRef<HTMLDivElement | null>(null);
+  const layerManagerBtnTopRef = useRef<HTMLButtonElement | null>(null);
+  const layerManagerBtnFloatRef = useRef<HTMLButtonElement | null>(null);
 
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locateMessage, setLocateMessage] = useState<string | null>(null);
@@ -300,15 +308,52 @@ export const WebGISMap: React.FC = () => {
   const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingLayerName, setEditingLayerName] = useState<string>('');
+  const [userRole, setUserRole] = useState<MapUserRole>('GUEST');
+  const canEditMap = userRole === 'ADMIN' || userRole === 'MAP_EDITOR';
   const [systemLayers, setSystemLayers] = useState<{
     markers: boolean;
     buffer: boolean;
-    gibs: boolean;
   }>({
     markers: true,
     buffer: true,
-    gibs: true,
   });
+
+  // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setUserRole(getCurrentSessionUser().role);
+    const handleAuthChange = () => {
+      const role = getCurrentSessionUser().role;
+      setUserRole(role);
+      if (role === 'GUEST') {
+        setEditingLayerId(null);
+      }
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    };
+  }, []);
+
+  // Đóng khung "Quản lý lớp bản đồ" khi nhấp chuột ra ngoài
+  useEffect(() => {
+    if (!showLayerManager) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (layerManagerPanelRef.current?.contains(target)) return;
+      if (layerManagerBtnTopRef.current?.contains(target)) return;
+      if (layerManagerBtnFloatRef.current?.contains(target)) return;
+      setShowLayerManager(false);
+      setEditingLayerId(null);
+    };
+    document.addEventListener('mousedown', handleOutsideClick, true);
+    document.addEventListener('touchstart', handleOutsideClick, true);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick, true);
+      document.removeEventListener('touchstart', handleOutsideClick, true);
+    };
+  }, [showLayerManager]);
 
   // Cập nhật ref cho drawing mode
   isDrawingModeRef.current = isDrawingMode;
@@ -796,8 +841,6 @@ export const WebGISMap: React.FC = () => {
 
       leafletMapRef.current = map;
       setMapLoaded(true);
-
-      updateGibsOverlay('THERMAL_ANOMALIES', 0.75);
     });
 
     return () => {
@@ -1066,10 +1109,8 @@ export const WebGISMap: React.FC = () => {
     const popupHtml = `
       <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:200px; color:#0f172a;">
         <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${item.label || layerData.label}</h4>
-        <p style="margin:0 0 3px 0;">- File nguồn: <strong>${item.rawName || layerData.rawName}</strong></p>
-        <p style="margin:0 0 4px 0;">- Số đối tượng: <strong>${layerData.geomCount.toLocaleString()} đối tượng</strong></p>
         <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
-          Lớp bản đồ KML/KMZ thống nhất (Tọa độ chuẩn Ea Súp)
+          Lớp bản đồ thống nhất (Tọa độ chuẩn Ea Súp)
         </div>
       </div>
     `;
@@ -1237,7 +1278,7 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  const handleToggleSystemLayer = (key: 'markers' | 'buffer' | 'gibs') => {
+  const handleToggleSystemLayer = (key: 'markers' | 'buffer') => {
     const map = leafletMapRef.current;
     if (!map) return;
     const nextVal = !systemLayers[key];
@@ -1249,17 +1290,44 @@ export const WebGISMap: React.FC = () => {
     } else if (key === 'buffer' && bufferCircleLayerRef.current) {
       if (nextVal) bufferCircleLayerRef.current.addTo(map);
       else map.removeLayer(bufferCircleLayerRef.current);
-    } else if (key === 'gibs') {
-      if (nextVal) {
-        updateGibsOverlay(selectedGibsLayer, gibsOpacity);
+    }
+  };
+
+  // Chọn tất cả / Bỏ chọn tất cả cho cả Nhóm lớp hệ thống & Nhóm lớp thôn/buôn
+  const handleSelectAllLayers = async (selectAll: boolean) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    setSystemLayers({ markers: selectAll, buffer: selectAll });
+    if (systemMarkersGroupRef.current) {
+      if (selectAll) systemMarkersGroupRef.current.addTo(map);
+      else map.removeLayer(systemMarkersGroupRef.current);
+    }
+    if (bufferCircleLayerRef.current) {
+      if (selectAll) bufferCircleLayerRef.current.addTo(map);
+      else map.removeLayer(bufferCircleLayerRef.current);
+    }
+
+    const nextEnabled: Record<string, boolean> = {};
+    for (const item of kmzManifest) {
+      nextEnabled[item.id] = selectAll;
+      persistKmlLayerUpdate(item.id, { enabled: selectAll });
+    }
+    setEnabledKmzLayers(nextEnabled);
+
+    for (const item of kmzManifest) {
+      if (selectAll) {
+        await renderKmzLayerOnMap(item);
       } else {
-        if (gibsTileLayerRef.current) map.removeLayer(gibsTileLayerRef.current);
-        if (gibsFeatureGroupRef.current) map.removeLayer(gibsFeatureGroupRef.current);
+        const existing = kmzLayerGroupsRef.current[item.id];
+        if (existing && map.hasLayer(existing)) {
+          map.removeLayer(existing);
+        }
       }
     }
   };
 
-  // Cho phép người dùng tải thêm file .KML từ máy tính: Gom thành 1 lớp & Lưu trữ bền vững vào hệ thống (Server + IndexedDB)
+  // Cho phép người dùng tải thêm lớp bản đồ từ máy tính: Gom thành 1 lớp & Lưu trữ bền vững vào hệ thống (Server + IndexedDB)
   const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1310,7 +1378,7 @@ export const WebGISMap: React.FC = () => {
           id: customId,
           rawName: file.name,
           label: defaultLayerName,
-          category: 'Lớp Bản Đồ KML / KMZ',
+          category: 'Nhóm lớp thôn/buôn',
           defaultOn: true,
           color: layerColor,
           bounds: [
@@ -1349,12 +1417,16 @@ export const WebGISMap: React.FC = () => {
         handleFlyToKmzLayer(savedItem);
       }
     } catch (err) {
-      console.error('Upload KML error:', err);
+      console.error('Upload layer error:', err);
     }
     e.target.value = '';
   };
 
-  const activeKmzCount = kmzManifest.filter((m) => enabledKmzLayers[m.id]).length;
+  const totalLayerCount = 2 + kmzManifest.length;
+  const activeLayerCount =
+    (systemLayers.markers ? 1 : 0) +
+    (systemLayers.buffer ? 1 : 0) +
+    kmzManifest.filter((m) => enabledKmzLayers[m.id]).length;
 
   const activeMeta = GIBS_META[selectedGibsLayer] || GIBS_META.THERMAL_ANOMALIES;
   const currentAreaInfo: AreaDefinition =
@@ -1375,7 +1447,7 @@ export const WebGISMap: React.FC = () => {
   const currentDeltaNdvi = Number((currentAreaInfo.ndvi2026 - currentAreaInfo.ndvi2001).toFixed(2));
 
   return (
-    <div className="relative w-full h-auto rounded-xl overflow-hidden border border-[#0A4393]/25 bg-white shadow-lg flex flex-col">
+    <div className="relative z-10 isolate w-full h-auto rounded-xl overflow-hidden border border-[#0A4393]/25 bg-white shadow-lg flex flex-col">
       {/* Top Map Control Bar */}
       <div className="z-10 bg-[#0A4393] border-b border-white/20 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white">
         {/* Basemap Switcher */}
@@ -1417,21 +1489,8 @@ export const WebGISMap: React.FC = () => {
           </select>
         </div>
 
-        {/* 25-Year Swipe Compare Toggle & Layer Manager */}
+        {/* 25-Year Swipe Compare Toggle */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={() => setShowLayerManager(!showLayerManager)}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
-              showLayerManager
-                ? 'bg-white text-[#0A4393] font-bold ring-2 ring-white shadow-md'
-                : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
-            }`}
-            title="Quản lý bật/tắt các lớp bản đồ hệ thống và lớp bản đồ theo file .KML/.KMZ"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Quản Lý Lớp Bản Đồ ({activeKmzCount}/{kmzManifest.length || 1})</span>
-          </button>
-
           <button
             onClick={handleToggleSwipeTool}
             className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
@@ -1627,23 +1686,24 @@ export const WebGISMap: React.FC = () => {
           </div>
         )}
 
-        {/* Nút nổi góc trên bên phải: Mở Bảng Quản lý Lớp Bản Đồ & KML */}
+        {/* Nút nổi góc trên bên phải: Mở Bảng Quản lý Lớp Bản Đồ */}
         <div className="absolute top-3 right-3 z-[500] flex items-center gap-1.5">
           <button
+            ref={layerManagerBtnFloatRef}
             onClick={() => setShowLayerManager(!showLayerManager)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold font-mono shadow-lg border transition-all ${
               showLayerManager
                 ? 'bg-[#0A4393] text-white border-white ring-2 ring-[#0A4393]/40'
                 : 'bg-white text-[#0A4393] border-[#0A4393]/40 hover:bg-[#F0F6FF]'
             }`}
-            title="Bật/tắt quản lý lớp bản đồ hệ thống và lớp bản đồ theo file .KML"
+            title="Bật/tắt quản lý lớp bản đồ"
           >
             <Layers className="w-4 h-4" />
-            <span>Lớp Bản Đồ & KML ({activeKmzCount}/{kmzManifest.length || 1})</span>
+            <span>Lớp Bản Đồ ({activeLayerCount}/{totalLayerCount})</span>
           </button>
         </div>
 
-        {/* Nút nổi góc dưới bên phải (Ngay phía trên nút + / - Zoom của Ảnh 1): ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG */}
+        {/* Nút nổi góc dưới bên phải: ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG */}
         <button
           onClick={handleLocateUser}
           disabled={isLocating}
@@ -1658,14 +1718,17 @@ export const WebGISMap: React.FC = () => {
           )}
         </button>
 
-        {/* BẢNG QUẢN LÝ LỚP BẢN ĐỒ HỆ THỐNG & LỚP FILE .KML / .KMZ */}
+        {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ */}
         {showLayerManager && (
-          <div className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[370px] max-h-[430px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans">
+          <div
+            ref={layerManagerPanelRef}
+            className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[370px] max-h-[430px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans"
+          >
             {/* Header Bảng Quản Lý Lớp */}
             <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 font-bold">
                 <Layers className="w-4 h-4" />
-                <span>QUẢN LÝ LỚP BẢN ĐỒ & KML</span>
+                <span>QUẢN LÝ LỚP BẢN ĐỒ</span>
               </div>
               <button
                 onClick={() => setShowLayerManager(false)}
@@ -1676,12 +1739,35 @@ export const WebGISMap: React.FC = () => {
               </button>
             </div>
 
+            {/* Thanh nút Chọn tất cả / Bỏ chọn tất cả */}
+            <div className="px-2.5 py-1.5 bg-[#F0F6FF] border-b border-[#0A4393]/20 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleSelectAllLayers(true)}
+                  className="px-2.5 py-1 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/35 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                >
+                  <CheckSquare className="w-3 h-3" />
+                  <span>Chọn tất cả</span>
+                </button>
+                <button
+                  onClick={() => handleSelectAllLayers(false)}
+                  className="px-2.5 py-1 rounded bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                >
+                  <Square className="w-3 h-3" />
+                  <span>Bỏ chọn tất cả</span>
+                </button>
+              </div>
+              <span className="text-[10px] font-mono font-bold text-[#0A4393]">
+                {activeLayerCount}/{totalLayerCount} lớp
+              </span>
+            </div>
+
             {/* Danh sách các lớp bản đồ (Cuộn dọc) */}
             <div className="flex-1 overflow-y-auto p-2.5 space-y-3">
-              {/* Nhóm 1: Lớp Hệ Thống Trực Chiến Xã Ea Súp (Giữ nguyên) */}
+              {/* Nhóm 1: Nhóm lớp hệ thống */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5">
-                  Lớp Hệ Thống Trực Chiến Xã Ea Súp
+                  Nhóm lớp hệ thống
                 </div>
                 <div className="space-y-1">
                   <label className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] cursor-pointer border border-transparent hover:border-[#0A4393]/15">
@@ -1713,50 +1799,39 @@ export const WebGISMap: React.FC = () => {
                       </span>
                     </div>
                   </label>
-
-                  <label className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] cursor-pointer border border-transparent hover:border-[#0A4393]/15">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={systemLayers.gibs}
-                        onChange={() => handleToggleSystemLayer('gibs')}
-                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
-                      />
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shrink-0" />
-                      <span className="text-[11px] font-medium text-slate-800">
-                        Lớp Ảnh Nhiệt / Vệ Tinh NASA GIBS
-                      </span>
-                    </div>
-                  </label>
                 </div>
               </div>
 
-              {/* Nhóm 2: Gom hết các lớp trong mỗi file .KML thành một lớp (Có thể chỉnh sửa tên, tích chọn/bỏ) */}
+              {/* Nhóm 2: Nhóm lớp thôn/buôn */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between gap-2">
-                  <span>Lớp Bản Đồ Theo File .KML</span>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
-                    title="Tải thêm file .KML từ máy tính (Mỗi file .KML sẽ gom thành 1 lớp bản đồ)"
-                  >
-                    <Upload className="w-2.5 h-2.5" />
-                    <span>+ File .KML</span>
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".kml,.xml"
-                    onChange={handleUploadCustomKml}
-                    className="hidden"
-                  />
+                  <span>Nhóm lớp thôn/buôn</span>
+                  {canEditMap && (
+                    <>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
+                        title="Tải thêm lớp bản đồ từ máy tính"
+                      >
+                        <Upload className="w-2.5 h-2.5" />
+                        <span>+ Thêm lớp</span>
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".kml,.xml"
+                        onChange={handleUploadCustomKml}
+                        className="hidden"
+                      />
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   {kmzManifest.map((item) => {
                     const isChecked = !!enabledKmzLayers[item.id];
                     const isLoading = !!loadingKmzLayers[item.id];
-                    const isEditing = editingLayerId === item.id;
+                    const isEditing = canEditMap && editingLayerId === item.id;
 
                     return (
                       <div
@@ -1773,7 +1848,7 @@ export const WebGISMap: React.FC = () => {
                             checked={isChecked}
                             onChange={() => handleToggleKmzLayer(item)}
                             className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                            title="Tích chọn / Bỏ chọn hiển thị lớp bản đồ KML này"
+                            title="Tích chọn / Bỏ chọn hiển thị lớp bản đồ này"
                           />
                           <span
                             className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
@@ -1810,9 +1885,6 @@ export const WebGISMap: React.FC = () => {
                               <div className="text-[11px] font-bold text-slate-800 truncate">
                                 {item.label}
                               </div>
-                              <div className="text-[9px] font-mono text-slate-500 truncate">
-                                File: {item.rawName} • {item.geomCount.toLocaleString()} đối tượng
-                              </div>
                             </div>
                           )}
                         </div>
@@ -1821,11 +1893,11 @@ export const WebGISMap: React.FC = () => {
                           {isLoading && (
                             <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
                           )}
-                          {!isEditing && (
+                          {canEditMap && !isEditing && (
                             <button
                               onClick={() => handleStartEditLayerName(item)}
                               className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                              title="Chỉnh sửa tên lớp bản đồ theo file .KML"
+                              title="Chỉnh sửa tên lớp bản đồ"
                             >
                               <Pencil className="w-3 h-3" />
                             </button>
@@ -1837,11 +1909,11 @@ export const WebGISMap: React.FC = () => {
                           >
                             <Crosshair className="w-3 h-3" />
                           </button>
-                          {(item.id.startsWith('KML_') || item.id.startsWith('USER_')) && (
+                          {canEditMap && (
                             <button
                               onClick={() => handleDeleteKmzLayer(item)}
                               className="p-1 rounded bg-white hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 transition-colors"
-                              title="Xóa lớp .KML này khỏi hệ thống"
+                              title="Xóa lớp bản đồ này khỏi hệ thống"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>

@@ -2,8 +2,8 @@
   {
     "id": "KMZ_BAN_VE_MAT_CAT",
     "rawName": "ban_ve,_mat_cat.kmz",
-    "label": "Bản vẽ & Mặt cắt (ban_ve,_mat_cat.kmz)",
-    "category": "Lớp Bản Đồ KML / KMZ",
+    "label": "Bản vẽ & Mặt cắt",
+    "category": "Nhóm lớp thôn/buôn",
     "defaultOn": true,
     "color": "#00e5ff",
     "bounds": [

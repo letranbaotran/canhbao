@@ -218,31 +218,31 @@ export const CommandCenterDashboard: React.FC = () => {
         {/* Right Column: Alert Center & Command Telemetry (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           {/* TAB CHUYỂN MẠCH: TRỰC CHIẾN LIVE <-> TAB ẨN MÔ PHỎNG IoT */}
-          <div className="flex items-center gap-1.5 p-1 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
+          <div className="flex items-center gap-1 p-1 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
             <button
               onClick={() => setTelemetryTab('LIVE')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
                 telemetryTab === 'LIVE'
                   ? 'bg-[#0A4393] text-white shadow-md'
                   : 'text-[#0A4393] hover:bg-[#F0F6FF]'
               }`}
             >
-              <Activity className="w-3.5 h-3.5" />
-              <span>SỐ LIỆU TRỰC CHIẾN</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded font-normal ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
+              <Activity className="w-3 h-3 shrink-0" />
+              <span className="truncate">SỐ LIỆU TRỰC CHIẾN</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
             </button>
 
             <button
               onClick={() => setTelemetryTab('SIMULATOR')}
-              className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
                 telemetryTab === 'SIMULATOR'
                   ? 'bg-[#0A4393] text-white shadow-md'
                   : 'text-[#0A4393] hover:bg-[#F0F6FF]'
               }`}
             >
-              <Cpu className="w-3.5 h-3.5" />
-              <span>TAB MÔ PHỎNG IoT</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded font-normal ${telemetryTab === 'SIMULATOR' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LAB</span>
+              <Cpu className="w-3 h-3 shrink-0" />
+              <span className="truncate">TAB MÔ PHỎNG IoT</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'SIMULATOR' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LAB</span>
             </button>
           </div>
 

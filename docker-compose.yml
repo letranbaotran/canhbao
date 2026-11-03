@@ -9,6 +9,8 @@ services:
     restart: unless-stopped
     ports:
       - '8066:3000'
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-easup_admin}:${POSTGRES_PASSWORD:-EasupPCTT2026!}@db:5432/${POSTGRES_DB:-canhbao_easup}?schema=public
       - REDIS_URL=redis://redis:6379
@@ -18,9 +20,13 @@ services:
       - VBEE_ACCESS_TOKEN=${VBEE_ACCESS_TOKEN:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-lehanhkt01@gmail.com}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - AUTH_USERS_ENV_JSON=${AUTH_USERS_ENV_JSON:-[]}
     volumes:
       - tts_storage:/app/public/storage/tts
       - ./public/storage/kml:/app/public/storage/kml
+      - ./.env:/app/.env
 
   db:
     image: postgis/postgis:16-3.4-alpine

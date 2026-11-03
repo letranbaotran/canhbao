@@ -27,6 +27,10 @@ fi
 if [ ! -f "$APP_DIR/.env" ] && [ -f "$APP_DIR/.env.example" ]; then
   cp "$APP_DIR/.env.example" "$APP_DIR/.env"
 fi
+chmod 600 "$APP_DIR/.env" 2>/dev/null || true
+grep -q "^ADMIN_EMAIL=" "$APP_DIR/.env" || echo 'ADMIN_EMAIL="lehanhkt01@gmail.com"' >> "$APP_DIR/.env"
+grep -q "^ADMIN_PASSWORD=" "$APP_DIR/.env" || echo 'ADMIN_PASSWORD=""' >> "$APP_DIR/.env"
+grep -q "^AUTH_USERS_ENV_JSON=" "$APP_DIR/.env" || echo 'AUTH_USERS_ENV_JSON="[]"' >> "$APP_DIR/.env"
 
 echo "📦 Đang cài đặt thư viện và đóng gói bản sản xuất (Next.js Standalone)..."
 npm install
