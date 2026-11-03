@@ -678,19 +678,19 @@ export const WebGISMap: React.FC = () => {
         return L.divIcon({
           className: 'custom-map-marker',
           html: `
-            <div style="display:inline-flex; align-items:center; gap:6px; white-space:nowrap; padding:4px 10px; border-radius:20px; font-weight:700; font-size:11px; font-family:monospace; box-shadow:0 4px 12px rgba(0,0,0,0.6); border:1.5px solid ${badgeBorder}; background:${badgeBg}; color:#ffffff; cursor:pointer;">
+            <div style="display:inline-flex; align-items:center; gap:5px; white-space:nowrap; padding:3px 9px; border-radius:20px; font-weight:700; font-size:11px; font-family:monospace; box-shadow:0 4px 12px rgba(0,0,0,0.6); border:1.5px solid ${badgeBorder}; background:${badgeBg}; color:#ffffff; cursor:pointer;">
               <span style="display:inline-flex; align-items:center;">${iconSvg}</span>
               <span style="white-space:nowrap;">${badgeText}</span>
             </div>
           `,
           iconSize: [0, 0],
-          iconAnchor: [60, 15],
+          iconAnchor: [42, 14],
         });
       };
 
-      // 1. Hồ Ea Súp Hạ
+      // 1. Hồ Hạ
       L.marker([13.05685, 107.894562], {
-        icon: createPillMarker('rgba(15, 118, 110, 0.95)', '#5eead4', '💧 Hồ Ea Súp Hạ (Nguồn sinh hoạt)', '💧'),
+        icon: createPillMarker('rgba(15, 118, 110, 0.95)', '#5eead4', 'Hồ Hạ', '💧'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -702,9 +702,9 @@ export const WebGISMap: React.FC = () => {
           </div>
         `);
 
-      // 2. Hồ Ea Súp Thượng
+      // 2. Hồ Thượng
       L.marker([13.043116, 107.937218], {
-        icon: createPillMarker('rgba(15, 76, 129, 0.95)', '#60a5fa', '🌊 Hồ Ea Súp Thượng (146M m³)', '💧'),
+        icon: createPillMarker('rgba(15, 76, 129, 0.95)', '#60a5fa', 'Hồ Thượng', '🌊'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -717,7 +717,7 @@ export const WebGISMap: React.FC = () => {
 
       // 3. Tiểu khu 293
       L.marker([12.982216, 107.886961], {
-        icon: createPillMarker('rgba(27, 77, 62, 0.95)', '#34d399', '🌲 Lâm phần Tiểu khu 293', '🔥'),
+        icon: createPillMarker('rgba(27, 77, 62, 0.95)', '#34d399', 'Tiểu khu 293', '🌲'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -730,7 +730,7 @@ export const WebGISMap: React.FC = () => {
 
       // 4. Hồ Trung Chuyển
       L.marker([13.069298, 107.881527], {
-        icon: createPillMarker('rgba(14, 116, 144, 0.95)', '#67e8f9', '🐟 Hồ Trung Chuyển', '🏊'),
+        icon: createPillMarker('rgba(14, 116, 144, 0.95)', '#67e8f9', 'Hồ Trung Chuyển', '🐟'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -990,7 +990,7 @@ export const WebGISMap: React.FC = () => {
   };
 
   // ================= ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG (GPS) =================
-  const renderUserLocationMarker = (lat: number, lng: number, accuracy: number, isFallback = false) => {
+  const renderUserLocationMarker = (lat: number, lng: number) => {
     const map = leafletMapRef.current;
     if (!map) return;
 
@@ -1003,76 +1003,43 @@ export const WebGISMap: React.FC = () => {
       const group = L.featureGroup().addTo(map);
       userLocationLayerRef.current = group;
 
-      // Vòng tròn bán kính sai số GPS
-      L.circle([lat, lng], {
-        radius: Math.max(accuracy, 35),
-        color: '#0A4393',
-        weight: 1.5,
-        fillColor: '#38bdf8',
-        fillOpacity: 0.2,
-      }).addTo(group);
-
-      // Marker chấm xanh định vị phát sáng
+      // Chỉ để duy nhất biểu tượng đinh ghim (📍)
       const gpsIcon = L.divIcon({
         className: 'custom-map-marker',
         html: `
-          <div style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:#0A4393; color:#ffffff; border:2px solid #ffffff; font-size:11px; font-weight:700; font-family:monospace; box-shadow:0 0 16px rgba(10,67,147,0.95);">
-            <span style="width:10px; height:10px; border-radius:50%; background:#38bdf8; border:2px solid #ffffff; display:inline-block; box-shadow:0 0 8px #38bdf8;"></span>
-            <span>📍 Vị trí đang đứng</span>
+          <div style="font-size:28px; line-height:1; filter:drop-shadow(0 3px 6px rgba(0,0,0,0.75)); cursor:pointer; user-select:none;">
+            📍
           </div>
         `,
-        iconSize: [0, 0],
-        iconAnchor: [70, 15],
+        iconSize: [28, 28],
+        iconAnchor: [14, 26],
       });
 
-      const marker = L.marker([lat, lng], { icon: gpsIcon })
-        .addTo(group)
-        .bindPopup(`
-          <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:210px; color:#0f172a;">
-            <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📍 Vị Trí Định Vị Hiện Tại</h4>
-            <p style="margin:0 0 3px 0;">- Vĩ độ: <strong>${lat.toFixed(6)}°B</strong></p>
-            <p style="margin:0 0 3px 0;">- Kinh độ: <strong>${lng.toFixed(6)}°Đ</strong></p>
-            <p style="margin:0 0 4px 0;">- Độ chính xác: <strong>±${Math.round(accuracy)} m</strong></p>
-            <div style="background:#F0F6FF; color:#0A4393; padding:4px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
-              ${isFallback ? 'Tâm điểm hành chính xã Ea Súp (Mô phỏng GPS)' : 'Tín hiệu định vị GPS thiết bị trực tiếp'}
-            </div>
-          </div>
-        `);
+      L.marker([lat, lng], { icon: gpsIcon }).addTo(group);
 
       map.flyTo([lat, lng], 15, { duration: 1.0 });
-      setTimeout(() => {
-        marker.openPopup();
-      }, 600);
     });
   };
 
   const handleLocateUser = () => {
     if (typeof window === 'undefined') return;
     setIsLocating(true);
-    setLocateMessage('Đang xác định tọa độ GPS thiết bị...');
 
     if (!('geolocation' in navigator)) {
       setIsLocating(false);
-      renderUserLocationMarker(13.0635, 107.9049, 25, true);
-      setLocateMessage('Thiết bị không hỗ trợ GPS, đã định vị tâm xã Ea Súp.');
-      setTimeout(() => setLocateMessage(null), 4000);
+      renderUserLocationMarker(13.0635, 107.9049);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false);
-        const { latitude, longitude, accuracy } = pos.coords;
-        renderUserLocationMarker(latitude, longitude, accuracy || 20, false);
-        setLocateMessage(`Đã định vị: ${latitude.toFixed(5)}°B, ${longitude.toFixed(5)}°Đ`);
-        setTimeout(() => setLocateMessage(null), 4500);
+        const { latitude, longitude } = pos.coords;
+        renderUserLocationMarker(latitude, longitude);
       },
       () => {
         setIsLocating(false);
-        // Fallback thông minh về tọa độ trung tâm thực địa Ea Súp nếu trình duyệt chặn quyền GPS
-        renderUserLocationMarker(13.0635, 107.9049, 25, true);
-        setLocateMessage('Đã định vị tại Trung tâm điều hành xã Ea Súp (13.0635°B, 107.9049°Đ)');
-        setTimeout(() => setLocateMessage(null), 4500);
+        renderUserLocationMarker(13.0635, 107.9049);
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
@@ -1400,7 +1367,7 @@ export const WebGISMap: React.FC = () => {
           </select>
         </div>
 
-        {/* 25-Year Swipe Compare Toggle & Layer Manager + GPS */}
+        {/* 25-Year Swipe Compare Toggle & Layer Manager */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => setShowLayerManager(!showLayerManager)}
@@ -1413,20 +1380,6 @@ export const WebGISMap: React.FC = () => {
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Quản Lý Lớp KMZ ({activeKmzCount}/{kmzManifest.length || 22})</span>
-          </button>
-
-          <button
-            onClick={handleLocateUser}
-            disabled={isLocating}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono bg-white text-[#0A4393] font-bold hover:bg-blue-50 transition-colors shadow-sm"
-            title="Định vị vị trí đang đứng trên bản đồ (GPS)"
-          >
-            {isLocating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0A4393]" />
-            ) : (
-              <LocateFixed className="w-3.5 h-3.5 text-[#0A4393]" />
-            )}
-            <span>Vị Trí Đang Đứng</span>
           </button>
 
           <button
