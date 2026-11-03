@@ -1117,11 +1117,8 @@ export const WebGISMap: React.FC = () => {
     const displayLabel = item.label || layerData.label;
 
     const popupHtml = `
-      <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:180px; color:#0f172a;">
-        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${displayLabel}</h4>
-        <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
-          Lớp bản đồ thống nhất (Tọa độ chuẩn Ea Súp)
-        </div>
+      <div style="font-family:sans-serif; font-size:12px; font-weight:700; color:#0A4393; padding:2px 4px; white-space:nowrap;">
+        ${displayLabel}
       </div>
     `;
 
@@ -1286,11 +1283,8 @@ export const WebGISMap: React.FC = () => {
           </div>
         `;
         const newPopupHtml = `
-          <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:180px; color:#0f172a;">
-            <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${trimmed}</h4>
-            <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
-              Lớp bản đồ thống nhất (Tọa độ chuẩn Ea Súp)
-            </div>
+          <div style="font-family:sans-serif; font-size:12px; font-weight:700; color:#0A4393; padding:2px 4px; white-space:nowrap;">
+            ${trimmed}
           </div>
         `;
         existingGroup.eachLayer((subLayer: any) => {
