@@ -1,0 +1,464 @@
+[
+  {
+    "id": "0",
+    "rawName": "0",
+    "label": "Mốc khung gốc bản vẽ (Lớp 0)",
+    "category": "Bình đồ & Mặt cắt",
+    "defaultOn": true,
+    "color": "#ffffff",
+    "bounds": [
+      [
+        13.06336,
+        107.90487
+      ],
+      [
+        13.06359,
+        107.90495
+      ]
+    ],
+    "geomCount": 1,
+    "file": "/data/kmz/0.json",
+    "sizeKb": 0.4
+  },
+  {
+    "id": "4_Giaothong_CAU",
+    "rawName": "4_Giaothong_CAU",
+    "label": "Cầu, cống giao thông",
+    "category": "Hạ tầng & Địa vật",
+    "defaultOn": true,
+    "color": "#38bdf8",
+    "bounds": [
+      [
+        13.04618,
+        107.88815
+      ],
+      [
+        13.06482,
+        107.90815
+      ]
+    ],
+    "geomCount": 6,
+    "file": "/data/kmz/4_Giaothong_CAU.json",
+    "sizeKb": 0.8
+  },
+  {
+    "id": "AO",
+    "rawName": "AO",
+    "label": "Ao, hồ điều tiết",
+    "category": "Thủy văn & Lũ lụt",
+    "defaultOn": true,
+    "color": "#00bcd4",
+    "bounds": [
+      [
+        13.0436,
+        107.91008
+      ],
+      [
+        13.04594,
+        107.91269
+      ]
+    ],
+    "geomCount": 3,
+    "file": "/data/kmz/AO.json",
+    "sizeKb": 1.6
+  },
+  {
+    "id": "DIA_VAT",
+    "rawName": "DIA VAT",
+    "label": "Địa vật & Công trình",
+    "category": "Hạ tầng & Địa vật",
+    "defaultOn": true,
+    "color": "#ff9800",
+    "bounds": [
+      [
+        13.02303,
+        107.88777
+      ],
+      [
+        13.06613,
+        107.93319
+      ]
+    ],
+    "geomCount": 25,
+    "file": "/data/kmz/DIA_VAT.json",
+    "sizeKb": 7
+  },
+  {
+    "id": "diem",
+    "rawName": "diem",
+    "label": "Điểm đo khảo sát thực địa",
+    "category": "Mốc & Điểm đo",
+    "defaultOn": true,
+    "color": "#ffffff",
+    "bounds": [
+      [
+        13.03625,
+        107.60709
+      ],
+      [
+        13.30547,
+        107.93163
+      ]
+    ],
+    "geomCount": 77,
+    "file": "/data/kmz/diem.json",
+    "sizeKb": 3.6
+  },
+  {
+    "id": "DO",
+    "rawName": "DO",
+    "label": "Tuyến bình đồ khảo sát chính",
+    "category": "Bình đồ & Mặt cắt",
+    "defaultOn": true,
+    "color": "#ff00ff",
+    "bounds": [
+      [
+        13.03545,
+        107.60687
+      ],
+      [
+        13.30747,
+        107.94324
+      ]
+    ],
+    "geomCount": 3,
+    "file": "/data/kmz/DO.json",
+    "sizeKb": 84.6
+  },
+  {
+    "id": "Docao",
+    "rawName": "Docao",
+    "label": "Nhãn số độ cao chi tiết (Docao)",
+    "category": "Chi tiết CAD chuyên sâu",
+    "defaultOn": false,
+    "color": "#ff6e40",
+    "bounds": [
+      [
+        13.02447,
+        107.60814
+      ],
+      [
+        13.30719,
+        107.93314
+      ]
+    ],
+    "geomCount": 1023,
+    "file": "/data/kmz/Docao.json",
+    "sizeKb": 43.8
+  },
+  {
+    "id": "ELEV",
+    "rawName": "ELEV",
+    "label": "Cao độ địa hình (ELEV)",
+    "category": "Mốc & Điểm đo",
+    "defaultOn": false,
+    "color": "#e0e0e0",
+    "bounds": [
+      [
+        13.03626,
+        107.60711
+      ],
+      [
+        13.30548,
+        107.93169
+      ]
+    ],
+    "geomCount": 179,
+    "file": "/data/kmz/ELEV.json",
+    "sizeKb": 7.9
+  },
+  {
+    "id": "FeatureAttribs",
+    "rawName": "FeatureAttribs",
+    "label": "Thuộc tính địa vật",
+    "category": "Hạ tầng & Địa vật",
+    "defaultOn": false,
+    "color": "#b2ebf2",
+    "bounds": [
+      [
+        13.03646,
+        107.60733
+      ],
+      [
+        13.3048,
+        107.94535
+      ]
+    ],
+    "geomCount": 413,
+    "file": "/data/kmz/FeatureAttribs.json",
+    "sizeKb": 56.4
+  },
+  {
+    "id": "Ghi_chu",
+    "rawName": "Ghi_chu",
+    "label": "Thuyết minh & Ghi chú mặt cắt",
+    "category": "Chi tiết CAD chuyên sâu",
+    "defaultOn": false,
+    "color": "#18ffff",
+    "bounds": [
+      [
+        13.05788,
+        107.76793
+      ],
+      [
+        13.20438,
+        107.90441
+      ]
+    ],
+    "geomCount": 1392,
+    "file": "/data/kmz/Ghi_chu.json",
+    "sizeKb": 89.2
+  },
+  {
+    "id": "Giao_thong",
+    "rawName": "Giao_thong",
+    "label": "Đường giao thông",
+    "category": "Hạ tầng & Địa vật",
+    "defaultOn": true,
+    "color": "#ffffff",
+    "bounds": [
+      [
+        13.05774,
+        107.77013
+      ],
+      [
+        13.20447,
+        107.90753
+      ]
+    ],
+    "geomCount": 28,
+    "file": "/data/kmz/Giao_thong.json",
+    "sizeKb": 2.4
+  },
+  {
+    "id": "kenhxay",
+    "rawName": "kenhxay",
+    "label": "Kênh xây thủy lợi",
+    "category": "Thủy văn & Lũ lụt",
+    "defaultOn": true,
+    "color": "#ff3b30",
+    "bounds": [
+      [
+        13.02868,
+        107.88875
+      ],
+      [
+        13.06655,
+        107.94266
+      ]
+    ],
+    "geomCount": 4411,
+    "file": "/data/kmz/kenhxay.json",
+    "sizeKb": 257.6
+  },
+  {
+    "id": "Line0",
+    "rawName": "Line0",
+    "label": "Tuyến cơ sở (Line0)",
+    "category": "Bình đồ & Mặt cắt",
+    "defaultOn": true,
+    "color": "#80deea",
+    "bounds": [
+      [
+        13.06316,
+        107.90489
+      ],
+      [
+        13.07516,
+        107.94354
+      ]
+    ],
+    "geomCount": 15,
+    "file": "/data/kmz/Line0.json",
+    "sizeKb": 0.9
+  },
+  {
+    "id": "Madiem",
+    "rawName": "Madiem",
+    "label": "Mã điểm trắc địa chi tiết (Madiem)",
+    "category": "Chi tiết CAD chuyên sâu",
+    "defaultOn": false,
+    "color": "#536dfe",
+    "bounds": [
+      [
+        13.02447,
+        107.60811
+      ],
+      [
+        13.30469,
+        107.93311
+      ]
+    ],
+    "geomCount": 596,
+    "file": "/data/kmz/Madiem.json",
+    "sizeKb": 25.6
+  },
+  {
+    "id": "POINT",
+    "rawName": "POINT",
+    "label": "Điểm khống chế trắc địa (POINT)",
+    "category": "Mốc & Điểm đo",
+    "defaultOn": false,
+    "color": "#ffea00",
+    "bounds": [
+      [
+        13.03628,
+        107.60711
+      ],
+      [
+        13.3055,
+        107.93163
+      ]
+    ],
+    "geomCount": 102,
+    "file": "/data/kmz/POINT.json",
+    "sizeKb": 4.6
+  },
+  {
+    "id": "SL_DO",
+    "rawName": "SL DO",
+    "label": "Mặt cắt ngang thủy văn (SL DO)",
+    "category": "Bình đồ & Mặt cắt",
+    "defaultOn": true,
+    "color": "#ffd600",
+    "bounds": [
+      [
+        13.05797,
+        107.89946
+      ],
+      [
+        13.08483,
+        107.94323
+      ]
+    ],
+    "geomCount": 252,
+    "file": "/data/kmz/SL_DO.json",
+    "sizeKb": 11.1
+  },
+  {
+    "id": "SLDO",
+    "rawName": "SLDO",
+    "label": "Chi tiết lưới đo toàn tuyến (SLDO)",
+    "category": "Chi tiết CAD chuyên sâu",
+    "defaultOn": false,
+    "color": "#e040fb",
+    "bounds": [
+      [
+        13.03566,
+        107.60645
+      ],
+      [
+        13.306,
+        107.93181
+      ]
+    ],
+    "geomCount": 1739,
+    "file": "/data/kmz/SLDO.json",
+    "sizeKb": 74.2
+  },
+  {
+    "id": "Tendiem",
+    "rawName": "Tendiem",
+    "label": "Tên điểm mốc khảo sát",
+    "category": "Mốc & Điểm đo",
+    "defaultOn": true,
+    "color": "#fff59d",
+    "bounds": [
+      [
+        13.06357,
+        107.88903
+      ],
+      [
+        13.07834,
+        107.90491
+      ]
+    ],
+    "geomCount": 14,
+    "file": "/data/kmz/Tendiem.json",
+    "sizeKb": 1.4
+  },
+  {
+    "id": "Thuy_he",
+    "rawName": "Thuy_he",
+    "label": "Thủy hệ (Sông, Hồ, Suối)",
+    "category": "Thủy văn & Lũ lụt",
+    "defaultOn": true,
+    "color": "#00e5ff",
+    "bounds": [
+      [
+        13.01085,
+        107.88758
+      ],
+      [
+        13.06989,
+        107.98471
+      ]
+    ],
+    "geomCount": 2,
+    "file": "/data/kmz/Thuy_he.json",
+    "sizeKb": 142.8
+  },
+  {
+    "id": "Unknown_Line_Type",
+    "rawName": "Unknown_Line_Type",
+    "label": "Đường ranh giới phụ",
+    "category": "Bình đồ & Mặt cắt",
+    "defaultOn": true,
+    "color": "#ff5252",
+    "bounds": [
+      [
+        13.03506,
+        107.60608
+      ],
+      [
+        13.30727,
+        107.93191
+      ]
+    ],
+    "geomCount": 78,
+    "file": "/data/kmz/Unknown_Line_Type.json",
+    "sizeKb": 3.6
+  },
+  {
+    "id": "vet_lu",
+    "rawName": "vet lu",
+    "label": "Vết lũ & Phạm vi ngập",
+    "category": "Thủy văn & Lũ lụt",
+    "defaultOn": true,
+    "color": "#ffeb3b",
+    "bounds": [
+      [
+        13.04934,
+        107.65054
+      ],
+      [
+        13.28041,
+        107.91533
+      ]
+    ],
+    "geomCount": 2811,
+    "file": "/data/kmz/vet_lu.json",
+    "sizeKb": 188.5
+  },
+  {
+    "id": "XANH",
+    "rawName": "XANH",
+    "label": "Ranh giới cây xanh / Lâm phần",
+    "category": "Hạ tầng & Địa vật",
+    "defaultOn": true,
+    "color": "#00e676",
+    "bounds": [
+      [
+        13.03592,
+        107.60693
+      ],
+      [
+        13.30515,
+        107.94271
+      ]
+    ],
+    "geomCount": 91,
+    "file": "/data/kmz/XANH.json",
+    "sizeKb": 4.2
+  }
+]
