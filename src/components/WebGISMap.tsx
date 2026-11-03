@@ -292,6 +292,8 @@ export const WebGISMap: React.FC = () => {
   const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
   const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
   const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
+  const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
+  const [editingLayerName, setEditingLayerName] = useState<string>('');
   const [systemLayers, setSystemLayers] = useState<{
     markers: boolean;
     buffer: boolean;
@@ -1086,18 +1088,17 @@ export const WebGISMap: React.FC = () => {
 
     const popupHtml = `
       <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:200px; color:#0f172a;">
-        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${layerData.label}</h4>
-        <p style="margin:0 0 3px 0;">- Mã lớp KMZ: <strong>${layerData.rawName}</strong></p>
-        <p style="margin:0 0 3px 0;">- Phân nhóm: <strong>${layerData.category}</strong></p>
+        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${item.label || layerData.label}</h4>
+        <p style="margin:0 0 3px 0;">- File nguồn: <strong>${item.rawName || layerData.rawName}</strong></p>
         <p style="margin:0 0 4px 0;">- Số đối tượng: <strong>${layerData.geomCount.toLocaleString()} đối tượng</strong></p>
         <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
-          Nguồn: ban_ve,_mat_cat.kmz (Tọa độ chuẩn Ea Súp)
+          Lớp bản đồ KML/KMZ thống nhất (Tọa độ chuẩn Ea Súp)
         </div>
       </div>
     `;
 
     for (const grp of layerData.groups) {
-      const strokeColor = item.color || grp.color || '#38bdf8';
+      const strokeColor = grp.color || item.color || '#38bdf8';
       if (grp.lines && grp.lines.length > 0) {
         L.polyline(grp.lines as any, {
           renderer,
@@ -1125,7 +1126,7 @@ export const WebGISMap: React.FC = () => {
     layerGroup.addTo(map);
   };
 
-  // Tự động nạp manifest.json của file ban_ve,_mat_cat.kmz và hiển thị các lớp mặc định khi bản đồ sẵn sàng
+  // Tự động nạp manifest.json của file ban_ve,_mat_cat.kmz và hiển thị lớp bản đồ gộp khi bản đồ sẵn sàng
   useEffect(() => {
     if (!mapLoaded) return;
     let isSubscribed = true;
@@ -1134,15 +1135,27 @@ export const WebGISMap: React.FC = () => {
       .then((r) => r.json())
       .then(async (manifestList: KmzLayerManifestItem[]) => {
         if (!isSubscribed || !Array.isArray(manifestList)) return;
-        setKmzManifest(manifestList);
+
+        let savedNames: Record<string, string> = {};
+        try {
+          const rawSaved = localStorage.getItem('easup_kml_custom_names');
+          if (rawSaved) savedNames = JSON.parse(rawSaved);
+        } catch {}
+
+        const mergedList = manifestList.map((item) => ({
+          ...item,
+          label: savedNames[item.id] || item.label,
+        }));
+
+        setKmzManifest(mergedList);
 
         const initialEnabled: Record<string, boolean> = {};
-        for (const item of manifestList) {
+        for (const item of mergedList) {
           initialEnabled[item.id] = item.defaultOn;
         }
         setEnabledKmzLayers(initialEnabled);
 
-        for (const item of manifestList) {
+        for (const item of mergedList) {
           if (item.defaultOn && isSubscribed) {
             await renderKmzLayerOnMap(item);
           }
@@ -1156,6 +1169,31 @@ export const WebGISMap: React.FC = () => {
       isSubscribed = false;
     };
   }, [mapLoaded]);
+
+  // Chỉnh sửa tên lớp bản đồ theo file .KML / .KMZ
+  const handleStartEditLayerName = (item: KmzLayerManifestItem) => {
+    setEditingLayerId(item.id);
+    setEditingLayerName(item.label);
+  };
+
+  const handleSaveLayerName = (id: string) => {
+    const trimmed = editingLayerName.trim();
+    if (trimmed) {
+      setKmzManifest((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, label: trimmed } : item))
+      );
+      if (kmzDataCacheRef.current[id]) {
+        kmzDataCacheRef.current[id].label = trimmed;
+      }
+      try {
+        const rawSaved = localStorage.getItem('easup_kml_custom_names');
+        const savedNames = rawSaved ? JSON.parse(rawSaved) : {};
+        savedNames[id] = trimmed;
+        localStorage.setItem('easup_kml_custom_names', JSON.stringify(savedNames));
+      } catch {}
+    }
+    setEditingLayerId(null);
+  };
 
   const handleToggleKmzLayer = async (item: KmzLayerManifestItem) => {
     const map = leafletMapRef.current;
@@ -1174,30 +1212,6 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  const handleBulkKmzLayers = async (mode: 'ALL' | 'DEFAULT' | 'NONE') => {
-    const map = leafletMapRef.current;
-    if (!map) return;
-
-    const nextEnabled: Record<string, boolean> = {};
-    for (const item of kmzManifest) {
-      const shouldEnable =
-        mode === 'ALL' ? true : mode === 'DEFAULT' ? item.defaultOn : false;
-      nextEnabled[item.id] = shouldEnable;
-    }
-    setEnabledKmzLayers(nextEnabled);
-
-    for (const item of kmzManifest) {
-      if (nextEnabled[item.id]) {
-        await renderKmzLayerOnMap(item);
-      } else {
-        const existing = kmzLayerGroupsRef.current[item.id];
-        if (existing && map.hasLayer(existing)) {
-          map.removeLayer(existing);
-        }
-      }
-    }
-  };
-
   const handleFlyToKmzLayer = async (item: KmzLayerManifestItem) => {
     const map = leafletMapRef.current;
     if (!map) return;
@@ -1208,19 +1222,6 @@ export const WebGISMap: React.FC = () => {
     if (item.bounds && item.bounds.length === 2) {
       map.flyToBounds(item.bounds, { padding: [30, 30], maxZoom: 16, duration: 0.9 });
     }
-  };
-
-  const handleFlyToAllKmz = () => {
-    const map = leafletMapRef.current;
-    if (!map) return;
-    // Khung tọa độ trung tâm bản vẽ kênh xây, thủy hệ, mặt cắt xã Ea Súp
-    map.flyToBounds(
-      [
-        [13.023, 107.887],
-        [13.085, 107.945],
-      ],
-      { padding: [25, 25], duration: 0.9 }
-    );
   };
 
   const handleToggleSystemLayer = (key: 'markers' | 'buffer' | 'gibs') => {
@@ -1245,7 +1246,7 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  // Cho phép người dùng tải thêm file .KML từ máy tính lồng vào bản đồ
+  // Cho phép người dùng tải thêm file .KML từ máy tính: Gom hết các lớp trong mỗi file .KML thành 1 lớp duy nhất
   const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1276,11 +1277,12 @@ export const WebGISMap: React.FC = () => {
       }
       if (lines.length > 0) {
         const customId = `USER_${Date.now()}`;
+        const defaultLayerName = file.name.replace(/\.(kml|kmz|xml)$/i, '') || file.name;
         const newItem: KmzLayerManifestItem = {
           id: customId,
           rawName: file.name,
-          label: `Bản vẽ tải lên: ${file.name}`,
-          category: 'Bản vẽ người dùng tải lên',
+          label: defaultLayerName,
+          category: 'Lớp Bản Đồ KML / KMZ',
           defaultOn: true,
           color: '#ff1744',
           bounds: [[minLat, minLng], [maxLat, maxLng]],
@@ -1292,8 +1294,10 @@ export const WebGISMap: React.FC = () => {
           ...newItem,
           groups: [{ color: '#ff1744', fillColor: '#ff1744', weight: 2, outline: true, lines, polys: [] }],
         };
-        setKmzManifest((prev) => [newItem, ...prev]);
+        setKmzManifest((prev) => [...prev, newItem]);
         setEnabledKmzLayers((prev) => ({ ...prev, [customId]: true }));
+        setEditingLayerId(customId);
+        setEditingLayerName(defaultLayerName);
         await renderKmzLayerOnMap(newItem);
         handleFlyToKmzLayer(newItem);
       }
@@ -1304,7 +1308,6 @@ export const WebGISMap: React.FC = () => {
   };
 
   const activeKmzCount = Object.values(enabledKmzLayers).filter(Boolean).length;
-  const kmzCategories = Array.from(new Set(kmzManifest.map((m) => m.category)));
 
   const activeMeta = GIBS_META[selectedGibsLayer] || GIBS_META.THERMAL_ANOMALIES;
   const currentAreaInfo: AreaDefinition =
@@ -1376,10 +1379,10 @@ export const WebGISMap: React.FC = () => {
                 ? 'bg-white text-[#0A4393] font-bold ring-2 ring-white shadow-md'
                 : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
             }`}
-            title="Quản lý bật/tắt các lớp bản đồ và lớp bản vẽ mặt cắt KMZ"
+            title="Quản lý bật/tắt các lớp bản đồ hệ thống và lớp bản đồ theo file .KML/.KMZ"
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Quản Lý Lớp KMZ ({activeKmzCount}/{kmzManifest.length || 22})</span>
+            <span>Quản Lý Lớp Bản Đồ ({activeKmzCount}/{kmzManifest.length || 1})</span>
           </button>
 
           <button
@@ -1630,7 +1633,7 @@ export const WebGISMap: React.FC = () => {
           </div>
         )}
 
-        {/* Nút nổi góc trên bên phải: Mở Bảng Quản lý Nhiều Lớp Bản Đồ & KMZ */}
+        {/* Nút nổi góc trên bên phải: Mở Bảng Quản lý Lớp Bản Đồ & KML */}
         <div className="absolute top-3 right-3 z-[500] flex items-center gap-1.5">
           <button
             onClick={() => setShowLayerManager(!showLayerManager)}
@@ -1639,10 +1642,10 @@ export const WebGISMap: React.FC = () => {
                 ? 'bg-[#0A4393] text-white border-white ring-2 ring-[#0A4393]/40'
                 : 'bg-white text-[#0A4393] border-[#0A4393]/40 hover:bg-[#F0F6FF]'
             }`}
-            title="Bật/tắt quản lý nhiều lớp bản đồ và file ban_ve,_mat_cat.kmz"
+            title="Bật/tắt quản lý lớp bản đồ hệ thống và lớp bản đồ theo file .KML"
           >
             <Layers className="w-4 h-4" />
-            <span>Lớp Bản Đồ & KMZ ({activeKmzCount}/{kmzManifest.length || 22})</span>
+            <span>Lớp Bản Đồ & KML ({activeKmzCount}/{kmzManifest.length || 1})</span>
           </button>
         </div>
 
@@ -1661,14 +1664,14 @@ export const WebGISMap: React.FC = () => {
           )}
         </button>
 
-        {/* BẢNG QUẢN LÝ NHIỀU LỚP BẢN ĐỒ & FILE KMZ (ban_ve,_mat_cat.kmz) */}
+        {/* BẢNG QUẢN LÝ LỚP BẢN ĐỒ HỆ THỐNG & LỚP FILE .KML / .KMZ */}
         {showLayerManager && (
           <div className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[370px] max-h-[430px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans">
             {/* Header Bảng Quản Lý Lớp */}
             <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-1.5 font-bold">
                 <Layers className="w-4 h-4" />
-                <span>QUẢN LÝ LỚP BẢN ĐỒ & KMZ</span>
+                <span>QUẢN LÝ LỚP BẢN ĐỒ & KML</span>
               </div>
               <button
                 onClick={() => setShowLayerManager(false)}
@@ -1679,62 +1682,9 @@ export const WebGISMap: React.FC = () => {
               </button>
             </div>
 
-            {/* Thanh công cụ thao tác nhanh KMZ */}
-            <div className="p-2 bg-[#F0F6FF] border-b border-[#0A4393]/20 space-y-1.5 shrink-0">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] font-bold text-[#0A4393] truncate">
-                  📐 File: ban_ve,_mat_cat.kmz
-                </span>
-                <button
-                  onClick={handleFlyToAllKmz}
-                  className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-semibold flex items-center gap-1 shrink-0 shadow-xs"
-                  title="Phóng bản đồ tới đúng vị trí lồng ghép bản vẽ KMZ"
-                >
-                  <Crosshair className="w-3 h-3" />
-                  <span>Định vị vùng KMZ</span>
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1">
-                <button
-                  onClick={() => handleBulkKmzLayers('ALL')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-semibold"
-                >
-                  ✓ Chọn tất cả
-                </button>
-                <button
-                  onClick={() => handleBulkKmzLayers('DEFAULT')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-semibold"
-                >
-                  ↺ Lớp chính (Mặc định)
-                </button>
-                <button
-                  onClick={() => handleBulkKmzLayers('NONE')}
-                  className="px-2 py-0.5 rounded bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-semibold"
-                >
-                  ✕ Bỏ chọn hết
-                </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="ml-auto px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1"
-                  title="Tải thêm file .KML từ máy tính"
-                >
-                  <Upload className="w-2.5 h-2.5" />
-                  <span>+ File KML</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".kml,.xml"
-                  onChange={handleUploadCustomKml}
-                  className="hidden"
-                />
-              </div>
-            </div>
-
             {/* Danh sách các lớp bản đồ (Cuộn dọc) */}
             <div className="flex-1 overflow-y-auto p-2.5 space-y-3">
-              {/* Nhóm 0: Lớp Hệ Thống Trực Chiến */}
+              {/* Nhóm 1: Lớp Hệ Thống Trực Chiến Xã Ea Súp (Giữ nguyên) */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5">
                   Lớp Hệ Thống Trực Chiến Xã Ea Súp
@@ -1787,70 +1737,118 @@ export const WebGISMap: React.FC = () => {
                 </div>
               </div>
 
-              {/* Các nhóm lớp từ file ban_ve,_mat_cat.kmz */}
-              {kmzCategories.map((cat) => {
-                const items = kmzManifest.filter((m) => m.category === cat);
-                return (
-                  <div key={cat}>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between">
-                      <span>{cat}</span>
-                      <span className="font-mono text-[9px] text-[#0A4393]/80">
-                        {items.filter((i) => enabledKmzLayers[i.id]).length}/{items.length} lớp
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {items.map((item) => {
-                        const isChecked = !!enabledKmzLayers[item.id];
-                        const isLoading = !!loadingKmzLayers[item.id];
-                        return (
-                          <div
-                            key={item.id}
-                            className={`flex items-center justify-between p-1.5 rounded border transition-colors ${
-                              isChecked
-                                ? 'bg-[#F0F6FF]/80 border-[#0A4393]/25'
-                                : 'bg-white border-transparent hover:bg-slate-50'
-                            }`}
-                          >
-                            <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleKmzLayer(item)}
-                                className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                              />
-                              <span
-                                className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
-                                style={{ backgroundColor: item.color }}
-                              />
-                              <div className="truncate">
-                                <div className="text-[11px] font-semibold text-slate-800 truncate">
-                                  {item.label}
-                                </div>
-                                <div className="text-[9px] font-mono text-slate-500">
-                                  Mã KMZ: {item.rawName} • {item.geomCount.toLocaleString()} đối tượng
-                                </div>
-                              </div>
-                            </label>
+              {/* Nhóm 2: Gom hết các lớp trong mỗi file .KML thành một lớp (Có thể chỉnh sửa tên, tích chọn/bỏ) */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between gap-2">
+                  <span>Lớp Bản Đồ Theo File .KML</span>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
+                    title="Tải thêm file .KML từ máy tính (Mỗi file .KML sẽ gom thành 1 lớp bản đồ)"
+                  >
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>+ File .KML</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".kml,.xml"
+                    onChange={handleUploadCustomKml}
+                    className="hidden"
+                  />
+                </div>
 
-                            <div className="flex items-center gap-1 shrink-0 ml-1">
-                              {isLoading && (
-                                <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
-                              )}
+                <div className="space-y-1.5">
+                  {kmzManifest.map((item) => {
+                    const isChecked = !!enabledKmzLayers[item.id];
+                    const isLoading = !!loadingKmzLayers[item.id];
+                    const isEditing = editingLayerId === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
+                          isChecked
+                            ? 'bg-[#F0F6FF]/90 border-[#0A4393]/30'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleKmzLayer(item)}
+                            className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                            title="Tích chọn / Bỏ chọn hiển thị lớp bản đồ KML này"
+                          />
+                          <span
+                            className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
+                            style={{ backgroundColor: item.color }}
+                          />
+
+                          {isEditing ? (
+                            <div className="flex items-center gap-1 flex-1 min-w-0">
+                              <input
+                                type="text"
+                                value={editingLayerName}
+                                onChange={(e) => setEditingLayerName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveLayerName(item.id);
+                                  if (e.key === 'Escape') setEditingLayerId(null);
+                                }}
+                                autoFocus
+                                className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-semibold text-[#0A4393] bg-white border border-[#0A4393] rounded focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
+                                placeholder="Nhập tên lớp bản đồ..."
+                              />
                               <button
-                                onClick={() => handleFlyToKmzLayer(item)}
-                                className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                                title={`Phóng tới vị trí lớp ${item.label} trên bản đồ`}
+                                onClick={() => handleSaveLayerName(item.id)}
+                                className="px-1.5 py-0.5 rounded bg-[#0A4393] text-white text-[10px] font-bold hover:bg-[#083576] shrink-0"
+                                title="Lưu tên lớp bản đồ"
                               >
-                                <Crosshair className="w-3 h-3" />
+                                Lưu
                               </button>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                          ) : (
+                            <div
+                              onClick={() => handleToggleKmzLayer(item)}
+                              className="truncate cursor-pointer flex-1 min-w-0"
+                            >
+                              <div className="text-[11px] font-bold text-slate-800 truncate">
+                                {item.label}
+                              </div>
+                              <div className="text-[9px] font-mono text-slate-500 truncate">
+                                File: {item.rawName} • {item.geomCount.toLocaleString()} đối tượng
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                          {isLoading && (
+                            <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
+                          )}
+                          {!isEditing && (
+                            <button
+                              onClick={() => handleStartEditLayerName(item)}
+                              className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                              title="Chỉnh sửa tên lớp bản đồ theo file .KML"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleFlyToKmzLayer(item)}
+                            className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                            title={`Phóng bản đồ tới vị trí lớp ${item.label}`}
+                          >
+                            <Crosshair className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
