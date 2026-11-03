@@ -682,7 +682,7 @@ export const WebGISMap: React.FC = () => {
       map.attributionControl.setPrefix('');
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-      canvasRendererRef.current = L.canvas({ padding: 0.5 });
+      canvasRendererRef.current = L.canvas({ padding: 0.5, tolerance: 8 });
       const markersGroup = L.featureGroup().addTo(map);
       systemMarkersGroupRef.current = markersGroup;
 
@@ -773,6 +773,7 @@ export const WebGISMap: React.FC = () => {
         fillColor: '#E67700',
         fillOpacity: 0.04,
         radius: 12000,
+        interactive: false,
       }).addTo(map);
 
       // LẮNG NGHE SỰ KIỆN VẼ KHU VỰC TÙY CHỌN BẰNG CHUỘT
@@ -1103,40 +1104,80 @@ export const WebGISMap: React.FC = () => {
     }
 
     if (!leafletMapRef.current) return;
-    const renderer = canvasRendererRef.current || L.canvas({ padding: 0.5 });
+    const renderer = canvasRendererRef.current || L.canvas({ padding: 0.5, tolerance: 6 });
     const layerGroup = L.featureGroup();
+    const displayLabel = item.label || layerData.label;
 
     const popupHtml = `
-      <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:200px; color:#0f172a;">
-        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${item.label || layerData.label}</h4>
+      <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:180px; color:#0f172a;">
+        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${displayLabel}</h4>
         <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
           Lớp bản đồ thống nhất (Tọa độ chuẩn Ea Súp)
         </div>
       </div>
     `;
 
+    const buildTooltipHtml = (name: string, dotColor: string) => `
+      <div style="display:inline-flex; align-items:center; gap:5px; font-family:sans-serif; font-size:11px; font-weight:600; color:#0A4393; padding:1px 4px; white-space:nowrap;">
+        <span style="width:8px; height:8px; border-radius:2px; background:${dotColor}; display:inline-block; border:1px solid rgba(0,0,0,0.25);"></span>
+        <span>${name}</span>
+      </div>
+    `;
+
     for (const grp of layerData.groups) {
       const strokeColor = grp.color || item.color || '#38bdf8';
+      const baseWeight = Math.max(2.2, grp.weight || 2.2);
+      const tooltipHtml = buildTooltipHtml(displayLabel, strokeColor);
+
       if (grp.lines && grp.lines.length > 0) {
-        L.polyline(grp.lines as any, {
+        const polyLine = L.polyline(grp.lines as any, {
           renderer,
           color: strokeColor,
-          weight: Math.max(1.8, grp.weight || 1.8),
+          weight: baseWeight,
           opacity: 0.92,
         })
-          .bindPopup(popupHtml)
-          .addTo(layerGroup);
+          .bindTooltip(tooltipHtml, {
+            sticky: true,
+            direction: 'top',
+            offset: [0, -8],
+            opacity: 0.96,
+          })
+          .bindPopup(popupHtml);
+
+        polyLine.on('mouseover', () => {
+          polyLine.setStyle({ weight: baseWeight + 1.8, opacity: 1 });
+        });
+        polyLine.on('mouseout', () => {
+          polyLine.setStyle({ weight: baseWeight, opacity: 0.92 });
+        });
+
+        polyLine.addTo(layerGroup);
       }
       if (grp.polys && grp.polys.length > 0) {
-        L.polygon(grp.polys as any, {
+        const polyWeight = grp.outline ? 2.0 : 1.5;
+        const polygon = L.polygon(grp.polys as any, {
           renderer,
           color: strokeColor,
           fillColor: grp.fillColor || strokeColor,
           fillOpacity: grp.outline ? 0.35 : 0.55,
-          weight: grp.outline ? 1.8 : 1.2,
+          weight: polyWeight,
         })
-          .bindPopup(popupHtml)
-          .addTo(layerGroup);
+          .bindTooltip(tooltipHtml, {
+            sticky: true,
+            direction: 'top',
+            offset: [0, -8],
+            opacity: 0.96,
+          })
+          .bindPopup(popupHtml);
+
+        polygon.on('mouseover', () => {
+          polygon.setStyle({ weight: polyWeight + 1.5 });
+        });
+        polygon.on('mouseout', () => {
+          polygon.setStyle({ weight: polyWeight });
+        });
+
+        polygon.addTo(layerGroup);
       }
     }
 
@@ -1217,12 +1258,43 @@ export const WebGISMap: React.FC = () => {
   const handleSaveLayerName = (id: string) => {
     const trimmed = editingLayerName.trim();
     if (trimmed) {
+      const targetItem = kmzManifest.find((item) => item.id === id);
+      const dotColor = targetItem?.color || '#38bdf8';
+
       setKmzManifest((prev) =>
         prev.map((item) => (item.id === id ? { ...item, label: trimmed } : item))
       );
       if (kmzDataCacheRef.current[id]) {
         kmzDataCacheRef.current[id].label = trimmed;
       }
+
+      // Cập nhật ngay nhãn nổi (tooltip) & popup trên bản đồ khi đổi tên lớp
+      const existingGroup = kmzLayerGroupsRef.current[id];
+      if (existingGroup && typeof existingGroup.eachLayer === 'function') {
+        const newTooltipHtml = `
+          <div style="display:inline-flex; align-items:center; gap:5px; font-family:sans-serif; font-size:11px; font-weight:600; color:#0A4393; padding:1px 4px; white-space:nowrap;">
+            <span style="width:8px; height:8px; border-radius:2px; background:${dotColor}; display:inline-block; border:1px solid rgba(0,0,0,0.25);"></span>
+            <span>${trimmed}</span>
+          </div>
+        `;
+        const newPopupHtml = `
+          <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:180px; color:#0f172a;">
+            <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${trimmed}</h4>
+            <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
+              Lớp bản đồ thống nhất (Tọa độ chuẩn Ea Súp)
+            </div>
+          </div>
+        `;
+        existingGroup.eachLayer((subLayer: any) => {
+          if (typeof subLayer.setTooltipContent === 'function') {
+            subLayer.setTooltipContent(newTooltipHtml);
+          }
+          if (typeof subLayer.setPopupContent === 'function') {
+            subLayer.setPopupContent(newPopupHtml);
+          }
+        });
+      }
+
       persistKmlLayerUpdate(id, { label: trimmed });
     }
     setEditingLayerId(null);
