@@ -63,31 +63,31 @@ export const SovereigntyBanner: React.FC = () => {
       {/* 1. THANH NÚT CÔNG CỤ ĐIỀU HƯỚNG TRÊN CÙNG CỦA TRANG WEB */}
       <nav
         aria-label="Thanh điều hướng nhanh trên cùng trang web"
-        className="relative z-30 w-full bg-slate-950/95 border-b border-slate-800/90 px-3 py-1.5 backdrop-blur-md shadow-md"
+        className="relative z-30 w-full bg-[#0A4393] border-b border-white/20 px-3 py-1.5 shadow-md"
       >
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-1.5">
           {/* Thanh trên cùng trên điện thoại: Nút 3 gạch ngang (Hamburger) + Tiêu đề rút gọn */}
           <div className="flex sm:hidden items-center justify-between w-full py-0.5">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-xs font-semibold text-slate-200">Menu Điều hành</span>
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+              <span className="text-xs font-semibold text-white">Menu Điều hành</span>
             </div>
 
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 focus:outline-none transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/15 border border-white/30 text-white hover:bg-white/25 focus:outline-none transition-all shadow-sm"
               aria-label="Mở menu công cụ điều hướng"
               title="Mở menu công cụ điều hướng"
             >
               {isMobileMenuOpen ? (
                 <>
-                  <X className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[11px] font-medium text-emerald-400">Đóng</span>
+                  <X className="w-4 h-4 text-white" />
+                  <span className="text-[11px] font-medium text-white">Đóng</span>
                 </>
               ) : (
                 <>
-                  <Menu className="w-4 h-4 text-emerald-400" />
-                  <span className="text-[11px] font-medium text-slate-300">Công cụ</span>
+                  <Menu className="w-4 h-4 text-white" />
+                  <span className="text-[11px] font-medium text-white">Công cụ</span>
                 </>
               )}
             </button>
@@ -99,8 +99,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('home')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'home'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Về đầu trang chủ"
             >
@@ -112,8 +112,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('map', 'gis-map-section')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'map'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Cuộn tới Bản đồ Giám sát WebGIS"
             >
@@ -125,8 +125,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('alert', 'audio-alert-section')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'alert'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Cuộn tới Bản tin Cảnh báo Phát thanh"
             >
@@ -138,8 +138,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('stats', 'villages-matrix-section')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'stats'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Xem Thống kê An toàn 20 Thôn Buôn"
             >
@@ -151,8 +151,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('guide')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'guide'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Xem Hướng dẫn Quy trình Vận hành PCTT"
             >
@@ -164,8 +164,8 @@ export const SovereigntyBanner: React.FC = () => {
               onClick={() => handleNavClick('contact')}
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                 activeMenu === 'contact'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/60'
+                  ? 'bg-white text-[#0A4393] shadow-sm font-bold'
+                  : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
               }`}
               title="Xem Thông tin Liên hệ Trực ban PCTT"
             >
@@ -176,16 +176,16 @@ export const SovereigntyBanner: React.FC = () => {
 
           {/* Menu xổ xuống trên điện thoại khi bấm vào nút 3 gạch ngang */}
           {isMobileMenuOpen && (
-            <div className="sm:hidden w-full pt-2 pb-1 border-t border-slate-800 flex flex-col gap-1.5 animate-fadeIn">
+            <div className="sm:hidden w-full pt-2 pb-1 border-t border-white/20 flex flex-col gap-1.5 animate-fadeIn">
               <button
                 onClick={() => handleNavClick('home')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'home'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <Home className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Home className="w-4 h-4 shrink-0" />
                 <span>Trang chủ</span>
               </button>
 
@@ -193,11 +193,11 @@ export const SovereigntyBanner: React.FC = () => {
                 onClick={() => handleNavClick('map', 'gis-map-section')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'map'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <MapPin className="w-4 h-4 text-emerald-400 shrink-0" />
+                <MapPin className="w-4 h-4 shrink-0" />
                 <span>Bản đồ giám sát</span>
               </button>
 
@@ -205,11 +205,11 @@ export const SovereigntyBanner: React.FC = () => {
                 onClick={() => handleNavClick('alert', 'audio-alert-section')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'alert'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <BellRing className="w-4 h-4 text-emerald-400 shrink-0" />
+                <BellRing className="w-4 h-4 shrink-0" />
                 <span>Cảnh báo & Thông tin</span>
               </button>
 
@@ -217,11 +217,11 @@ export const SovereigntyBanner: React.FC = () => {
                 onClick={() => handleNavClick('stats', 'villages-matrix-section')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'stats'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <BarChart3 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <BarChart3 className="w-4 h-4 shrink-0" />
                 <span>Thống kê</span>
               </button>
 
@@ -229,11 +229,11 @@ export const SovereigntyBanner: React.FC = () => {
                 onClick={() => handleNavClick('guide')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'guide'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <BookOpen className="w-4 h-4 text-emerald-400 shrink-0" />
+                <BookOpen className="w-4 h-4 shrink-0" />
                 <span>Hướng dẫn</span>
               </button>
 
@@ -241,11 +241,11 @@ export const SovereigntyBanner: React.FC = () => {
                 onClick={() => handleNavClick('contact')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all text-left ${
                   activeMenu === 'contact'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-900/90 text-slate-200 hover:bg-slate-800 border border-slate-800'
+                    ? 'bg-white text-[#0A4393] shadow-md font-bold'
+                    : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
                 }`}
               >
-                <PhoneCall className="w-4 h-4 text-emerald-400 shrink-0" />
+                <PhoneCall className="w-4 h-4 shrink-0" />
                 <span>Liên hệ</span>
               </button>
             </div>
@@ -254,7 +254,7 @@ export const SovereigntyBanner: React.FC = () => {
       </nav>
 
       {/* 2. HEADER BANNER - ẢNH THIÊN NHIÊN EA SÚP VỚI LOGO TRUNG TÂM ĐIỀU HÀNH */}
-      <header className="relative w-full overflow-hidden border-b border-emerald-600/40 shadow-2xl bg-[#0a192f] min-h-[145px] sm:min-h-[170px] flex items-center">
+      <header className="relative w-full overflow-hidden border-b-2 border-[#0A4393] shadow-lg bg-[#0A4393] min-h-[145px] sm:min-h-[170px] flex items-center">
         {/* Thẻ ảnh <img> toàn cảnh thiên nhiên Ea Súp */}
         <img
           src={bannerSrc}
@@ -270,20 +270,20 @@ export const SovereigntyBanner: React.FC = () => {
           }}
         />
 
-        {/* Lớp phủ gradient nhẹ nhàng làm nổi bật chữ */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/75 via-slate-950/35 to-transparent pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none" />
+        {/* Lớp phủ gradient xanh da trời làm nổi bật chữ trắng */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0A4393]/85 via-[#0A4393]/45 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0A4393]/80 via-transparent to-black/20 pointer-events-none" />
 
         {/* Bố cục tiêu đề với Logo mới */}
         <div className="relative z-10 max-w-7xl w-full mx-auto px-3 sm:px-5 py-4 sm:py-5 flex items-center justify-between gap-3 flex-1">
           {/* Cụm Tiêu đề: Logo mới (Ảnh 5), Tên đề tài, Tiêu đề chính & Khẩu hiệu */}
           <div className="flex items-center gap-3.5 sm:gap-4 text-center md:text-left">
             {/* LOGO TIÊU ĐỀ WEBSITE (Ảnh 5) */}
-            <div className="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-0.5 shadow-[0_0_20px_rgba(0,168,120,0.6)] flex items-center justify-center">
+            <div className="relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-full p-0.5 shadow-[0_0_20px_rgba(255,255,255,0.6)] flex items-center justify-center">
               <img
                 src={logoSrc}
                 alt="Logo Trung Tâm Điều Hành Cảnh Báo Sớm Thiên Tai & Giám Sát Rừng Xã Ea Súp"
-                className="w-full h-full object-contain rounded-full border-2 border-emerald-400 drop-shadow-md bg-slate-950/40"
+                className="w-full h-full object-contain rounded-full border-2 border-white drop-shadow-md bg-white/95"
                 onError={(e) => {
                   const currentSrc = e.currentTarget.src;
                   if (!currentSrc.includes('/canhbao/')) {
@@ -298,22 +298,22 @@ export const SovereigntyBanner: React.FC = () => {
             {/* Khối chữ Tiêu đề Banner */}
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 sm:gap-2">
-                <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-amber-300 bg-slate-950/80 border border-amber-400/60 px-2.5 py-0.5 rounded-full font-mono shadow-md backdrop-blur-sm">
+                <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-[#0A4393] bg-white border border-white px-2.5 py-0.5 rounded-full font-mono shadow-md">
                   ĐỀ TÀI NGHIÊN CỨU KHOA HỌC • TRƯỜNG THPT EA SÚP
                 </span>
-                <span className="text-[10px] sm:text-xs text-slate-100 font-mono bg-black/50 px-2 py-0.5 rounded-full border border-white/20 backdrop-blur-sm hidden sm:inline-block">
+                <span className="text-[10px] sm:text-xs text-white font-mono bg-[#0A4393]/85 px-2.5 py-0.5 rounded-full border border-white/40 backdrop-blur-sm hidden sm:inline-block">
                   Nhóm thực hiện: Bảo Trân (10a1) - Phương Trang (10a3)
                 </span>
               </div>
 
-              <h1 className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)] drop-shadow-[0_4px_20px_rgba(0,0,0,0.85)]">
+              <h1 className="text-base sm:text-xl lg:text-2xl font-black tracking-tight text-white uppercase drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
                 TRUNG TÂM ĐIỀU HÀNH CẢNH BÁO SỚM THIÊN TAI & GIÁM SÁT RỪNG
               </h1>
 
-              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-emerald-300 font-semibold italic drop-shadow-[0_1px_8px_rgba(0,0,0,0.9)]">
+              <div className="flex items-center justify-center md:justify-start gap-2 text-xs sm:text-sm text-white font-semibold italic drop-shadow-[0_1px_6px_rgba(0,0,0,0.8)]">
                 <span>"Vì một Ea Súp xanh – sạch – an toàn"</span>
-                <span className="inline-block text-emerald-400 not-italic">🌿</span>
-                <span className="text-slate-200 not-italic hidden lg:inline font-sans font-normal">• Xã Ea Súp, Tỉnh Đắk Lắk</span>
+                <span className="inline-block not-italic">🌿</span>
+                <span className="text-blue-100 not-italic hidden lg:inline font-sans font-normal">• Xã Ea Súp, Tỉnh Đắk Lắk</span>
               </div>
             </div>
           </div>
@@ -322,36 +322,36 @@ export const SovereigntyBanner: React.FC = () => {
 
       {/* 3. MODAL HƯỚNG DẪN QUY TRÌNH PCTT */}
       {activeModal === 'guide' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="relative max-w-xl w-full bg-slate-900 border border-emerald-500/50 rounded-2xl p-5 shadow-2xl text-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A4393]/50 backdrop-blur-sm animate-fadeIn">
+          <div className="relative max-w-xl w-full bg-white border-2 border-[#0A4393] rounded-2xl p-5 shadow-2xl text-slate-800">
             <button
               onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#F0F6FF] text-[#0A4393] hover:bg-[#0A4393] hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 text-emerald-400 font-bold text-base mb-3 border-b border-slate-800 pb-2">
-              <BookOpen className="w-5 h-5 text-emerald-400" />
+            <div className="flex items-center gap-2 text-[#0A4393] font-bold text-base mb-3 border-b border-[#0A4393]/20 pb-2">
+              <BookOpen className="w-5 h-5 text-[#0A4393]" />
               <span>HƯỚNG DẪN QUY TRÌNH VẬN HÀNH THÔNG MINH</span>
             </div>
-            <div className="space-y-3 text-xs text-slate-300 leading-relaxed font-sans">
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-                <strong className="text-amber-300 block mb-1">1. Giám sát Cháy rừng Vệ tinh FIRMS:</strong>
+            <div className="space-y-3 text-xs text-slate-700 leading-relaxed font-sans">
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20">
+                <strong className="text-[#0A4393] block mb-1">1. Giám sát Cháy rừng Vệ tinh FIRMS:</strong>
                 Hệ thống thu nhận ảnh nhiệt vệ tinh VIIRS/MODIS. FRP &ge; 5.0 MW kích hoạt cảnh báo, trạm IoT TK-293 phát hiện khói &gt; 50 ppm lập tức chuyển báo động đỏ dưới 30 giây.
               </div>
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-                <strong className="text-blue-300 block mb-1">2. Giám sát Thủy văn Hồ Đập:</strong>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20">
+                <strong className="text-[#0A4393] block mb-1">2. Giám sát Thủy văn Hồ Đập:</strong>
                 Radar siêu âm theo dõi cao trình Hồ Thượng (báo động khi &ge; 210.0m hoặc dâng &gt; 30cm/h). Hồ Hạ kiểm soát tuyệt đối cấm lồng bè bảo vệ nước sạch sinh hoạt.
               </div>
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-slate-800">
-                <strong className="text-emerald-300 block mb-1">3. Cụm Loa Truyền Thanh Số:</strong>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20">
+                <strong className="text-[#0A4393] block mb-1">3. Cụm Loa Truyền Thanh Số:</strong>
                 Phát thanh tự động đa kênh với máy đọc giọng nữ tiếng Việt chuẩn tốc độ 1.4X đọc nội dung cảnh báo chi tiết.
               </div>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+            <div className="mt-4 pt-3 border-t border-[#0A4393]/20 flex justify-end">
               <button
                 onClick={() => setActiveModal(null)}
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-500"
+                className="px-4 py-1.5 rounded-lg bg-[#0A4393] text-white font-semibold text-xs hover:bg-[#083576]"
               >
                 Đã hiểu
               </button>
@@ -362,40 +362,40 @@ export const SovereigntyBanner: React.FC = () => {
 
       {/* 4. MODAL THÔNG TIN LIÊN HỆ TRỰC CHIẾN */}
       {activeModal === 'contact' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="relative max-w-lg w-full bg-slate-900 border border-blue-500/50 rounded-2xl p-5 shadow-2xl text-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A4393]/50 backdrop-blur-sm animate-fadeIn">
+          <div className="relative max-w-lg w-full bg-white border-2 border-[#0A4393] rounded-2xl p-5 shadow-2xl text-slate-800">
             <button
               onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#F0F6FF] text-[#0A4393] hover:bg-[#0A4393] hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 text-blue-400 font-bold text-base mb-3 border-b border-slate-800 pb-2">
-              <PhoneCall className="w-5 h-5 text-blue-400" />
+            <div className="flex items-center gap-2 text-[#0A4393] font-bold text-base mb-3 border-b border-[#0A4393]/20 pb-2">
+              <PhoneCall className="w-5 h-5 text-[#0A4393]" />
               <span>BAN CHỈ HUY PCTT & TKCN XÃ EA SÚP</span>
             </div>
-            <div className="space-y-2.5 text-xs text-slate-300 font-sans">
-              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex justify-between items-center">
+            <div className="space-y-2.5 text-xs text-slate-700 font-sans">
+              <div className="p-2.5 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20 flex justify-between items-center">
                 <span>Trực ban PCTT UBND xã Ea Súp:</span>
-                <strong className="text-emerald-400 font-mono text-sm">0262.3688.114</strong>
+                <strong className="text-[#0A4393] font-mono text-sm">0262.3688.114</strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20 flex justify-between items-center">
                 <span>Hạt Kiểm lâm / Tuần tra TK-293:</span>
-                <strong className="text-amber-400 font-mono text-sm">0262.3688.225</strong>
+                <strong className="text-[#0A4393] font-mono text-sm">0262.3688.225</strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20 flex justify-between items-center">
                 <span>Đội quản lý Thủy nông Hồ Ea Súp Thượng:</span>
-                <strong className="text-blue-400 font-mono text-sm">0262.3688.336</strong>
+                <strong className="text-[#0A4393] font-mono text-sm">0262.3688.336</strong>
               </div>
-              <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 flex justify-between items-center">
+              <div className="p-2.5 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/20 flex justify-between items-center">
                 <span>Nhóm thực hiện Đề tài (THPT Ea Súp):</span>
-                <strong className="text-purple-300 font-mono">Lê Trần Bảo Trân - Lê Phương Trang</strong>
+                <strong className="text-[#0A4393] font-mono">Lê Trần Bảo Trân - Lê Phương Trang</strong>
               </div>
             </div>
-            <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+            <div className="mt-4 pt-3 border-t border-[#0A4393]/20 flex justify-end">
               <button
                 onClick={() => setActiveModal(null)}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 text-white font-semibold text-xs hover:bg-blue-500"
+                className="px-4 py-1.5 rounded-lg bg-[#0A4393] text-white font-semibold text-xs hover:bg-[#083576]"
               >
                 Đóng
               </button>
@@ -406,43 +406,43 @@ export const SovereigntyBanner: React.FC = () => {
 
       {/* 5. MODAL THỐNG KÊ NHANH */}
       {activeModal === 'stats' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
-          <div className="relative max-w-xl w-full bg-slate-900 border border-amber-500/50 rounded-2xl p-5 shadow-2xl text-slate-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0A4393]/50 backdrop-blur-sm animate-fadeIn">
+          <div className="relative max-w-xl w-full bg-white border-2 border-[#0A4393] rounded-2xl p-5 shadow-2xl text-slate-800">
             <button
               onClick={() => setActiveModal(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+              className="absolute top-4 right-4 p-1.5 rounded-full bg-[#F0F6FF] text-[#0A4393] hover:bg-[#0A4393] hover:text-white"
             >
               <X className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 text-amber-400 font-bold text-base mb-3 border-b border-slate-800 pb-2">
-              <BarChart3 className="w-5 h-5 text-amber-400" />
+            <div className="flex items-center gap-2 text-[#0A4393] font-bold text-base mb-3 border-b border-[#0A4393]/20 pb-2">
+              <BarChart3 className="w-5 h-5 text-[#0A4393]" />
               <span>TỔNG HỢP AN TOÀN ĐỊA BÀN XÃ EA SÚP</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs font-mono my-3">
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-emerald-500/40">
-                <div className="text-xl font-bold text-emerald-400">20/20</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Thôn Buôn Trực Tuyến</div>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/30">
+                <div className="text-xl font-bold text-[#0A4393]">20/20</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">Thôn Buôn Trực Tuyến</div>
               </div>
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-blue-500/40">
-                <div className="text-xl font-bold text-blue-400">146M m³</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Dung Tích Hồ Thượng</div>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/30">
+                <div className="text-xl font-bold text-[#0A4393]">146M m³</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">Dung Tích Hồ Thượng</div>
               </div>
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-amber-500/40">
-                <div className="text-xl font-bold text-amber-400">25 Năm</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Chuỗi Ảnh Vệ Tinh</div>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/30">
+                <div className="text-xl font-bold text-[#0A4393]">25 Năm</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">Chuỗi Ảnh Vệ Tinh</div>
               </div>
-              <div className="p-3 rounded-lg bg-slate-950/80 border border-rose-500/40">
-                <div className="text-xl font-bold text-rose-400">&lt; 30s</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Kích Hoạt Báo Động</div>
+              <div className="p-3 rounded-lg bg-[#F0F6FF] border border-[#0A4393]/30">
+                <div className="text-xl font-bold text-rose-600">&lt; 30s</div>
+                <div className="text-[10px] text-slate-600 mt-0.5">Kích Hoạt Báo Động</div>
               </div>
             </div>
-            <p className="text-xs text-slate-300 italic text-center">
+            <p className="text-xs text-slate-600 italic text-center">
               Dữ liệu được tích hợp đa tầng giữa ảnh viễn thám NASA và mạng cảm biến IoT môi trường xã Ea Súp.
             </p>
-            <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+            <div className="mt-4 pt-3 border-t border-[#0A4393]/20 flex justify-end">
               <button
                 onClick={() => setActiveModal(null)}
-                className="px-4 py-1.5 rounded-lg bg-amber-600 text-white font-semibold text-xs hover:bg-amber-500"
+                className="px-4 py-1.5 rounded-lg bg-[#0A4393] text-white font-semibold text-xs hover:bg-[#083576]"
               >
                 Đóng
               </button>

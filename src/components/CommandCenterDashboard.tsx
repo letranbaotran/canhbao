@@ -11,17 +11,10 @@ import { realtimeSync } from '@/services/realtimeSyncService';
 import {
   Flame,
   Droplets,
-  AlertOctagon,
   ShieldAlert,
   Radio,
-  Bell,
-  RefreshCw,
-  Send,
-  Sliders,
-  CheckCircle2,
   Cpu,
   Activity,
-  Wifi,
 } from 'lucide-react';
 
 export const CommandCenterDashboard: React.FC = () => {
@@ -85,33 +78,26 @@ export const CommandCenterDashboard: React.FC = () => {
     voiceLabel: 'An Nhiên',
   };
 
-  const handleSimulate = (scenario: string) => {
-    setSimulationStatus(`Đang kích hoạt kịch bản diễn tập: ${scenario}...`);
-    setTimeout(() => {
-      setSimulationStatus(`Kịch bản "${scenario}" đã kích hoạt thành công! Cảnh báo đỏ đẩy tới hệ thống.`);
-    }, 800);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans overflow-x-clip selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-[#F0F5FC] text-slate-900 flex flex-col font-sans overflow-x-clip selection:bg-[#0A4393] selection:text-white">
       {/* 1. Mốc Khẳng định Chủ quyền Quốc gia & Hoàng Sa, Trường Sa */}
       <SovereigntyBanner />
 
       {/* 2. Thanh Chỉ số Giám sát Trọng điểm Thời gian thực */}
-      <header className="bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 shadow-lg backdrop-blur-md">
+      <header className="bg-white border-b border-[#0A4393]/20 px-4 py-2.5 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-start gap-2.5 text-xs font-mono">
           {/* 1. Trạm TK-293 */}
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
               isTk293Red
-                ? 'emergency-flash text-rose-200'
-                : 'bg-slate-800/80 border-slate-700'
+                ? 'emergency-flash text-white'
+                : 'bg-[#F0F6FF] border-[#0A4393]/25'
             }`}
           >
-            <Flame className={`w-4 h-4 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
+            <Flame className={`w-4 h-4 ${isTk293Red ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
             <div>
-              <div className="text-[10px] text-slate-400">Trạm TK-293 (Lâm Nghiệp)</div>
-              <div className={`font-bold ${isTk293Red ? 'text-white' : 'text-amber-300'}`}>
+              <div className={`text-[10px] ${isTk293Red ? 'text-rose-100' : 'text-slate-600'}`}>Trạm TK-293 (Lâm Nghiệp)</div>
+              <div className={`font-bold ${isTk293Red ? 'text-white' : 'text-[#0A4393]'}`}>
                 {iotData.tk293.temperature}°C {isTk293Red ? '🚨 BÁO ĐỘNG CHÁY!' : '(Ổn định)'}
               </div>
             </div>
@@ -121,16 +107,16 @@ export const CommandCenterDashboard: React.FC = () => {
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
               isHoThuongRed
-                ? 'emergency-flash text-rose-200'
+                ? 'emergency-flash text-white'
                 : iotData.hoThuong.elevation >= 208.5
-                ? 'bg-amber-950/80 border-amber-600 text-amber-300'
-                : 'bg-slate-800/80 border-slate-700'
+                ? 'bg-amber-50 border-amber-500 text-amber-800'
+                : 'bg-[#F0F6FF] border-[#0A4393]/25'
             }`}
           >
-            <Droplets className={`w-4 h-4 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
+            <Droplets className={`w-4 h-4 ${isHoThuongRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
             <div>
-              <div className="text-[10px] text-slate-400">Hồ Ea Súp Thượng</div>
-              <div className={`font-bold ${isHoThuongRed ? 'text-white' : 'text-blue-300'}`}>
+              <div className={`text-[10px] ${isHoThuongRed ? 'text-rose-100' : 'text-slate-600'}`}>Hồ Ea Súp Thượng</div>
+              <div className={`font-bold ${isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}`}>
                 {iotData.hoThuong.elevation}m ({isHoThuongRed ? '🌊 XẢ LŨ CẤP III' : iotData.hoThuong.elevation >= 208.5 ? 'Báo động II' : 'An toàn'})
               </div>
             </div>
@@ -140,14 +126,14 @@ export const CommandCenterDashboard: React.FC = () => {
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all ${
               isHoHaRed
-                ? 'emergency-flash text-rose-200'
-                : 'bg-emerald-950/60 border-emerald-800'
+                ? 'emergency-flash text-white'
+                : 'bg-[#F0F6FF] border-[#0A4393]/25'
             }`}
           >
-            <ShieldAlert className={`w-4 h-4 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
+            <ShieldAlert className={`w-4 h-4 ${isHoHaRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
             <div>
-              <div className="text-[10px] text-emerald-300">Hồ Ea Súp Hạ</div>
-              <div className={`font-bold ${isHoHaRed ? 'text-white' : 'text-emerald-200'}`}>
+              <div className={`text-[10px] ${isHoHaRed ? 'text-rose-100' : 'text-slate-600'}`}>Hồ Ea Súp Hạ</div>
+              <div className={`font-bold ${isHoHaRed ? 'text-white' : 'text-[#0A4393]'}`}>
                 {isHoHaRed ? `⛔ CÓ ${iotData.hoHa.illegalCages} LỒNG BÈ VI PHẠM!` : 'Nguồn nước sinh hoạt (Bảo vệ)'}
               </div>
             </div>
@@ -157,12 +143,12 @@ export const CommandCenterDashboard: React.FC = () => {
 
       {/* 2.1 Thông báo nhận tín hiệu đồng bộ khẩn cấp từ thiết bị khác */}
       {networkSyncMsg && (
-        <div className="bg-emerald-950/95 border-b border-emerald-500/60 text-emerald-300 px-4 py-2 text-xs font-mono flex items-center justify-between shadow-2xl animate-pulse">
+        <div className="bg-[#0A4393] border-b border-white/30 text-white px-4 py-2 text-xs font-mono flex items-center justify-between shadow-lg animate-pulse">
           <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-emerald-400 animate-spin" />
+            <Radio className="w-4 h-4 text-white animate-spin" />
             <span className="font-bold">{networkSyncMsg}</span>
           </div>
-          <span className="text-[10px] text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-700">MQTT WSS Đồng Bộ Thời Gian Thực</span>
+          <span className="text-[10px] text-[#0A4393] bg-white px-2 py-0.5 rounded font-bold">MQTT WSS Đồng Bộ Thời Gian Thực</span>
         </div>
       )}
 
@@ -170,19 +156,22 @@ export const CommandCenterDashboard: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left Column: WebGIS Map (8 cols) */}
         <div className="lg:col-span-8 flex flex-col gap-4">
-          <WebGISMap />
+          <div id="gis-map-section">
+            <WebGISMap />
+          </div>
 
-          {/* AI Voice Article Audio Player (Báo Tiền Phong Standard) */}
+          {/* AI Voice Article Audio Player */}
           <section
+            id="audio-alert-section"
             aria-label="Loa truyền thanh thông minh"
-            className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-md"
+            className="bg-white border border-[#0A4393]/25 rounded-xl p-3 shadow-md"
           >
             <div className="flex items-center justify-between mb-1">
-              <h2 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <h2 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider flex items-center gap-1.5">
+                <Radio className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
                 Cụm Loa Truyền Thanh Số
               </h2>
-              <span className="text-[11px] font-mono text-slate-400">Tự động phát thanh đa kênh</span>
+              <span className="text-[11px] font-mono text-slate-600">Tự động phát thanh đa kênh</span>
             </div>
             <ArticleAudioPlayer
               bulletinId={sampleBulletin.id}
@@ -191,19 +180,20 @@ export const CommandCenterDashboard: React.FC = () => {
               voiceLabel={sampleBulletin.voiceLabel}
               content={sampleBulletin.content}
             />
-            <p className="text-[11px] text-slate-400 mt-1 italic">
+            <p className="text-[11px] text-slate-700 mt-1 italic">
               {sampleBulletin.content}
             </p>
           </section>
 
           {/* 20 Thôn Buôn Matrix Quick Overview */}
           <section
+            id="villages-matrix-section"
             aria-label="Danh sách 20 thôn buôn"
-            className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-md"
+            className="bg-white border border-[#0A4393]/25 rounded-xl p-3 shadow-md"
           >
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider mb-2 flex items-center justify-between">
               <span>Trạng Thái An Ninh Thiên Tai 20 Thôn, Buôn Xã Ea Súp</span>
-              <span className="text-[10px] font-mono text-emerald-400 font-normal">20/20 Trạm kết nối</span>
+              <span className="text-[10px] font-mono text-[#0A4393] bg-[#F0F6FF] px-2 py-0.5 rounded border border-[#0A4393]/25 font-semibold">20/20 Trạm kết nối</span>
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-1.5 text-xs">
               {EASUP_VILLAGES.map((v) => (
@@ -211,14 +201,14 @@ export const CommandCenterDashboard: React.FC = () => {
                   key={v}
                   className={`p-1.5 rounded border text-center font-mono text-[11px] transition-colors ${
                     v === 'Thôn Đoàn Kết'
-                      ? 'bg-cyan-950/60 border-cyan-700 text-cyan-200'
+                      ? 'bg-[#0A4393] border-[#0A4393] text-white'
                       : v.startsWith('Buôn')
-                      ? 'bg-amber-950/40 border-amber-800 text-amber-200'
-                      : 'bg-slate-800/60 border-slate-700 text-slate-300'
+                      ? 'bg-[#E6F0FA] border-[#0A4393]/40 text-[#0A4393]'
+                      : 'bg-[#F4F8FD] border-[#0A4393]/20 text-slate-800'
                   }`}
                 >
                   <div className="font-semibold">{v}</div>
-                  <div className="text-[9px] text-emerald-400">● Ổn định</div>
+                  <div className={`text-[9px] font-semibold ${v === 'Thôn Đoàn Kết' ? 'text-blue-100' : 'text-[#0A4393]'}`}>● Ổn định</div>
                 </div>
               ))}
             </div>
@@ -228,83 +218,83 @@ export const CommandCenterDashboard: React.FC = () => {
         {/* Right Column: Alert Center & Command Telemetry (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           {/* TAB CHUYỂN MẠCH: TRỰC CHIẾN LIVE <-> TAB ẨN MÔ PHỎNG IoT */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl shadow-md">
+          <div className="flex items-center gap-1.5 p-1 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
             <button
               onClick={() => setTelemetryTab('LIVE')}
               className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
                 telemetryTab === 'LIVE'
-                  ? 'bg-emerald-600 text-slate-950 shadow-md ring-1 ring-emerald-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-[#0A4393] text-white shadow-md'
+                  : 'text-[#0A4393] hover:bg-[#F0F6FF]'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
               <span>SỐ LIỆU TRỰC CHIẾN</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-950/80 text-emerald-300 font-normal">LIVE</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-normal ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
             </button>
 
             <button
               onClick={() => setTelemetryTab('SIMULATOR')}
               className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold font-mono transition-all flex items-center justify-center gap-1.5 ${
                 telemetryTab === 'SIMULATOR'
-                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-300'
-                  : 'text-amber-400 hover:text-amber-300 hover:bg-slate-800'
+                  ? 'bg-[#0A4393] text-white shadow-md'
+                  : 'text-[#0A4393] hover:bg-[#F0F6FF]'
               }`}
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>TAB MÔ PHỎNG IoT</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-amber-950/80 text-amber-300 font-normal">LAB</span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-normal ${telemetryTab === 'SIMULATOR' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LAB</span>
             </button>
           </div>
 
-          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN (KHỚP 100% GIAO DIỆN HÌNH ẢNH) */}
+          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN */}
           {telemetryTab === 'LIVE' && (
             <section
               aria-label="Chuỗi số liệu quan trắc trực chiến"
-              className="bg-[#0b1220] border border-slate-800 rounded-xl p-3.5 shadow-2xl flex-1 flex flex-col justify-between"
+              className="bg-white border border-[#0A4393]/25 rounded-xl overflow-hidden shadow-lg flex-1 flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-mono">
+                <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#0A4393] text-white">
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
                     CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN
                   </h3>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 animate-pulse">
+                  <span className="text-[10px] text-[#0A4393] bg-white px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 animate-pulse">
                     ● LIVE
                   </span>
                 </div>
 
-                <div className="space-y-2.5 text-xs font-mono">
+                <div className="p-3.5 space-y-2.5 text-xs font-mono">
                   {/* Trạm Lâm Nghiệp TK-293 */}
                   <div
                     className={`p-2.5 rounded-lg border transition-all ${
                       isTk293Red
-                        ? 'emergency-flash text-rose-200'
-                        : 'bg-slate-800/60 border-slate-700/80'
+                        ? 'emergency-flash text-white'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
                     }`}
                   >
-                    <div className="flex justify-between font-semibold text-emerald-400">
+                    <div className={`flex justify-between font-bold ${isTk293Red ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-rose-400 siren-wobble' : 'text-amber-400'}`} />
+                        <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
                         Trạm Lâm Nghiệp TK-293
                       </span>
                     </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                    <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isTk293Red ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Nhiệt độ:{' '}
-                        <strong className={isTk293Red ? 'text-white font-black' : 'text-white'}>
+                        <strong className={isTk293Red ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.tk293.temperature}°C
                         </strong>
                       </div>
                       <div>
-                        Độ ẩm: <strong className="text-white">{iotData.tk293.humidity}%</strong>
+                        Độ ẩm: <strong className={isTk293Red ? 'text-white' : 'text-[#0A4393]'}>{iotData.tk293.humidity}%</strong>
                       </div>
                       <div>
                         Khói CO:{' '}
-                        <strong className={isTk293Red ? 'text-white font-black' : 'text-white'}>
+                        <strong className={isTk293Red ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.tk293.smokeCo} ppm
                         </strong>
                       </div>
                       <div>
-                        Gió: <strong className="text-white">{iotData.tk293.windSpeed} m/s</strong>
+                        Gió: <strong className={isTk293Red ? 'text-white' : 'text-[#0A4393]'}>{iotData.tk293.windSpeed} m/s</strong>
                       </div>
                     </div>
                   </div>
@@ -313,33 +303,33 @@ export const CommandCenterDashboard: React.FC = () => {
                   <div
                     className={`p-2.5 rounded-lg border transition-all ${
                       isHoThuongRed
-                        ? 'emergency-flash text-rose-200'
-                        : 'bg-slate-800/60 border-slate-700/80'
+                        ? 'emergency-flash text-white'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
                     }`}
                   >
-                    <div className="flex justify-between font-semibold text-blue-400">
+                    <div className={`flex justify-between font-bold ${isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Droplets className={`w-3.5 h-3.5 ${isHoThuongRed ? 'text-rose-400 siren-wobble' : 'text-blue-400'}`} />
+                        <Droplets className={`w-3.5 h-3.5 ${isHoThuongRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
                         Trạm Thủy Văn Hồ Thượng
                       </span>
-                      <span className="text-slate-400 font-normal">Radar Siêu Âm</span>
+                      <span className={`font-normal ${isHoThuongRed ? 'text-rose-100' : 'text-slate-500'}`}>Radar Siêu Âm</span>
                     </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                    <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoThuongRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Cao trình:{' '}
-                        <strong className={isHoThuongRed ? 'text-white font-black' : 'text-white'}>
+                        <strong className={isHoThuongRed ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.hoThuong.elevation} m
                         </strong>
                       </div>
                       <div>
-                        Lưu lượng xả: <strong className="text-white">{iotData.hoThuong.discharge} m³/s</strong>
+                        Lưu lượng xả: <strong className={isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoThuong.discharge} m³/s</strong>
                       </div>
                       <div>
-                        Dung tích: <strong className="text-white">{iotData.hoThuong.capacity}M m³</strong>
+                        Dung tích: <strong className={isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoThuong.capacity}M m³</strong>
                       </div>
                       <div>
                         Tốc độ dâng:{' '}
-                        <strong className={isHoThuongRed ? 'text-white font-bold' : 'text-emerald-400'}>
+                        <strong className={isHoThuongRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
                           {iotData.hoThuong.riseRate > 0 ? `+${iotData.hoThuong.riseRate}` : iotData.hoThuong.riseRate} cm/h
                         </strong>
                       </div>
@@ -350,38 +340,38 @@ export const CommandCenterDashboard: React.FC = () => {
                   <div
                     className={`p-2.5 rounded-lg border transition-all ${
                       isHoHaRed
-                        ? 'emergency-flash text-rose-200'
-                        : 'bg-emerald-950/40 border-emerald-800/80'
+                        ? 'emergency-flash text-white'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
                     }`}
                   >
-                    <div className="flex justify-between font-semibold text-emerald-300">
+                    <div className={`flex justify-between font-bold ${isHoHaRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <ShieldAlert className={`w-3.5 h-3.5 ${isHoHaRed ? 'text-rose-400 siren-wobble' : 'text-emerald-400'}`} />
+                        <ShieldAlert className={`w-3.5 h-3.5 ${isHoHaRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
                         Hồ Ea Súp Hạ (Cấp Nước)
                       </span>
-                      <span className="text-emerald-400 font-bold">Nguồn sinh hoạt</span>
+                      <span className={isHoHaRed ? 'text-rose-100 font-bold' : 'text-[#0A4393] font-bold'}>Nguồn sinh hoạt</span>
                     </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                    <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoHaRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Trạng thái:{' '}
-                        <strong className={isHoHaRed ? 'text-white font-bold' : 'text-emerald-400'}>
+                        <strong className={isHoHaRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
                           {iotData.hoHa.status}
                         </strong>
                       </div>
                       <div>
                         Độ đục:{' '}
-                        <strong className={iotData.hoHa.turbidity > 5 ? 'text-amber-300' : 'text-white'}>
+                        <strong className={iotData.hoHa.turbidity > 5 ? 'text-amber-600' : isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>
                           {iotData.hoHa.turbidity} NTU
                         </strong>
                       </div>
                       <div>
                         Lồng bè vi phạm:{' '}
-                        <strong className={isHoHaRed ? 'text-white font-black' : 'text-emerald-400'}>
+                        <strong className={isHoHaRed ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.hoHa.illegalCages}
                         </strong>
                       </div>
                       <div>
-                        Mực nước: <strong className="text-white">{iotData.hoHa.capacityPct}% dung tích</strong>
+                        Mực nước: <strong className={isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoHa.capacityPct}% dung tích</strong>
                       </div>
                     </div>
                   </div>
@@ -390,35 +380,35 @@ export const CommandCenterDashboard: React.FC = () => {
                   <div
                     className={`p-2.5 rounded-lg border transition-all ${
                       isHoTrungChuyenRed
-                        ? 'emergency-flash text-rose-200'
-                        : 'bg-slate-800/60 border-slate-700/80'
+                        ? 'emergency-flash text-white'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
                     }`}
                   >
-                    <div className="flex justify-between font-semibold text-cyan-400">
+                    <div className={`flex justify-between font-bold ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                        <Activity className={`w-3.5 h-3.5 ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}`} />
                         Hồ Trung Chuyển
                       </span>
-                      <span className="text-slate-400 font-normal">IoT Thủy Sản</span>
+                      <span className={`font-normal ${isHoTrungChuyenRed ? 'text-rose-100' : 'text-slate-500'}`}>IoT Thủy Sản</span>
                     </div>
-                    <div className="mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] text-slate-300">
+                    <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoTrungChuyenRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Oxy hòa tan DO:{' '}
-                        <strong className={iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ? 'text-rose-400 font-black' : 'text-white'}>
+                        <strong className={iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.hoTrungChuyen.dissolvedOxygen} mg/L
                         </strong>
                       </div>
                       <div>
-                        Độ pH: <strong className="text-white">{iotData.hoTrungChuyen.ph}</strong>
+                        Độ pH: <strong className={isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoTrungChuyen.ph}</strong>
                       </div>
                       <div>
                         Nguy cơ ngập tràn:{' '}
-                        <strong className={iotData.hoTrungChuyen.overflowRisk === 'Cao' ? 'text-rose-400' : 'text-emerald-400'}>
+                        <strong className={iotData.hoTrungChuyen.overflowRisk === 'Cao' ? 'text-white font-bold' : 'text-[#0A4393]'}>
                           {iotData.hoTrungChuyen.overflowRisk}
                         </strong>
                       </div>
                       <div>
-                        Bờ bao: <strong className="text-white">{iotData.hoTrungChuyen.dykeStatus}</strong>
+                        Bờ bao: <strong className={isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoTrungChuyen.dykeStatus}</strong>
                       </div>
                     </div>
                   </div>
@@ -438,17 +428,15 @@ export const CommandCenterDashboard: React.FC = () => {
               />
             </div>
           )}
-
-
         </div>
       </main>
 
       {/* 4. Footer Thông Tin Đề Tài */}
-      <footer className="bg-slate-900 border-t border-slate-800 py-3 px-4 text-center text-xs text-slate-500 font-mono">
-        <p>
+      <footer className="bg-[#0A4393] border-t border-[#083576] py-3.5 px-4 text-center text-xs text-white font-mono">
+        <p className="font-bold">
           ĐỀ TÀI NGHIÊN CỨU KHOA HỌC KỸ THUẬT • TRƯỜNG THPT EA SÚP, TỈNH ĐẮK LẮK
         </p>
-        <p className="mt-0.5 text-[11px] text-slate-400">
+        <p className="mt-0.5 text-[11px] text-blue-100">
           Nhóm thực hiện: Lê Trần Bảo Trân (10a1) - Lê Phương Trang (10a3) TRƯỜNG THPT EA SÚP
         </p>
       </footer>

@@ -206,48 +206,48 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
   return (
     <div
-      className="p-3 my-2 rounded-lg border border-slate-700 bg-slate-900/90 text-slate-100 shadow-md backdrop-blur-sm"
+      className="px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm"
       role="region"
       aria-label="Trình máy đọc giọng nữ tiếng Việt"
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-      {/* Main player controls (Đã bỏ hoàn toàn nút Tải MP3) */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
+      {/* Main player controls: Nằm gọn trên 1 dòng cả trên điện thoại */}
+      <div className="flex flex-row items-center gap-2 sm:gap-3">
         <button
           onClick={togglePlay}
-          className="flex items-center justify-center w-9 h-9 rounded-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-400 text-white transition-all transform active:scale-95 shadow-sm"
+          className="shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0A4393] text-white transition-all transform active:scale-95 shadow-sm"
           aria-label={isPlaying ? 'Tạm dừng máy đọc' : 'Bắt đầu máy đọc giọng nữ tiếng Việt'}
           title={isPlaying ? 'Tạm dừng phát' : 'Máy đọc giọng nữ tiếng Việt (1.4X) nội dung cảnh báo'}
         >
-          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+          {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5" />}
         </button>
 
-        {/* Progress bar */}
-        <div className="flex-1 w-full flex items-center gap-2 text-xs font-mono text-slate-400">
-          <span className="w-8 text-right">{formatTime(currentTime)}</span>
+        {/* Progress bar thu gọn linh hoạt */}
+        <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono text-[#0A4393] font-semibold">
+          <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
           <input
             type="range"
             min={0}
             max={duration || 22}
             value={currentTime}
             onChange={handleSeek}
-            className="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+            className="flex-1 min-w-[48px] w-full h-1.5 bg-[#0A4393]/20 rounded-lg appearance-none cursor-pointer accent-[#0A4393] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393]"
             aria-label="Thanh trượt thời lượng máy đọc"
           />
-          <span className="w-8">{formatTime(duration || 22)}</span>
+          <span className="shrink-0 tabular-nums">{formatTime(duration || 22)}</span>
         </div>
 
-        {/* Speed Selector Buttons: Mặc định tốc độ 1.4X */}
-        <div className="flex items-center gap-1 bg-slate-800/80 p-0.5 rounded border border-slate-700/60">
-          {([1, 1.25, 1.4, 1.5, 2] as const).map((rate) => (
+        {/* Speed Selector Buttons: Chỉ giữ 2 chế độ 1.25X và 1.4X */}
+        <div className="shrink-0 flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded border border-[#0A4393]/30">
+          {([1.25, 1.4] as const).map((rate) => (
             <button
               key={rate}
               onClick={() => handleRateChange(rate)}
-              className={`px-1.5 py-0.5 text-[11px] font-mono rounded transition-colors ${
+              className={`px-1.5 py-0.5 text-[10px] sm:text-[11px] font-mono rounded transition-colors ${
                 playbackRate === rate
-                  ? 'bg-emerald-600 text-white font-semibold shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-[#0A4393] text-white font-semibold shadow-xs'
+                  : 'text-[#0A4393]/70 hover:text-[#0A4393]'
               }`}
               title={`Tốc độ đọc ${rate}X`}
             >

@@ -8,11 +8,12 @@
 :root {
   --font-sans: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --color-primary-blue: #0a4393;
   --color-forest: #1b4d3e;
-  --color-hydro: #0f4c81;
+  --color-hydro: #0a4393;
   --color-alert-red: #c92a2a;
   --color-alert-yellow: #e67700;
-  --color-bg-command: #0a0f1d;
+  --color-bg-command: #f0f5fc;
 }
 
 html,
@@ -21,7 +22,7 @@ body {
   margin: 0;
   font-family: 'Be Vietnam Pro', var(--font-sans);
   background-color: var(--color-bg-command);
-  color: #f3f4f6;
+  color: #0f172a;
   overflow-x: clip; /* Kỷ luật chống tràn ngang trên di động 320px - 768px */
 }
 
@@ -41,7 +42,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid #52b788;
+  outline: 2px solid #0a4393;
   outline-offset: 2px;
 }
 
@@ -56,7 +57,7 @@ select:disabled {
 .leaflet-container {
   width: 100%;
   height: 100%;
-  background: #0a0f1d !important;
+  background: #e6f0fa !important;
 }
 
 .custom-map-marker {
@@ -87,11 +88,11 @@ select:disabled {
   animation: pulseGlow 1.8s infinite;
 }
 
-/* Custom Satellite Timeline Slider (Pixel-Perfect Geospatial Dark Theme) */
+/* Custom Satellite Timeline Slider (Blue & White Theme) */
 .satellite-timeline-slider {
   -webkit-appearance: none;
   appearance: none;
-  background: #1e293b;
+  background: #cfe0f5;
   outline: none;
   border-radius: 9999px;
   height: 8px;
@@ -99,7 +100,7 @@ select:disabled {
 
 .satellite-timeline-slider::-webkit-slider-runnable-track {
   height: 8px;
-  background: #1e293b;
+  background: #cfe0f5;
   border-radius: 9999px;
 }
 
@@ -109,23 +110,23 @@ select:disabled {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fbbf24;
+  background: #0a4393;
   cursor: pointer;
-  border: 2px solid #d97706;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(10, 67, 147, 0.5);
   margin-top: -5px;
   transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .satellite-timeline-slider::-webkit-slider-thumb:hover {
-  background: #fde047;
+  background: #1358b8;
   transform: scale(1.15);
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.85);
+  box-shadow: 0 0 14px rgba(10, 67, 147, 0.75);
 }
 
 .satellite-timeline-slider::-moz-range-track {
   height: 8px;
-  background: #1e293b;
+  background: #cfe0f5;
   border-radius: 9999px;
   border: none;
 }
@@ -134,28 +135,28 @@ select:disabled {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fbbf24;
+  background: #0a4393;
   cursor: pointer;
-  border: 2px solid #d97706;
-  box-shadow: 0 0 10px rgba(251, 191, 36, 0.6);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(10, 67, 147, 0.5);
   transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .satellite-timeline-slider::-moz-range-thumb:hover {
-  background: #fde047;
+  background: #1358b8;
   transform: scale(1.15);
-  box-shadow: 0 0 14px rgba(251, 191, 36, 0.85);
+  box-shadow: 0 0 14px rgba(10, 67, 147, 0.75);
 }
 
 /* Tinh giảm thanh ghi nhận nguồn Leaflet gọn gàng nhất, không che khuất bản đồ */
 .leaflet-control-attribution {
   font-size: 10px !important;
-  background: rgba(15, 23, 42, 0.7) !important;
-  color: #94a3b8 !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: #0a4393 !important;
   padding: 1px 6px !important;
   border-radius: 4px !important;
   margin: 0 4px 4px 0 !important;
-  border: 1px solid rgba(51, 65, 85, 0.4) !important;
+  border: 1px solid rgba(10, 67, 147, 0.25) !important;
   backdrop-filter: blur(4px);
   white-space: nowrap !important;
   max-width: 320px !important;
@@ -164,20 +165,21 @@ select:disabled {
 }
 
 .leaflet-control-attribution a {
-  color: #38bdf8 !important;
+  color: #0a4393 !important;
+  font-weight: 600 !important;
   text-decoration: none !important;
 }
 
 /* Hiệu ứng nhấp nháy báo động đỏ chuyên nghiệp PCTT */
 @keyframes emergency-strobe {
   0%, 100% {
-    background-color: rgba(159, 18, 57, 0.95);
+    background-color: rgba(190, 18, 60, 0.95);
     border-color: #f43f5e;
     box-shadow: 0 0 25px rgba(244, 63, 94, 0.9), inset 0 0 15px rgba(225, 29, 72, 0.6);
     transform: scale(1.02);
   }
   50% {
-    background-color: rgba(76, 5, 25, 0.4);
+    background-color: rgba(136, 19, 55, 0.75);
     border-color: #881337;
     box-shadow: 0 0 6px rgba(244, 63, 94, 0.25);
     transform: scale(1);
@@ -203,5 +205,3 @@ select:disabled {
 .siren-wobble {
   animation: siren-ring 0.6s infinite ease-in-out;
 }
-
-

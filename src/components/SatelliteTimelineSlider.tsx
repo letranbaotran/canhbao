@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export interface SatelliteTimelineSliderProps {
   currentYear: number;
@@ -65,28 +65,28 @@ export const SatelliteTimelineSlider: React.FC<SatelliteTimelineSliderProps> = (
 
   return (
     <div
-      className={`rounded-lg bg-[#0a1120]/95 backdrop-blur-md border border-amber-800/80 shadow-2xl p-3 select-none transition-all ${className}`}
+      className={`rounded-lg bg-white border border-[#0A4393]/30 shadow-md p-3 select-none transition-all ${className}`}
     >
       {/* Hàng tiêu đề trên (Header Row) */}
       <div className="flex items-center justify-between mb-2">
-        {/* Bên trái: Icon lịch và Tiêu đề font monospace xanh ngọc */}
+        {/* Bên trái: Icon lịch và Tiêu đề font monospace xanh da trời */}
         <div className="flex items-center gap-2">
           <span className="text-base" role="img" aria-label="Lịch">
             📅
           </span>
-          <span className="text-emerald-400 font-mono font-semibold text-sm tracking-wide">
+          <span className="text-[#0A4393] font-mono font-bold text-sm tracking-wide">
             Thanh Trượt Theo Năm ({minYear} - {maxYear}):
           </span>
         </div>
 
-        {/* Bên phải: Hộp trạng thái viền vàng hổ phách */}
-        <div className="border border-amber-600/70 bg-amber-950/40 px-3 py-1 rounded flex items-center gap-1.5 shadow-sm">
-          <span className="text-amber-300 text-sm">Năm hiện trạng:</span>
-          <span className="font-bold text-amber-400 underline text-base font-mono">
+        {/* Bên phải: Hộp trạng thái nền xanh chữ trắng */}
+        <div className="bg-[#0A4393] text-white px-3 py-1 rounded flex items-center gap-1.5 shadow-sm">
+          <span className="text-blue-100 text-sm">Năm hiện trạng:</span>
+          <span className="font-bold text-white underline text-base font-mono">
             {sliderValue}
           </span>
           {isLoading && (
-            <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin ml-1" />
+            <Loader2 className="w-3.5 h-3.5 text-white animate-spin ml-1" />
           )}
         </div>
       </div>
@@ -94,7 +94,7 @@ export const SatelliteTimelineSlider: React.FC<SatelliteTimelineSliderProps> = (
       {/* Hàng thanh trượt dưới (Slider Row) */}
       <div className="flex items-center w-full">
         {/* Mốc đầu 2001 */}
-        <span className="text-emerald-400 font-bold font-mono text-sm mr-3 shrink-0">
+        <span className="text-[#0A4393] font-bold font-mono text-sm mr-3 shrink-0">
           {minYear}
         </span>
 
@@ -109,12 +109,12 @@ export const SatelliteTimelineSlider: React.FC<SatelliteTimelineSliderProps> = (
             onChange={(e) => handleSliderChange(parseInt(e.target.value, 10))}
             onKeyDown={handleKeyDown}
             aria-label={`Thanh trượt chọn năm ảnh vệ tinh từ ${minYear} đến ${maxYear}`}
-            className="satellite-timeline-slider w-full h-2 bg-[#1e293b] rounded-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-500"
+            className="satellite-timeline-slider w-full h-2 bg-[#cfe0f5] rounded-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
           />
         </div>
 
         {/* Mốc cuối 2026 */}
-        <span className="text-rose-500 font-bold font-mono text-sm ml-3 shrink-0">
+        <span className="text-rose-600 font-bold font-mono text-sm ml-3 shrink-0">
           {maxYear}
         </span>
       </div>

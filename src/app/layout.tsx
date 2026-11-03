@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0A0F1D',
+  themeColor: '#0A4393',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -35,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className="dark">
+    <html lang="vi">
       <head>
         <link rel="icon" type="image/png" href="images/logo_easup.png" />
         <link rel="shortcut icon" type="image/png" href="images/logo_easup.png" />
@@ -47,7 +47,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen bg-[#0A0F1D] text-slate-100 antialiased overflow-x-clip">
+      <body className="min-h-screen bg-[#F0F5FC] text-slate-900 antialiased overflow-x-clip">
         {children}
       </body>
     </html>

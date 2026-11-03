@@ -31,7 +31,40 @@ import {
   Crop,
   Sparkles,
   Calendar,
+  LocateFixed,
+  CheckSquare,
+  Square,
+  X,
+  Upload,
+  Loader2,
+  Crosshair,
 } from 'lucide-react';
+
+export interface KmzLayerManifestItem {
+  id: string;
+  rawName: string;
+  label: string;
+  category: string;
+  defaultOn: boolean;
+  color: string;
+  bounds: [[number, number], [number, number]];
+  geomCount: number;
+  file: string;
+  sizeKb: number;
+}
+
+interface KmzGeometryGroup {
+  color: string;
+  fillColor: string | null;
+  weight: number;
+  outline: boolean;
+  lines: [number, number][][];
+  polys: [number, number][][];
+}
+
+interface KmzLayerData extends KmzLayerManifestItem {
+  groups: KmzGeometryGroup[];
+}
 
 const BASEMAP_TILES = {
   SATELLITE: {
@@ -186,31 +219,31 @@ const GIBS_META: Record<
     title: 'Điểm Ảnh Nhiệt',
     liveMetric: '02 điểm nhiệt gần Tiểu khu 293 (đang kiểm tra)',
     status: 'NGUY CƠ CHÁY',
-    statusColor: 'text-rose-400 bg-rose-950/80 border-rose-800',
+    statusColor: 'text-rose-700 bg-rose-50 border-rose-500',
   },
   TRUE_COLOR: {
     title: 'Ảnh Vệ Tinh Tự Nhiên',
     liveMetric: 'Trời quang, rừng khộp đang vào mùa khô',
     status: 'BÌNH THƯỜNG',
-    statusColor: 'text-emerald-400 bg-emerald-950/80 border-emerald-800',
+    statusColor: 'text-[#0A4393] bg-[#F0F6FF] border-[#0A4393]/40',
   },
   NDVI_VEGETATION: {
     title: 'Độ Che Phủ Rừng',
     liveMetric: 'Mặt phủ rừng Tiểu khu 293 ổn định',
     status: 'RỪNG ỔN ĐỊNH',
-    statusColor: 'text-green-400 bg-green-950/80 border-green-800',
+    statusColor: 'text-[#0A4393] bg-[#F0F6FF] border-[#0A4393]/40',
   },
   SOIL_MOISTURE: {
     title: 'Độ Ẩm Đất',
     liveMetric: 'Độ ẩm 31% (cận khô hạn, cần tưới tiêu)',
     status: 'CẢNH BÁO HẠN',
-    statusColor: 'text-amber-400 bg-amber-950/80 border-amber-800',
+    statusColor: 'text-amber-800 bg-amber-50 border-amber-500',
   },
   FLOOD_SURFACE: {
     title: 'Bản Đồ Ngập Lụt',
     liveMetric: 'Nước nằm trong lòng dẫn, an toàn',
     status: 'AN TOÀN LŨ',
-    statusColor: 'text-cyan-400 bg-cyan-950/80 border-cyan-800',
+    statusColor: 'text-[#0A4393] bg-[#F0F6FF] border-[#0A4393]/40',
   },
 };
 
@@ -243,6 +276,31 @@ export const WebGISMap: React.FC = () => {
   const [isDrawingMode, setIsDrawingMode] = useState<boolean>(false);
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(false);
   const [mapLoaded, setMapLoaded] = useState<boolean>(false);
+
+  // Refs & State cho Định vị GPS và Quản lý nhiều lớp bản đồ KMZ (ban_ve,_mat_cat.kmz)
+  const canvasRendererRef = useRef<any>(null);
+  const userLocationLayerRef = useRef<any>(null);
+  const systemMarkersGroupRef = useRef<any>(null);
+  const bufferCircleLayerRef = useRef<any>(null);
+  const kmzLayerGroupsRef = useRef<Record<string, any>>({});
+  const kmzDataCacheRef = useRef<Record<string, KmzLayerData>>({});
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locateMessage, setLocateMessage] = useState<string | null>(null);
+  const [showLayerManager, setShowLayerManager] = useState<boolean>(false);
+  const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
+  const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
+  const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
+  const [systemLayers, setSystemLayers] = useState<{
+    markers: boolean;
+    buffer: boolean;
+    gibs: boolean;
+  }>({
+    markers: true,
+    buffer: true,
+    gibs: true,
+  });
 
   // Cập nhật ref cho drawing mode
   isDrawingModeRef.current = isDrawingMode;
@@ -600,6 +658,9 @@ export const WebGISMap: React.FC = () => {
       map.attributionControl.setPrefix('');
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+      canvasRendererRef.current = L.canvas({ padding: 0.5 });
+      const markersGroup = L.featureGroup().addTo(map);
+      systemMarkersGroupRef.current = markersGroup;
 
       // Nạp basemap ban đầu
       const baseTile = L.tileLayer(BASEMAP_TILES.SATELLITE.url, {
@@ -631,7 +692,7 @@ export const WebGISMap: React.FC = () => {
       L.marker([13.05685, 107.894562], {
         icon: createPillMarker('rgba(15, 118, 110, 0.95)', '#5eead4', '💧 Hồ Ea Súp Hạ (Nguồn sinh hoạt)', '💧'),
       })
-        .addTo(map)
+        .addTo(markersGroup)
         .bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#0f766e; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Hạ - Nguồn Cấp Nước Sinh Hoạt</h4>
@@ -645,7 +706,7 @@ export const WebGISMap: React.FC = () => {
       L.marker([13.043116, 107.937218], {
         icon: createPillMarker('rgba(15, 76, 129, 0.95)', '#60a5fa', '🌊 Hồ Ea Súp Thượng (146M m³)', '💧'),
       })
-        .addTo(map)
+        .addTo(markersGroup)
         .bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#1d4ed8; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Thượng (Đại thủy nông)</h4>
@@ -658,7 +719,7 @@ export const WebGISMap: React.FC = () => {
       L.marker([12.982216, 107.886961], {
         icon: createPillMarker('rgba(27, 77, 62, 0.95)', '#34d399', '🌲 Lâm phần Tiểu khu 293', '🔥'),
       })
-        .addTo(map)
+        .addTo(markersGroup)
         .bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#047857; margin:0 0 4px 0; font-size:13px;">Lâm phần Tiểu Khu 293</h4>
@@ -671,7 +732,7 @@ export const WebGISMap: React.FC = () => {
       L.marker([13.069298, 107.881527], {
         icon: createPillMarker('rgba(14, 116, 144, 0.95)', '#67e8f9', '🐟 Hồ Trung Chuyển', '🏊'),
       })
-        .addTo(map)
+        .addTo(markersGroup)
         .bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#0e7490; margin:0 0 4px 0; font-size:13px;">Hồ Trung Chuyển</h4>
@@ -681,7 +742,7 @@ export const WebGISMap: React.FC = () => {
         `);
 
       // 5. Vùng đệm 5km
-      L.circle([13.045, 107.905], {
+      bufferCircleLayerRef.current = L.circle([13.045, 107.905], {
         color: '#E67700',
         weight: 1.5,
         dashArray: '5, 5',
@@ -928,6 +989,356 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
+  // ================= ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG (GPS) =================
+  const renderUserLocationMarker = (lat: number, lng: number, accuracy: number, isFallback = false) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    import('leaflet').then((L) => {
+      if (userLocationLayerRef.current) {
+        map.removeLayer(userLocationLayerRef.current);
+        userLocationLayerRef.current = null;
+      }
+
+      const group = L.featureGroup().addTo(map);
+      userLocationLayerRef.current = group;
+
+      // Vòng tròn bán kính sai số GPS
+      L.circle([lat, lng], {
+        radius: Math.max(accuracy, 35),
+        color: '#0A4393',
+        weight: 1.5,
+        fillColor: '#38bdf8',
+        fillOpacity: 0.2,
+      }).addTo(group);
+
+      // Marker chấm xanh định vị phát sáng
+      const gpsIcon = L.divIcon({
+        className: 'custom-map-marker',
+        html: `
+          <div style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:20px; background:#0A4393; color:#ffffff; border:2px solid #ffffff; font-size:11px; font-weight:700; font-family:monospace; box-shadow:0 0 16px rgba(10,67,147,0.95);">
+            <span style="width:10px; height:10px; border-radius:50%; background:#38bdf8; border:2px solid #ffffff; display:inline-block; box-shadow:0 0 8px #38bdf8;"></span>
+            <span>📍 Vị trí đang đứng</span>
+          </div>
+        `,
+        iconSize: [0, 0],
+        iconAnchor: [70, 15],
+      });
+
+      const marker = L.marker([lat, lng], { icon: gpsIcon })
+        .addTo(group)
+        .bindPopup(`
+          <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:210px; color:#0f172a;">
+            <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📍 Vị Trí Định Vị Hiện Tại</h4>
+            <p style="margin:0 0 3px 0;">- Vĩ độ: <strong>${lat.toFixed(6)}°B</strong></p>
+            <p style="margin:0 0 3px 0;">- Kinh độ: <strong>${lng.toFixed(6)}°Đ</strong></p>
+            <p style="margin:0 0 4px 0;">- Độ chính xác: <strong>±${Math.round(accuracy)} m</strong></p>
+            <div style="background:#F0F6FF; color:#0A4393; padding:4px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
+              ${isFallback ? 'Tâm điểm hành chính xã Ea Súp (Mô phỏng GPS)' : 'Tín hiệu định vị GPS thiết bị trực tiếp'}
+            </div>
+          </div>
+        `);
+
+      map.flyTo([lat, lng], 15, { duration: 1.0 });
+      setTimeout(() => {
+        marker.openPopup();
+      }, 600);
+    });
+  };
+
+  const handleLocateUser = () => {
+    if (typeof window === 'undefined') return;
+    setIsLocating(true);
+    setLocateMessage('Đang xác định tọa độ GPS thiết bị...');
+
+    if (!('geolocation' in navigator)) {
+      setIsLocating(false);
+      renderUserLocationMarker(13.0635, 107.9049, 25, true);
+      setLocateMessage('Thiết bị không hỗ trợ GPS, đã định vị tâm xã Ea Súp.');
+      setTimeout(() => setLocateMessage(null), 4000);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        renderUserLocationMarker(latitude, longitude, accuracy || 20, false);
+        setLocateMessage(`Đã định vị: ${latitude.toFixed(5)}°B, ${longitude.toFixed(5)}°Đ`);
+        setTimeout(() => setLocateMessage(null), 4500);
+      },
+      () => {
+        setIsLocating(false);
+        // Fallback thông minh về tọa độ trung tâm thực địa Ea Súp nếu trình duyệt chặn quyền GPS
+        renderUserLocationMarker(13.0635, 107.9049, 25, true);
+        setLocateMessage('Đã định vị tại Trung tâm điều hành xã Ea Súp (13.0635°B, 107.9049°Đ)');
+        setTimeout(() => setLocateMessage(null), 4500);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
+  // ================= QUẢN LÝ NHIỀU LỚP BẢN ĐỒ KMZ (ban_ve,_mat_cat.kmz) =================
+  const resolveKmzUrl = (relPath: string) => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/canhbao')) {
+      return `/canhbao${relPath}`;
+    }
+    return relPath;
+  };
+
+  const renderKmzLayerOnMap = async (item: KmzLayerManifestItem) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    const L = await import('leaflet');
+    if (kmzLayerGroupsRef.current[item.id]) {
+      if (!map.hasLayer(kmzLayerGroupsRef.current[item.id])) {
+        kmzLayerGroupsRef.current[item.id].addTo(map);
+      }
+      return;
+    }
+
+    let layerData = kmzDataCacheRef.current[item.id];
+    if (!layerData) {
+      setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: true }));
+      try {
+        const res = await fetch(resolveKmzUrl(item.file));
+        layerData = await res.json();
+        kmzDataCacheRef.current[item.id] = layerData;
+      } catch (e) {
+        console.error('Failed to load KMZ layer:', item.id, e);
+        setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: false }));
+        return;
+      }
+      setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: false }));
+    }
+
+    if (!leafletMapRef.current) return;
+    const renderer = canvasRendererRef.current || L.canvas({ padding: 0.5 });
+    const layerGroup = L.featureGroup();
+
+    const popupHtml = `
+      <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:200px; color:#0f172a;">
+        <h4 style="font-weight:bold; color:#0A4393; margin:0 0 4px 0; font-size:13px;">📐 ${layerData.label}</h4>
+        <p style="margin:0 0 3px 0;">- Mã lớp KMZ: <strong>${layerData.rawName}</strong></p>
+        <p style="margin:0 0 3px 0;">- Phân nhóm: <strong>${layerData.category}</strong></p>
+        <p style="margin:0 0 4px 0;">- Số đối tượng: <strong>${layerData.geomCount.toLocaleString()} đối tượng</strong></p>
+        <div style="background:#F0F6FF; color:#0A4393; padding:3px 6px; border-radius:4px; font-weight:600; font-size:11px; border:1px solid rgba(10,67,147,0.25);">
+          Nguồn: ban_ve,_mat_cat.kmz (Tọa độ chuẩn Ea Súp)
+        </div>
+      </div>
+    `;
+
+    for (const grp of layerData.groups) {
+      const strokeColor = item.color || grp.color || '#38bdf8';
+      if (grp.lines && grp.lines.length > 0) {
+        L.polyline(grp.lines as any, {
+          renderer,
+          color: strokeColor,
+          weight: Math.max(1.8, grp.weight || 1.8),
+          opacity: 0.92,
+        })
+          .bindPopup(popupHtml)
+          .addTo(layerGroup);
+      }
+      if (grp.polys && grp.polys.length > 0) {
+        L.polygon(grp.polys as any, {
+          renderer,
+          color: strokeColor,
+          fillColor: grp.fillColor || strokeColor,
+          fillOpacity: grp.outline ? 0.35 : 0.55,
+          weight: grp.outline ? 1.8 : 1.2,
+        })
+          .bindPopup(popupHtml)
+          .addTo(layerGroup);
+      }
+    }
+
+    kmzLayerGroupsRef.current[item.id] = layerGroup;
+    layerGroup.addTo(map);
+  };
+
+  // Tự động nạp manifest.json của file ban_ve,_mat_cat.kmz và hiển thị các lớp mặc định khi bản đồ sẵn sàng
+  useEffect(() => {
+    if (!mapLoaded) return;
+    let isSubscribed = true;
+
+    fetch(resolveKmzUrl('/data/kmz/manifest.json'))
+      .then((r) => r.json())
+      .then(async (manifestList: KmzLayerManifestItem[]) => {
+        if (!isSubscribed || !Array.isArray(manifestList)) return;
+        setKmzManifest(manifestList);
+
+        const initialEnabled: Record<string, boolean> = {};
+        for (const item of manifestList) {
+          initialEnabled[item.id] = item.defaultOn;
+        }
+        setEnabledKmzLayers(initialEnabled);
+
+        for (const item of manifestList) {
+          if (item.defaultOn && isSubscribed) {
+            await renderKmzLayerOnMap(item);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading KMZ manifest:', err);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [mapLoaded]);
+
+  const handleToggleKmzLayer = async (item: KmzLayerManifestItem) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    const nextState = !enabledKmzLayers[item.id];
+    setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: nextState }));
+
+    if (nextState) {
+      await renderKmzLayerOnMap(item);
+    } else {
+      const existing = kmzLayerGroupsRef.current[item.id];
+      if (existing && map.hasLayer(existing)) {
+        map.removeLayer(existing);
+      }
+    }
+  };
+
+  const handleBulkKmzLayers = async (mode: 'ALL' | 'DEFAULT' | 'NONE') => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    const nextEnabled: Record<string, boolean> = {};
+    for (const item of kmzManifest) {
+      const shouldEnable =
+        mode === 'ALL' ? true : mode === 'DEFAULT' ? item.defaultOn : false;
+      nextEnabled[item.id] = shouldEnable;
+    }
+    setEnabledKmzLayers(nextEnabled);
+
+    for (const item of kmzManifest) {
+      if (nextEnabled[item.id]) {
+        await renderKmzLayerOnMap(item);
+      } else {
+        const existing = kmzLayerGroupsRef.current[item.id];
+        if (existing && map.hasLayer(existing)) {
+          map.removeLayer(existing);
+        }
+      }
+    }
+  };
+
+  const handleFlyToKmzLayer = async (item: KmzLayerManifestItem) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    if (!enabledKmzLayers[item.id]) {
+      setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: true }));
+      await renderKmzLayerOnMap(item);
+    }
+    if (item.bounds && item.bounds.length === 2) {
+      map.flyToBounds(item.bounds, { padding: [30, 30], maxZoom: 16, duration: 0.9 });
+    }
+  };
+
+  const handleFlyToAllKmz = () => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    // Khung tọa độ trung tâm bản vẽ kênh xây, thủy hệ, mặt cắt xã Ea Súp
+    map.flyToBounds(
+      [
+        [13.023, 107.887],
+        [13.085, 107.945],
+      ],
+      { padding: [25, 25], duration: 0.9 }
+    );
+  };
+
+  const handleToggleSystemLayer = (key: 'markers' | 'buffer' | 'gibs') => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    const nextVal = !systemLayers[key];
+    setSystemLayers((prev) => ({ ...prev, [key]: nextVal }));
+
+    if (key === 'markers' && systemMarkersGroupRef.current) {
+      if (nextVal) systemMarkersGroupRef.current.addTo(map);
+      else map.removeLayer(systemMarkersGroupRef.current);
+    } else if (key === 'buffer' && bufferCircleLayerRef.current) {
+      if (nextVal) bufferCircleLayerRef.current.addTo(map);
+      else map.removeLayer(bufferCircleLayerRef.current);
+    } else if (key === 'gibs') {
+      if (nextVal) {
+        updateGibsOverlay(selectedGibsLayer, gibsOpacity);
+      } else {
+        if (gibsTileLayerRef.current) map.removeLayer(gibsTileLayerRef.current);
+        if (gibsFeatureGroupRef.current) map.removeLayer(gibsFeatureGroupRef.current);
+      }
+    }
+  };
+
+  // Cho phép người dùng tải thêm file .KML từ máy tính lồng vào bản đồ
+  const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
+      let m;
+      const lines: [number, number][][] = [];
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      while ((m = coordRegex.exec(text)) !== null) {
+        const rawPts = m[1].trim().split(/\s+/);
+        const pts: [number, number][] = [];
+        for (const rp of rawPts) {
+          const parts = rp.split(',');
+          if (parts.length >= 2) {
+            const lng = parseFloat(parts[0]);
+            const lat = parseFloat(parts[1]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+              pts.push([lat, lng]);
+              if (lat < minLat) minLat = lat;
+              if (lat > maxLat) maxLat = lat;
+              if (lng < minLng) minLng = lng;
+              if (lng > maxLng) maxLng = lng;
+            }
+          }
+        }
+        if (pts.length >= 2) lines.push(pts);
+      }
+      if (lines.length > 0) {
+        const customId = `USER_${Date.now()}`;
+        const newItem: KmzLayerManifestItem = {
+          id: customId,
+          rawName: file.name,
+          label: `Bản vẽ tải lên: ${file.name}`,
+          category: 'Bản vẽ người dùng tải lên',
+          defaultOn: true,
+          color: '#ff1744',
+          bounds: [[minLat, minLng], [maxLat, maxLng]],
+          geomCount: lines.length,
+          file: '',
+          sizeKb: Math.round(file.size / 1024),
+        };
+        kmzDataCacheRef.current[customId] = {
+          ...newItem,
+          groups: [{ color: '#ff1744', fillColor: '#ff1744', weight: 2, outline: true, lines, polys: [] }],
+        };
+        setKmzManifest((prev) => [newItem, ...prev]);
+        setEnabledKmzLayers((prev) => ({ ...prev, [customId]: true }));
+        await renderKmzLayerOnMap(newItem);
+        handleFlyToKmzLayer(newItem);
+      }
+    } catch (err) {
+      console.error('Upload KML error:', err);
+    }
+    e.target.value = '';
+  };
+
+  const activeKmzCount = Object.values(enabledKmzLayers).filter(Boolean).length;
+  const kmzCategories = Array.from(new Set(kmzManifest.map((m) => m.category)));
+
   const activeMeta = GIBS_META[selectedGibsLayer] || GIBS_META.THERMAL_ANOMALIES;
   const currentAreaInfo: AreaDefinition =
     selectedAreaKey === 'CUSTOM' && customArea
@@ -947,13 +1358,13 @@ export const WebGISMap: React.FC = () => {
   const currentDeltaNdvi = Number((currentAreaInfo.ndvi2026 - currentAreaInfo.ndvi2001).toFixed(2));
 
   return (
-    <div className="relative w-full h-[580px] rounded-xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col">
+    <div className="relative w-full h-[580px] rounded-xl overflow-hidden border border-[#0A4393]/25 bg-white shadow-lg flex flex-col">
       {/* Top Map Control Bar */}
-      <div className="z-10 bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div className="z-10 bg-[#0A4393] border-b border-white/20 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white">
         {/* Basemap Switcher */}
         <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-slate-300 flex items-center gap-1">
-            <Eye className="w-3.5 h-3.5 text-emerald-400" /> Nền:
+          <span className="font-semibold text-white flex items-center gap-1">
+            <Eye className="w-3.5 h-3.5 text-white" /> Nền:
           </span>
           {(Object.keys(BASEMAP_TILES) as Array<keyof typeof BASEMAP_TILES>).map((key) => (
             <button
@@ -961,8 +1372,8 @@ export const WebGISMap: React.FC = () => {
               onClick={() => handleBasemapChange(key)}
               className={`px-2 py-1 rounded text-[11px] font-mono transition-colors ${
                 activeBasemap === key
-                  ? 'bg-emerald-600 text-white font-semibold shadow-sm'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  ? 'bg-white text-[#0A4393] font-bold shadow-sm'
+                  : 'bg-white/15 text-white hover:bg-white/25'
               }`}
             >
               {BASEMAP_TILES[key].name}
@@ -972,47 +1383,76 @@ export const WebGISMap: React.FC = () => {
 
         {/* NASA GIBS Layer Selector */}
         <div className="flex items-center gap-2">
-          <span className="text-amber-400 font-bold flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-amber-400" /> Lớp Vệ Tinh:
+          <span className="text-white font-bold flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-white" /> Lớp Vệ Tinh:
           </span>
           <select
             value={selectedGibsLayer}
             onChange={(e) => handleGibsChange(e.target.value)}
-            className="bg-slate-800 text-amber-300 font-semibold border border-amber-500/60 rounded px-2.5 py-1 text-xs focus:ring-2 focus:ring-amber-400 cursor-pointer shadow-sm"
+            className="bg-white text-[#0A4393] font-semibold border border-white/40 rounded px-2.5 py-1 text-xs focus:ring-2 focus:ring-white cursor-pointer shadow-sm"
             aria-label="Chọn lớp ảnh vệ tinh NASA GIBS"
           >
             {Object.entries(NASA_GIBS_LAYERS).map(([key, layer]) => (
-              <option key={key} value={key} className="bg-slate-900 text-white">
+              <option key={key} value={key} className="bg-white text-[#0A4393]">
                 {layer.name}
               </option>
             ))}
           </select>
         </div>
 
-        {/* 25-Year Swipe Compare Toggle */}
-        <button
-          onClick={handleToggleSwipeTool}
-          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
-            showSwipeTool
-              ? 'bg-amber-600 text-white font-semibold ring-2 ring-amber-400 shadow-md'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>So Sánh Thời Điểm & Vẽ Vùng</span>
-        </button>
+        {/* 25-Year Swipe Compare Toggle & Layer Manager + GPS */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setShowLayerManager(!showLayerManager)}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
+              showLayerManager
+                ? 'bg-white text-[#0A4393] font-bold ring-2 ring-white shadow-md'
+                : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
+            }`}
+            title="Quản lý bật/tắt các lớp bản đồ và lớp bản vẽ mặt cắt KMZ"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Quản Lý Lớp KMZ ({activeKmzCount}/{kmzManifest.length || 22})</span>
+          </button>
+
+          <button
+            onClick={handleLocateUser}
+            disabled={isLocating}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono bg-white text-[#0A4393] font-bold hover:bg-blue-50 transition-colors shadow-sm"
+            title="Định vị vị trí đang đứng trên bản đồ (GPS)"
+          >
+            {isLocating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0A4393]" />
+            ) : (
+              <LocateFixed className="w-3.5 h-3.5 text-[#0A4393]" />
+            )}
+            <span>Vị Trí Đang Đứng</span>
+          </button>
+
+          <button
+            onClick={handleToggleSwipeTool}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
+              showSwipeTool
+                ? 'bg-white text-[#0A4393] font-bold ring-2 ring-white shadow-md'
+                : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>So Sánh Thời Điểm & Vẽ Vùng</span>
+          </button>
+        </div>
       </div>
 
       {/* BANNER HƯỚNG DẪN KHI ĐANG VẼ VÙNG TỰ DO */}
       {isDrawingMode && (
-        <div className="z-20 bg-amber-500 text-slate-950 px-3 py-1.5 flex items-center justify-between text-xs font-bold animate-pulse shadow-lg">
+        <div className="z-20 bg-[#0A4393] text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold animate-pulse shadow-lg border-b border-white/30">
           <div className="flex items-center gap-2">
             <Crop className="w-4 h-4" />
             <span>ĐANG BẬT CHẾ ĐỘ VẼ VÙNG: Nhấp giữ và kéo chuột trên bản đồ để khoanh vùng hình chữ nhật so sánh...</span>
           </div>
           <button
             onClick={handleToggleDrawing}
-            className="px-2 py-0.5 rounded bg-slate-950 text-white text-[11px] hover:bg-slate-800 font-mono"
+            className="px-2 py-0.5 rounded bg-white text-[#0A4393] text-[11px] hover:bg-blue-50 font-mono font-bold"
           >
             ✕ Hủy vẽ
           </button>
@@ -1021,29 +1461,29 @@ export const WebGISMap: React.FC = () => {
 
       {/* Swipe comparison tool floating bar */}
       {showSwipeTool && (
-        <div className="z-10 bg-slate-900/98 border-b border-amber-500/60 p-2.5 flex flex-col gap-2 text-xs text-slate-200 shadow-xl">
+        <div className="z-10 bg-[#F0F6FF] border-b border-[#0A4393]/25 p-2.5 flex flex-col gap-2 text-xs text-slate-800 shadow-md">
           {/* Hàng 1: Chọn khu vực (Dropdown + Nút Vẽ) & Chọn mốc thời gian */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* Cụm 1: Chọn / Vẽ Khu Vực So Sánh */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-amber-400 font-bold flex items-center gap-1 font-mono text-[11px]">
-                <MapPin className="w-3.5 h-3.5 text-amber-400" /> Khu vực:
+              <span className="text-[#0A4393] font-bold flex items-center gap-1 font-mono text-[11px]">
+                <MapPin className="w-3.5 h-3.5 text-[#0A4393]" /> Khu vực:
               </span>
 
               {/* Dropdown danh sách khu vực */}
               <select
                 value={selectedAreaKey}
                 onChange={(e) => handleSelectArea(e.target.value)}
-                className="bg-slate-800 text-emerald-300 font-semibold border border-emerald-500/60 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-emerald-400 cursor-pointer shadow-sm"
+                className="bg-white text-[#0A4393] font-semibold border border-[#0A4393]/30 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-[#0A4393] cursor-pointer shadow-sm"
                 aria-label="Chọn khu vực so sánh biến động"
               >
                 {Object.entries(COMPARISON_AREAS).map(([key, item]) => (
-                  <option key={key} value={key} className="bg-slate-900 text-white">
+                  <option key={key} value={key} className="bg-white text-[#0A4393]">
                     {item.name} ({item.areaHa.toLocaleString()} ha)
                   </option>
                 ))}
                 {customArea && (
-                  <option value="CUSTOM" className="bg-slate-900 text-amber-300 font-bold">
+                  <option value="CUSTOM" className="bg-white text-[#0A4393] font-bold">
                     ✏️ {customArea.name}
                   </option>
                 )}
@@ -1054,8 +1494,8 @@ export const WebGISMap: React.FC = () => {
                 onClick={handleToggleDrawing}
                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
                   isDrawingMode
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-white shadow-lg animate-pulse'
-                    : 'bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 hover:text-white'
+                    ? 'bg-[#0A4393] text-white ring-2 ring-[#0A4393]/40 shadow-md animate-pulse'
+                    : 'bg-white hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393]'
                 }`}
                 title="Nhấp giữ và kéo chuột trên bản đồ để khoanh vùng diện tích cần so sánh"
               >
@@ -1067,7 +1507,7 @@ export const WebGISMap: React.FC = () => {
               {customArea && (
                 <button
                   onClick={handleClearCustomArea}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono bg-rose-950/80 hover:bg-rose-900 border border-rose-600 text-rose-300 hover:text-white transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono bg-rose-50 hover:bg-rose-100 border border-rose-400 text-rose-700 transition-colors"
                   title="Xóa vùng người dùng tự vẽ và quay lại khu vực chuẩn"
                 >
                   <Trash2 className="w-3 h-3" />
@@ -1078,122 +1518,122 @@ export const WebGISMap: React.FC = () => {
           </div>
 
           {/* Cụm 2: Hàng nút mốc nhanh và Chạy tua */}
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-amber-400 font-bold flex items-center gap-1 font-mono text-[11px]">
-                  <SlidersHorizontal className="w-3.5 h-3.5" /> Mốc:
-                </span>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[#0A4393] font-bold flex items-center gap-1 font-mono text-[11px]">
+                <SlidersHorizontal className="w-3.5 h-3.5" /> Mốc:
+              </span>
 
-                {/* Nút Mốc 2001 */}
-                <button
-                  onClick={() => handleSelectYear(2001)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
-                    selectedYear === 2001 && compareMode !== 'DELTA'
-                      ? 'bg-emerald-600 text-white shadow-md ring-1 ring-emerald-300'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  🌿 Mốc 2001 (Ảnh Gốc)
-                </button>
+              {/* Nút Mốc 2001 */}
+              <button
+                onClick={() => handleSelectYear(2001)}
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
+                  selectedYear === 2001 && compareMode !== 'DELTA'
+                    ? 'bg-[#0A4393] text-white shadow-sm'
+                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
+                }`}
+              >
+                🌿 Mốc 2001 (Ảnh Gốc)
+              </button>
 
-                {/* Nút Mốc 2026 */}
-                <button
-                  onClick={() => handleSelectYear(2026)}
-                  className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
-                    selectedYear === 2026 && compareMode !== 'DELTA'
-                      ? 'bg-rose-700 text-white shadow-md ring-1 ring-rose-300'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  ⚠️ Mốc 2026 (Hiện Trạng)
-                </button>
+              {/* Nút Mốc 2026 */}
+              <button
+                onClick={() => handleSelectYear(2026)}
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
+                  selectedYear === 2026 && compareMode !== 'DELTA'
+                    ? 'bg-[#0A4393] text-white shadow-sm'
+                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
+                }`}
+              >
+                ⚠️ Mốc 2026 (Hiện Trạng)
+              </button>
 
-                {/* Nút Đối Chiếu Biến Động */}
-                <button
-                  onClick={() => handleSelectCompareMode('DELTA')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
-                    compareMode === 'DELTA'
-                      ? 'bg-amber-600 text-white shadow-md ring-1 ring-amber-300'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                >
-                  📊 Đối Chiếu Biến Động
-                </button>
+              {/* Nút Đối Chiếu Biến Động */}
+              <button
+                onClick={() => handleSelectCompareMode('DELTA')}
+                className={`px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all ${
+                  compareMode === 'DELTA'
+                    ? 'bg-[#0A4393] text-white shadow-sm'
+                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
+                }`}
+              >
+                📊 Đối Chiếu Biến Động
+              </button>
 
-                {/* Nút Chạy tua theo năm */}
-                <button
-                  onClick={() => setIsAutoPlayYear(!isAutoPlayYear)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all shadow-sm ${
-                    isAutoPlayYear
-                      ? 'bg-cyan-600 text-white animate-pulse ring-1 ring-cyan-300'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
-                  title="Tự động chạy tua theo từng năm từ 2001 -> 2026"
-                >
-                  {isAutoPlayYear ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  <span>{isAutoPlayYear ? 'Tạm Dừng Tua' : '▶️ Chạy Tua Theo Năm'}</span>
-                </button>
-              </div>
-
-              {/* Mốc năm nhanh */}
-              <div className="flex items-center gap-1 font-mono text-[10px]">
-                <span className="text-slate-400 hidden sm:inline mr-0.5">Chọn nhanh:</span>
-                {[2001, 2005, 2010, 2015, 2020, 2026].map((yr) => (
-                  <button
-                    key={yr}
-                    onClick={() => handleSelectYear(yr)}
-                    className={`px-1.5 py-0.5 rounded transition-all ${
-                      selectedYear === yr && compareMode !== 'DELTA'
-                        ? 'bg-amber-500 text-slate-950 font-black ring-1 ring-amber-300 scale-105'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {yr}
-                  </button>
-                ))}
-              </div>
+              {/* Nút Chạy tua theo năm */}
+              <button
+                onClick={() => setIsAutoPlayYear(!isAutoPlayYear)}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-mono font-bold transition-all shadow-sm ${
+                  isAutoPlayYear
+                    ? 'bg-[#0A4393] text-white animate-pulse'
+                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
+                }`}
+                title="Tự động chạy tua theo từng năm từ 2001 -> 2026"
+              >
+                {isAutoPlayYear ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                <span>{isAutoPlayYear ? 'Tạm Dừng Tua' : '▶️ Chạy Tua Theo Năm'}</span>
+              </button>
             </div>
 
-            {/* SATELLITE TIMELINE SLIDER (PIXEL-PERFECT VIBE CODING OVERLAY) */}
-            <SatelliteTimelineSlider
-              currentYear={selectedYear}
-              minYear={2001}
-              maxYear={2026}
-              isLoading={isTileLoading}
-              onYearChange={handleSelectYear}
-            />
-
-            {/* Hàng 4: Thống kê số liệu biến động động cho đúng khu vực và năm được chọn */}
-            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] px-2.5 py-1 rounded bg-slate-950/80 border border-slate-800 font-mono">
-              <span className="text-amber-400 font-bold">
-                📍 {currentAreaInfo.name} ({currentAreaInfo.areaHa.toLocaleString()} ha)
-              </span>
-              <span className="text-slate-600 hidden sm:inline">|</span>
-              <span className="text-emerald-300">
-                📅 Năm {selectedYear}: <strong>{currentYearCover}% che phủ</strong>
-              </span>
-              <span className="text-slate-500 hidden sm:inline">➔</span>
-              <span className="text-amber-300 font-bold">
-                📉 Biến động: <strong>{currentYearLostHa > 0 ? `-${currentYearLostHa} ha` : 'Nguyên trạng'}</strong>
-              </span>
-              <span className="text-slate-600 hidden sm:inline">|</span>
-              <span className="text-slate-400 text-[10px]">
-                (Mốc 2001: {currentAreaInfo.cover2001}% ➔ Năm 2026: {currentAreaInfo.cover2026}%)
-              </span>
+            {/* Mốc năm nhanh */}
+            <div className="flex items-center gap-1 font-mono text-[10px]">
+              <span className="text-slate-600 hidden sm:inline mr-0.5">Chọn nhanh:</span>
+              {[2001, 2005, 2010, 2015, 2020, 2026].map((yr) => (
+                <button
+                  key={yr}
+                  onClick={() => handleSelectYear(yr)}
+                  className={`px-1.5 py-0.5 rounded transition-all ${
+                    selectedYear === yr && compareMode !== 'DELTA'
+                      ? 'bg-[#0A4393] text-white font-black scale-105'
+                      : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
+                  }`}
+                >
+                  {yr}
+                </button>
+              ))}
             </div>
           </div>
+
+          {/* SATELLITE TIMELINE SLIDER */}
+          <SatelliteTimelineSlider
+            currentYear={selectedYear}
+            minYear={2001}
+            maxYear={2026}
+            isLoading={isTileLoading}
+            onYearChange={handleSelectYear}
+          />
+
+          {/* Hàng 4: Thống kê số liệu biến động động cho đúng khu vực và năm được chọn */}
+          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] px-2.5 py-1 rounded bg-white border border-[#0A4393]/25 font-mono text-slate-800">
+            <span className="text-[#0A4393] font-bold">
+              📍 {currentAreaInfo.name} ({currentAreaInfo.areaHa.toLocaleString()} ha)
+            </span>
+            <span className="text-slate-300 hidden sm:inline">|</span>
+            <span className="text-[#0A4393]">
+              📅 Năm {selectedYear}: <strong>{currentYearCover}% che phủ</strong>
+            </span>
+            <span className="text-slate-400 hidden sm:inline">➔</span>
+            <span className="text-rose-600 font-bold">
+              📉 Biến động: <strong>{currentYearLostHa > 0 ? `-${currentYearLostHa} ha` : 'Nguyên trạng'}</strong>
+            </span>
+            <span className="text-slate-300 hidden sm:inline">|</span>
+            <span className="text-slate-600 text-[10px]">
+              (Mốc 2001: {currentAreaInfo.cover2001}% ➔ Năm 2026: {currentAreaInfo.cover2026}%)
+            </span>
+          </div>
+        </div>
       )}
 
       {/* 2. Thanh Trạng Thái Phân Tích: Chữ và nút trên 1 dòng duy nhất, không bị bản đồ che */}
-      <div className="z-10 bg-slate-950/95 border-b border-slate-800 px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
+      <div className="z-10 bg-white border-b border-[#0A4393]/20 px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
         {/* Nhóm Chữ bên trái: Title & Trạng thái tóm tắt gọn gàng */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-white flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <Activity className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+          <span className="font-bold text-[#0A4393] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+            <Activity className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
             <span>{activeMeta.title}</span>
           </span>
-          <span className="text-slate-600 hidden sm:inline">•</span>
-          <span className="text-[11px] text-amber-300 font-medium truncate">
+          <span className="text-slate-300 hidden sm:inline">•</span>
+          <span className="text-[11px] text-slate-700 font-medium truncate">
             {activeMeta.liveMetric}
           </span>
         </div>
@@ -1201,7 +1641,7 @@ export const WebGISMap: React.FC = () => {
         {/* Nhóm Nút & Slider bên phải trên cùng 1 dòng */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           {/* Slider độ phủ vệ tinh */}
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
             <span>Độ phủ:</span>
             <input
               type="range"
@@ -1210,10 +1650,10 @@ export const WebGISMap: React.FC = () => {
               step="0.05"
               value={gibsOpacity}
               onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-              className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              className="w-16 h-1 bg-[#E6F0FA] rounded-lg appearance-none cursor-pointer accent-[#0A4393]"
               title="Độ phủ lớp vệ tinh"
             />
-            <span className="text-white w-7 text-right">{Math.round(gibsOpacity * 100)}%</span>
+            <span className="text-[#0A4393] font-bold w-7 text-right">{Math.round(gibsOpacity * 100)}%</span>
           </div>
 
           {/* Nút / Badge Trạng thái */}
@@ -1225,8 +1665,243 @@ export const WebGISMap: React.FC = () => {
         </div>
       </div>
 
-      {/* Map Leaflet Container */}
-      <div ref={mapContainerRef} className="flex-1 w-full h-full relative" />
+      {/* Map Leaflet Container + Các nút nổi trên Bản Đồ (Định vị GPS & Quản lý lớp KMZ) */}
+      <div className="flex-1 w-full h-full relative overflow-hidden">
+        <div ref={mapContainerRef} className="w-full h-full" />
+
+        {/* Thông báo trạng thái định vị GPS */}
+        {locateMessage && (
+          <div className="absolute top-3 left-3 z-[500] bg-[#0A4393] text-white px-3 py-1.5 rounded-lg shadow-lg border border-white/40 text-xs font-mono flex items-center gap-2">
+            <LocateFixed className="w-3.5 h-3.5 text-white animate-pulse shrink-0" />
+            <span>{locateMessage}</span>
+          </div>
+        )}
+
+        {/* Nút nổi góc trên bên phải: Mở Bảng Quản lý Nhiều Lớp Bản Đồ & KMZ */}
+        <div className="absolute top-3 right-3 z-[500] flex items-center gap-1.5">
+          <button
+            onClick={() => setShowLayerManager(!showLayerManager)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold font-mono shadow-lg border transition-all ${
+              showLayerManager
+                ? 'bg-[#0A4393] text-white border-white ring-2 ring-[#0A4393]/40'
+                : 'bg-white text-[#0A4393] border-[#0A4393]/40 hover:bg-[#F0F6FF]'
+            }`}
+            title="Bật/tắt quản lý nhiều lớp bản đồ và file ban_ve,_mat_cat.kmz"
+          >
+            <Layers className="w-4 h-4" />
+            <span>Lớp Bản Đồ & KMZ ({activeKmzCount}/{kmzManifest.length || 22})</span>
+          </button>
+        </div>
+
+        {/* Nút nổi góc dưới bên phải (Ngay phía trên nút + / - Zoom của Ảnh 1): ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG */}
+        <button
+          onClick={handleLocateUser}
+          disabled={isLocating}
+          className="absolute bottom-[92px] right-[10px] z-[500] w-[34px] h-[34px] rounded-md bg-white hover:bg-[#F0F6FF] active:bg-blue-100 text-[#0A4393] border-2 border-[#0A4393]/40 shadow-lg flex items-center justify-center transition-all"
+          title="Định vị vị trí đang đứng trên bản đồ (GPS)"
+          aria-label="Định vị vị trí đang đứng trên bản đồ"
+        >
+          {isLocating ? (
+            <Loader2 className="w-4 h-4 animate-spin text-[#0A4393]" />
+          ) : (
+            <LocateFixed className="w-4 h-4 text-[#0A4393]" />
+          )}
+        </button>
+
+        {/* BẢNG QUẢN LÝ NHIỀU LỚP BẢN ĐỒ & FILE KMZ (ban_ve,_mat_cat.kmz) */}
+        {showLayerManager && (
+          <div className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[370px] max-h-[430px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans">
+            {/* Header Bảng Quản Lý Lớp */}
+            <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-1.5 font-bold">
+                <Layers className="w-4 h-4" />
+                <span>QUẢN LÝ LỚP BẢN ĐỒ & KMZ</span>
+              </div>
+              <button
+                onClick={() => setShowLayerManager(false)}
+                className="p-0.5 rounded hover:bg-white/20 text-white"
+                title="Đóng bảng quản lý lớp"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Thanh công cụ thao tác nhanh KMZ */}
+            <div className="p-2 bg-[#F0F6FF] border-b border-[#0A4393]/20 space-y-1.5 shrink-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-bold text-[#0A4393] truncate">
+                  📐 File: ban_ve,_mat_cat.kmz
+                </span>
+                <button
+                  onClick={handleFlyToAllKmz}
+                  className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-semibold flex items-center gap-1 shrink-0 shadow-xs"
+                  title="Phóng bản đồ tới đúng vị trí lồng ghép bản vẽ KMZ"
+                >
+                  <Crosshair className="w-3 h-3" />
+                  <span>Định vị vùng KMZ</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  onClick={() => handleBulkKmzLayers('ALL')}
+                  className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-semibold"
+                >
+                  ✓ Chọn tất cả
+                </button>
+                <button
+                  onClick={() => handleBulkKmzLayers('DEFAULT')}
+                  className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-semibold"
+                >
+                  ↺ Lớp chính (Mặc định)
+                </button>
+                <button
+                  onClick={() => handleBulkKmzLayers('NONE')}
+                  className="px-2 py-0.5 rounded bg-white hover:bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-semibold"
+                >
+                  ✕ Bỏ chọn hết
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="ml-auto px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1"
+                  title="Tải thêm file .KML từ máy tính"
+                >
+                  <Upload className="w-2.5 h-2.5" />
+                  <span>+ File KML</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".kml,.xml"
+                  onChange={handleUploadCustomKml}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
+            {/* Danh sách các lớp bản đồ (Cuộn dọc) */}
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-3">
+              {/* Nhóm 0: Lớp Hệ Thống Trực Chiến */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5">
+                  Lớp Hệ Thống Trực Chiến Xã Ea Súp
+                </div>
+                <div className="space-y-1">
+                  <label className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] cursor-pointer border border-transparent hover:border-[#0A4393]/15">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.markers}
+                        onChange={() => handleToggleSystemLayer('markers')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#0A4393] inline-block shrink-0" />
+                      <span className="text-[11px] font-medium text-slate-800">
+                        4 Trạm & Hồ Đập Trọng Điểm
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] cursor-pointer border border-transparent hover:border-[#0A4393]/15">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.buffer}
+                        onChange={() => handleToggleSystemLayer('buffer')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shrink-0" />
+                      <span className="text-[11px] font-medium text-slate-800">
+                        Vành Đai Sinh Thái Liên Xã 5km
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] cursor-pointer border border-transparent hover:border-[#0A4393]/15">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.gibs}
+                        onChange={() => handleToggleSystemLayer('gibs')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block shrink-0" />
+                      <span className="text-[11px] font-medium text-slate-800">
+                        Lớp Ảnh Nhiệt / Vệ Tinh NASA GIBS
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Các nhóm lớp từ file ban_ve,_mat_cat.kmz */}
+              {kmzCategories.map((cat) => {
+                const items = kmzManifest.filter((m) => m.category === cat);
+                return (
+                  <div key={cat}>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between">
+                      <span>{cat}</span>
+                      <span className="font-mono text-[9px] text-[#0A4393]/80">
+                        {items.filter((i) => enabledKmzLayers[i.id]).length}/{items.length} lớp
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {items.map((item) => {
+                        const isChecked = !!enabledKmzLayers[item.id];
+                        const isLoading = !!loadingKmzLayers[item.id];
+                        return (
+                          <div
+                            key={item.id}
+                            className={`flex items-center justify-between p-1.5 rounded border transition-colors ${
+                              isChecked
+                                ? 'bg-[#F0F6FF]/80 border-[#0A4393]/25'
+                                : 'bg-white border-transparent hover:bg-slate-50'
+                            }`}
+                          >
+                            <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleKmzLayer(item)}
+                                className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                              />
+                              <span
+                                className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <div className="truncate">
+                                <div className="text-[11px] font-semibold text-slate-800 truncate">
+                                  {item.label}
+                                </div>
+                                <div className="text-[9px] font-mono text-slate-500">
+                                  Mã KMZ: {item.rawName} • {item.geomCount.toLocaleString()} đối tượng
+                                </div>
+                              </div>
+                            </label>
+
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              {isLoading && (
+                                <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
+                              )}
+                              <button
+                                onClick={() => handleFlyToKmzLayer(item)}
+                                className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                                title={`Phóng tới vị trí lớp ${item.label} trên bản đồ`}
+                              >
+                                <Crosshair className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
