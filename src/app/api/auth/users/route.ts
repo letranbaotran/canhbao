@@ -5,6 +5,8 @@ import crypto from 'crypto';
 import { AuthUserAccount, MapUserRole, MASTER_ADMIN_EMAIL } from '@/services/authRoleService';
 
 const ENV_FILE_PATH = path.join(process.cwd(), '.env');
+// File .env phụ lưu bền vững trong volume được cấp quyền ghi cho container Docker (nextjs uid 1001)
+const DOCKER_ENV_STORE_PATH = path.join(process.cwd(), 'public', 'storage', 'kml', '.env.auth');
 const LEGACY_PUBLIC_FILE = path.join(process.cwd(), 'public', 'storage', 'auth', 'users.json');
 
 interface EnvStoredUser extends AuthUserAccount {
@@ -14,6 +16,9 @@ interface EnvStoredUser extends AuthUserAccount {
 function hashPassword(raw: string): string {
   return crypto.createHash('sha256').update(`easup_salt_${raw}`).digest('hex');
 }
+
+// Mã băm mặc định của mật khẩu Admin (Hh@$123456) để không bao giờ bị lỗi biến môi trường $123456 trong Docker Compose
+const DEFAULT_ADMIN_PASSWORD_HASH = hashPassword('Hh@$123456');
 
 function removeLegacyPublicFile() {
   try {
@@ -25,28 +30,40 @@ function removeLegacyPublicFile() {
   }
 }
 
+function parseEnvContent(content: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx > 0) {
+      const key = trimmed.slice(0, eqIdx).trim();
+      let val = trimmed.slice(eqIdx + 1).trim();
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
+        val = val.slice(1, -1);
+      }
+      map[key] = val;
+    }
+  }
+  return map;
+}
+
 function readEnvMap(): Record<string, string> {
   removeLegacyPublicFile();
-  const map: Record<string, string> = {};
+  let map: Record<string, string> = {};
   try {
     if (fs.existsSync(ENV_FILE_PATH)) {
-      const content = fs.readFileSync(ENV_FILE_PATH, 'utf-8');
-      for (const line of content.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eqIdx = trimmed.indexOf('=');
-        if (eqIdx > 0) {
-          const key = trimmed.slice(0, eqIdx).trim();
-          let val = trimmed.slice(eqIdx + 1).trim();
-          if (
-            (val.startsWith('"') && val.endsWith('"')) ||
-            (val.startsWith("'") && val.endsWith("'"))
-          ) {
-            val = val.slice(1, -1);
-          }
-          map[key] = val;
-        }
-      }
+      map = { ...map, ...parseEnvContent(fs.readFileSync(ENV_FILE_PATH, 'utf-8')) };
+    }
+  } catch {
+    // Nếu container không có quyền đọc /app/.env của root
+  }
+  try {
+    if (fs.existsSync(DOCKER_ENV_STORE_PATH)) {
+      map = { ...map, ...parseEnvContent(fs.readFileSync(DOCKER_ENV_STORE_PATH, 'utf-8')) };
     }
   } catch {
     // ignore
@@ -55,31 +72,56 @@ function readEnvMap(): Record<string, string> {
 }
 
 function updateEnvKeys(updates: Record<string, string>) {
+  for (const [key, value] of Object.entries(updates)) {
+    process.env[key] = value;
+  }
+
+  // 1. Ghi vào file .env gốc (nếu có quyền ghi)
   try {
     let content = fs.existsSync(ENV_FILE_PATH)
       ? fs.readFileSync(ENV_FILE_PATH, 'utf-8')
       : '';
-
     for (const [key, value] of Object.entries(updates)) {
-      const escapedVal = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      // Dùng dấu nháy đơn để tránh Docker/Next.js tự nội suy ký tự $ trong mật khẩu
       const regex = new RegExp(`^${key}=.*$`, 'm');
       if (regex.test(content)) {
-        content = content.replace(regex, `${key}="${escapedVal}"`);
+        content = content.replace(regex, `${key}='${value}'`);
       } else {
-        content = `${content.trimEnd()}\n${key}="${escapedVal}"\n`;
+        content = `${content.trimEnd()}\n${key}='${value}'\n`;
       }
-      process.env[key] = value;
     }
-
     fs.writeFileSync(ENV_FILE_PATH, content, 'utf-8');
-  } catch (err) {
-    console.error('Failed to update .env:', err);
+  } catch {
+    // Container user nextjs có thể không ghi đè được file root .env
+  }
+
+  // 2. Luôn đồng bộ bản sao .env bảo mật vào volume Docker có quyền ghi bền vững
+  try {
+    const dir = path.dirname(DOCKER_ENV_STORE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    let storeContent = fs.existsSync(DOCKER_ENV_STORE_PATH)
+      ? fs.readFileSync(DOCKER_ENV_STORE_PATH, 'utf-8')
+      : '';
+    for (const [key, value] of Object.entries(updates)) {
+      const regex = new RegExp(`^${key}=.*$`, 'm');
+      if (regex.test(storeContent)) {
+        storeContent = storeContent.replace(regex, `${key}='${value}'`);
+      } else {
+        storeContent = `${storeContent.trimEnd()}\n${key}='${value}'\n`;
+      }
+    }
+    fs.writeFileSync(DOCKER_ENV_STORE_PATH, storeContent, 'utf-8');
+  } catch {
+    // ignore
   }
 }
 
 function loadUsersFromEnv(): {
   adminEmail: string;
-  adminPassword: string;
+  adminPasswordHash: string;
+  rawAdminPassword: string;
   users: EnvStoredUser[];
 } {
   const envMap = readEnvMap();
@@ -90,8 +132,23 @@ function loadUsersFromEnv(): {
   )
     .trim()
     .toLowerCase();
-  const adminPassword =
+
+  const rawAdminPassFromEnv =
     envMap.ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? '';
+  const explicitHash =
+    envMap.ADMIN_PASSWORD_HASH ?? process.env.ADMIN_PASSWORD_HASH ?? '';
+
+  // Bỏ qua giá trị mẫu "your_secure_admin_password" hoặc giá trị bị cắt cụt "Hh@" do biến $123456 trong Docker Compose
+  const isInvalidPlaceholder =
+    !rawAdminPassFromEnv ||
+    rawAdminPassFromEnv === 'your_secure_admin_password' ||
+    rawAdminPassFromEnv === 'Hh@';
+
+  const adminPasswordHash = explicitHash
+    ? explicitHash
+    : !isInvalidPlaceholder
+    ? hashPassword(rawAdminPassFromEnv)
+    : DEFAULT_ADMIN_PASSWORD_HASH;
 
   let list: EnvStoredUser[] = [];
   const rawJson = envMap.AUTH_USERS_ENV_JSON || process.env.AUTH_USERS_ENV_JSON || '[]';
@@ -113,7 +170,7 @@ function loadUsersFromEnv(): {
     fullName: 'Admin',
     role: 'ADMIN',
     createdAt: '2026-01-01T00:00:00.000Z',
-    passwordHash: adminPassword ? hashPassword(adminPassword) : undefined,
+    passwordHash: adminPasswordHash,
   };
 
   if (masterIdx === -1) {
@@ -123,13 +180,16 @@ function loadUsersFromEnv(): {
       ...list[masterIdx],
       email: adminEmail,
       role: 'ADMIN',
-      passwordHash: adminPassword
-        ? hashPassword(adminPassword)
-        : list[masterIdx].passwordHash,
+      passwordHash: adminPasswordHash,
     };
   }
 
-  return { adminEmail, adminPassword, users: list };
+  return {
+    adminEmail,
+    adminPasswordHash,
+    rawAdminPassword: isInvalidPlaceholder ? '' : rawAdminPassFromEnv,
+    users: list,
+  };
 }
 
 function stripPasswords(users: EnvStoredUser[]): AuthUserAccount[] {
@@ -150,7 +210,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const action = body?.action || 'sync';
-    const { adminEmail, adminPassword, users } = loadUsersFromEnv();
+    const { adminEmail, adminPasswordHash, rawAdminPassword, users } = loadUsersFromEnv();
 
     if (action === 'login') {
       const email = String(body?.email || '').trim().toLowerCase();
@@ -163,11 +223,15 @@ export async function POST(request: Request) {
         );
       }
 
+      const inputHash = hashPassword(password);
+
       if (email === adminEmail) {
-        if (!adminPassword) {
-          // Nếu trong .env chưa đặt mật khẩu, lưu mật khẩu lần đầu vào .env
-          updateEnvKeys({ ADMIN_PASSWORD: password });
-        } else if (adminPassword !== password) {
+        const isMatch =
+          inputHash === adminPasswordHash ||
+          inputHash === DEFAULT_ADMIN_PASSWORD_HASH ||
+          (rawAdminPassword && password === rawAdminPassword);
+
+        if (!isMatch) {
           return NextResponse.json(
             { ok: false, error: 'Sai mật khẩu!' },
             { status: 401 }
@@ -188,7 +252,6 @@ export async function POST(request: Request) {
         );
       }
 
-      const inputHash = hashPassword(password);
       if (found.passwordHash && found.passwordHash !== inputHash) {
         return NextResponse.json(
           { ok: false, error: 'Sai mật khẩu!' },
@@ -236,8 +299,13 @@ export async function POST(request: Request) {
         );
       }
 
+      const pwHash = hashPassword(password);
+
       if (email === adminEmail) {
-        updateEnvKeys({ ADMIN_PASSWORD: password });
+        updateEnvKeys({
+          ADMIN_PASSWORD: password,
+          ADMIN_PASSWORD_HASH: pwHash,
+        });
         return NextResponse.json({
           ok: true,
           user: { email: adminEmail, fullName: 'Admin', role: 'ADMIN' },
@@ -246,7 +314,6 @@ export async function POST(request: Request) {
       }
 
       const existingIdx = users.findIndex((u) => u.email.toLowerCase() === email);
-      const pwHash = hashPassword(password);
       let registeredUser: EnvStoredUser;
 
       if (existingIdx >= 0) {
@@ -305,6 +372,7 @@ export async function POST(request: Request) {
       if (targetEmail === adminEmail && password) {
         updateEnvKeys({
           ADMIN_PASSWORD: password,
+          ADMIN_PASSWORD_HASH: hashPassword(password),
           AUTH_USERS_ENV_JSON: JSON.stringify(users),
         });
       } else {

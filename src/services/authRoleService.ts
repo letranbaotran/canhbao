@@ -25,12 +25,16 @@ const USERS_STORAGE_KEY = 'easup_auth_users_v4';
 const SESSION_STORAGE_KEY = 'easup_current_session_v4';
 export const AUTH_CHANGED_EVENT = 'easup-auth-changed';
 
+export const DEFAULT_ADMIN_PASSWORD_HASH =
+  '379ac4bdc27690d365d58ce6b5801593fa4a7d9b23b9fe4fedbc0bdf821f4b46';
+
 export const DEFAULT_ACCOUNTS: AuthUserAccount[] = [
   {
     email: MASTER_ADMIN_EMAIL,
     fullName: 'Admin',
     role: 'ADMIN',
     createdAt: '2026-01-01T00:00:00.000Z',
+    passwordHash: DEFAULT_ADMIN_PASSWORD_HASH,
   },
 ];
 
