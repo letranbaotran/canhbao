@@ -65,58 +65,48 @@ export const SatelliteTimelineSlider: React.FC<SatelliteTimelineSliderProps> = (
 
   return (
     <div
-      className={`rounded-lg bg-white border border-[#0A4393]/30 shadow-md p-3 select-none transition-all ${className}`}
+      className={`rounded-md bg-white border border-[#0A4393]/25 px-2.5 py-1.5 select-none transition-all flex flex-wrap items-center gap-2 ${className}`}
     >
-      {/* Hàng tiêu đề trên (Header Row) */}
-      <div className="flex items-center justify-between mb-2">
-        {/* Bên trái: Icon lịch và Tiêu đề font monospace xanh da trời */}
-        <div className="flex items-center gap-2">
-          <span className="text-base" role="img" aria-label="Lịch">
-            📅
-          </span>
-          <span className="text-[#0A4393] font-mono font-bold text-sm tracking-wide">
-            Thanh Trượt Theo Năm ({minYear} - {maxYear}):
-          </span>
-        </div>
-
-        {/* Bên phải: Hộp trạng thái nền xanh chữ trắng */}
-        <div className="bg-[#0A4393] text-white px-3 py-1 rounded flex items-center gap-1.5 shadow-sm">
-          <span className="text-blue-100 text-sm">Năm hiện trạng:</span>
-          <span className="font-bold text-white underline text-base font-mono">
-            {sliderValue}
-          </span>
-          {isLoading && (
-            <Loader2 className="w-3.5 h-3.5 text-white animate-spin ml-1" />
-          )}
-        </div>
+      {/* Bên trái: Tiêu đề gọn */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-xs" role="img" aria-label="Lịch">
+          📅
+        </span>
+        <span className="text-[#0A4393] font-mono font-bold text-[11px]">
+          Thanh trượt năm ({minYear}-{maxYear}):
+        </span>
       </div>
 
-      {/* Hàng thanh trượt dưới (Slider Row) */}
-      <div className="flex items-center w-full">
-        {/* Mốc đầu 2001 */}
-        <span className="text-[#0A4393] font-bold font-mono text-sm mr-3 shrink-0">
+      {/* Giữa: Thanh trượt */}
+      <div className="flex items-center flex-1 min-w-[160px] gap-2">
+        <span className="text-[#0A4393] font-bold font-mono text-[11px] shrink-0">
           {minYear}
         </span>
-
-        {/* Thanh trượt tùy biến */}
-        <div className="relative flex-1 flex items-center">
-          <input
-            type="range"
-            min={minYear}
-            max={maxYear}
-            step={1}
-            value={sliderValue}
-            onChange={(e) => handleSliderChange(parseInt(e.target.value, 10))}
-            onKeyDown={handleKeyDown}
-            aria-label={`Thanh trượt chọn năm ảnh vệ tinh từ ${minYear} đến ${maxYear}`}
-            className="satellite-timeline-slider w-full h-2 bg-[#cfe0f5] rounded-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
-          />
-        </div>
-
-        {/* Mốc cuối 2026 */}
-        <span className="text-rose-600 font-bold font-mono text-sm ml-3 shrink-0">
+        <input
+          type="range"
+          min={minYear}
+          max={maxYear}
+          step={1}
+          value={sliderValue}
+          onChange={(e) => handleSliderChange(parseInt(e.target.value, 10))}
+          onKeyDown={handleKeyDown}
+          aria-label={`Thanh trượt chọn năm ảnh vệ tinh từ ${minYear} đến ${maxYear}`}
+          className="satellite-timeline-slider w-full h-1.5 bg-[#cfe0f5] rounded-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
+        />
+        <span className="text-rose-600 font-bold font-mono text-[11px] shrink-0">
           {maxYear}
         </span>
+      </div>
+
+      {/* Bên phải: Năm hiện trạng */}
+      <div className="bg-[#0A4393] text-white px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs shrink-0 ml-auto">
+        <span className="text-blue-100 text-[10px]">Năm:</span>
+        <span className="font-bold text-white underline text-xs font-mono">
+          {sliderValue}
+        </span>
+        {isLoading && (
+          <Loader2 className="w-3 h-3 text-white animate-spin ml-0.5" />
+        )}
       </div>
     </div>
   );
