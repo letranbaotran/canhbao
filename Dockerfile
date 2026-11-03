@@ -1,18 +1,19 @@
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
-RUN npm run build
+RUN npx next build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner

@@ -9,22 +9,17 @@ services:
     restart: unless-stopped
     ports:
       - '8066:3000'
-      - '3000:3000'
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-easup_admin}:${POSTGRES_PASSWORD:-EasupPCTT2026!}@db:5432/${POSTGRES_DB:-canhbao_easup}?schema=public
       - REDIS_URL=redis://redis:6379
       - MQTT_BROKER_URL=mqtt://mosquitto:1883
       - IOT_HMAC_SECRET=${IOT_HMAC_SECRET:-easup-iot-secret-2026}
-      - VBEE_APP_ID=${VBEE_APP_ID}
-      - VBEE_ACCESS_TOKEN=${VBEE_ACCESS_TOKEN}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - VBEE_APP_ID=${VBEE_APP_ID:-}
+      - VBEE_ACCESS_TOKEN=${VBEE_ACCESS_TOKEN:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     volumes:
       - tts_storage:/app/public/storage/tts
-    depends_on:
-      - db
-      - redis
-      - mosquitto
 
   db:
     image: postgis/postgis:16-3.4-alpine
