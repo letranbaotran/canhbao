@@ -14,6 +14,7 @@ import {
   persistNewKmlLayer,
   persistKmlLayerUpdate,
   removePersistedKmlLayer,
+  saveKmlToIndexedDB,
 } from '@/services/kmlPersistenceService';
 import {
   AUTH_CHANGED_EVENT,
@@ -1092,9 +1093,16 @@ export const WebGISMap: React.FC = () => {
     if (!layerData) {
       setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: true }));
       try {
-        const res = await fetch(resolveKmzUrl(item.file));
+        const safeId = String(item.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const targetUrl =
+          item.file || `/api/kml/layers?id=${encodeURIComponent(safeId)}`;
+        const res = await fetch(resolveKmzUrl(targetUrl), { cache: 'no-store' });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         layerData = await res.json();
         kmzDataCacheRef.current[item.id] = layerData;
+        saveKmlToIndexedDB(item, layerData).catch(() => {});
       } catch (e) {
         console.error('Failed to load KMZ layer:', item.id, e);
         setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: false }));
@@ -1103,7 +1111,7 @@ export const WebGISMap: React.FC = () => {
       setLoadingKmzLayers((prev) => ({ ...prev, [item.id]: false }));
     }
 
-    if (!leafletMapRef.current) return;
+    if (!leafletMapRef.current || !layerData || !Array.isArray(layerData.groups)) return;
     const renderer = canvasRendererRef.current || L.canvas({ padding: 0.5, tolerance: 6 });
     const layerGroup = L.featureGroup();
     const displayLabel = item.label || layerData.label;

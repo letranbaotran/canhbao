@@ -30,5 +30,7 @@ Thumbs.db
 # Storage
 public/storage/tts/*.mp3
 !public/storage/tts/sample_annhien_alert.mp3
+public/storage/kml/*.json
+!public/storage/kml/.gitkeep
 mosquitto/data/*
 mosquitto/log/*

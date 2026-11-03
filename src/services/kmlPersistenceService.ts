@@ -134,24 +134,30 @@ export async function persistNewKmlLayer(
   item: KmzLayerManifestItem,
   layerData: any
 ): Promise<KmzLayerManifestItem> {
-  // 1. Lưu bền vững vào IndexedDB trình duyệt (không giới hạn dung lượng, hoạt động cả trên GitHub Pages & VPS)
-  await saveKmlToIndexedDB(item, layerData);
+  const safeId = String(item.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const itemWithUrl: KmzLayerManifestItem = {
+    ...item,
+    file: item.file || `/api/kml/layers?id=${encodeURIComponent(safeId)}`,
+  };
+
+  // 1. Lưu bền vững vào IndexedDB trình duyệt
+  await saveKmlToIndexedDB(itemWithUrl, layerData);
 
   // 2. Lưu trạng thái bật mặc định vào localStorage
   try {
     const rawEnabled = localStorage.getItem('easup_kml_enabled_states');
     const enabledMap = rawEnabled ? JSON.parse(rawEnabled) : {};
-    enabledMap[item.id] = true;
+    enabledMap[itemWithUrl.id] = true;
     localStorage.setItem('easup_kml_enabled_states', JSON.stringify(enabledMap));
   } catch {}
 
-  // 3. Đồng bộ lưu xuống ổ cứng máy chủ VPS (/var/www/canhbao/public/storage/kml) nếu có API backend
+  // 3. Đồng bộ lưu xuống ổ cứng máy chủ VPS (/var/www/canhbao/public/storage/kml) để điện thoại & thiết bị khác nhìn thấy ngay
   if (!isStaticGithubPages()) {
     try {
       const res = await fetch('/api/kml/layers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item, layerData }),
+        body: JSON.stringify({ item: itemWithUrl, layerData }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -161,11 +167,11 @@ export async function persistNewKmlLayer(
         }
       }
     } catch {
-      // Nếu chạy ở chế độ tĩnh không có backend thì bản lưu IndexedDB vẫn đảm bảo bền vững 100%
+      // Nếu chạy ở chế độ tĩnh không có backend thì bản lưu IndexedDB vẫn đảm bảo bền vững
     }
   }
 
-  return item;
+  return itemWithUrl;
 }
 
 export async function persistKmlLayerUpdate(
@@ -238,53 +244,105 @@ export async function loadAllPersistedKmlState(): Promise<{
   customNames: Record<string, string>;
   enabledStates: Record<string, boolean>;
 }> {
-  let customNames: Record<string, string> = {};
-  let enabledStates: Record<string, boolean> = {};
+  let localCustomNames: Record<string, string> = {};
+  let localEnabledStates: Record<string, boolean> = {};
   const cachedDataMap: Record<string, any> = {};
   const itemMap = new Map<string, KmzLayerManifestItem>();
 
   try {
     const rawNames = localStorage.getItem('easup_kml_custom_names');
-    if (rawNames) customNames = JSON.parse(rawNames);
+    if (rawNames) localCustomNames = JSON.parse(rawNames);
   } catch {}
 
   try {
     const rawEnabled = localStorage.getItem('easup_kml_enabled_states');
-    if (rawEnabled) enabledStates = JSON.parse(rawEnabled);
+    if (rawEnabled) localEnabledStates = JSON.parse(rawEnabled);
   } catch {}
 
-  // 1. Đọc từ IndexedDB trước (tức thì, hỗ trợ cả Offline & GitHub Pages)
+  // 1. Đọc từ IndexedDB trên trình duyệt hiện tại
   const idbRecords = await getAllKmlFromIndexedDB();
   for (const rec of idbRecords) {
     if (rec?.item?.id) {
-      itemMap.set(rec.item.id, rec.item);
+      const safeId = String(rec.item.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      const normalizedItem: KmzLayerManifestItem = {
+        ...rec.item,
+        label: localCustomNames[rec.item.id] || rec.item.label,
+        file: rec.item.file || `/api/kml/layers?id=${encodeURIComponent(safeId)}`,
+      };
+      itemMap.set(rec.item.id, normalizedItem);
       if (rec.layerData) {
-        cachedDataMap[rec.item.id] = rec.layerData;
+        cachedDataMap[rec.item.id] = {
+          ...rec.layerData,
+          label: normalizedItem.label,
+        };
       }
     }
   }
 
-  // 2. Đọc từ Server API (/api/kml/layers) nếu đang chạy trên VPS canhbao.easupso.com hoặc localhost
+  let customNames = { ...localCustomNames };
+  let enabledStates = { ...localEnabledStates };
+
+  // 2. Đọc & Đồng bộ 2 chiều với Server API (/api/kml/layers) để mọi thiết bị (máy tính & điện thoại) luôn có đủ các lớp bản đồ
   if (!isStaticGithubPages()) {
     try {
-      const res = await fetch('/api/kml/layers', { cache: 'no-store' });
+      const res = await fetch(`/api/kml/layers?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const serverIndex = await res.json();
-        if (serverIndex?.customNames) {
-          customNames = { ...serverIndex.customNames, ...customNames };
+        const serverCustomNames: Record<string, string> = serverIndex?.customNames || {};
+        const serverEnabledStates: Record<string, boolean> = serverIndex?.enabledStates || {};
+        const serverLayers: KmzLayerManifestItem[] = Array.isArray(serverIndex?.layers)
+          ? serverIndex.layers
+          : [];
+
+        // Gộp tên lớp và trạng thái bật/tắt giữa Server và máy hiện tại
+        customNames = { ...serverCustomNames, ...localCustomNames };
+        enabledStates = { ...serverEnabledStates, ...localEnabledStates };
+
+        const serverLayerIdSet = new Set<string>();
+        for (const srvItem of serverLayers) {
+          if (srvItem?.id) {
+            const safeId = String(srvItem.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+            serverLayerIdSet.add(srvItem.id);
+            itemMap.set(srvItem.id, {
+              ...srvItem,
+              label: customNames[srvItem.id] || srvItem.label,
+              file: srvItem.file || `/api/kml/layers?id=${encodeURIComponent(safeId)}`,
+            });
+          }
         }
-        if (serverIndex?.enabledStates) {
-          enabledStates = { ...serverIndex.enabledStates, ...enabledStates };
+
+        // TỰ ĐỘNG ĐỒNG BỘ LÊN SERVER: Nếu trình duyệt máy tính có các lớp trong IndexedDB mà trên Server chưa có, tự động đẩy lên Server ngay!
+        for (const rec of idbRecords) {
+          if (rec?.item?.id && rec.layerData && !serverLayerIdSet.has(rec.item.id)) {
+            const itemToSync: KmzLayerManifestItem = {
+              ...rec.item,
+              label: customNames[rec.item.id] || rec.item.label,
+            };
+            fetch('/api/kml/layers', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                item: itemToSync,
+                layerData: { ...rec.layerData, label: itemToSync.label },
+              }),
+            }).catch(() => {});
+          }
         }
-        if (Array.isArray(serverIndex?.layers)) {
-          for (const srvItem of serverIndex.layers) {
-            if (srvItem?.id) {
-              itemMap.set(srvItem.id, srvItem);
-            }
+
+        // Đồng bộ các tên lớp đã đổi trên máy tính lên Server nếu Server chưa có
+        for (const [layerId, customLabel] of Object.entries(localCustomNames)) {
+          if (customLabel && serverCustomNames[layerId] !== customLabel) {
+            fetch('/api/kml/layers', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: layerId, label: customLabel }),
+            }).catch(() => {});
           }
         }
       }
-    } catch {}
+    } catch {
+      // ignore network error
+    }
   }
 
   return {
@@ -294,4 +352,3 @@ export async function loadAllPersistedKmlState(): Promise<{
     enabledStates,
   };
 }
-
