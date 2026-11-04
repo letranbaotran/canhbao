@@ -1,0 +1,23 @@
+# Không đưa thư mục build/phụ thuộc của máy chủ vào image (tránh ghi đè bản build mới bằng bản cũ)
+node_modules
+.next
+out
+build
+dist
+.git
+tsconfig.tsbuildinfo
+npm-debug.log*
+
+# Bí mật & dữ liệu người dùng (được mount vào container lúc chạy, không đóng gói vào image)
+.env
+.env.*
+public/storage/auth
+public/storage/kml/*.json
+public/storage/kml/.env.auth
+public/storage/tts/*.mp3
+!public/storage/tts/sample_annhien_alert.mp3
+
+# Dữ liệu dịch vụ khác
+mosquitto/data
+mosquitto/log
+certbot
