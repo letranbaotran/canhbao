@@ -1,5 +1,5 @@
-// Service Worker hỗ trợ Offline-first cho Lực lượng Tuần tra Rừng Tiểu khu 277 khi mất sóng 4G
-const CACHE_NAME = 'canhbao-easup-v1';
+// Service Worker hỗ trợ Network-First khi Online & Offline-first cho Lực lượng Tuần tra Rừng Tiểu khu 293 khi mất sóng 4G
+const CACHE_NAME = 'canhbao-easup-v2';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -29,28 +29,34 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Trả về cache ngay và fetch nền
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse.clone());
-              });
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
+  // Với yêu cầu chuyển trang HTML (navigation): Network-First để luôn cập nhật giao diện mới nhất
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((cached) => cached || caches.match('/'));
+        })
+    );
+    return;
+  }
 
-      return fetch(event.request).catch(() => {
-        // Khi mất mạng và không có trong cache, trả về trang gốc
-        if (event.request.mode === 'navigate') {
-          return caches.match('/');
+  // Với các tài nguyên tĩnh: Thử mạng trước, nếu mất mạng chuyển sang dùng cache
+  event.respondWith(
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
-      });
-    })
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
