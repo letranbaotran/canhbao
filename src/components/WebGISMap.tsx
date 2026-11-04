@@ -274,6 +274,59 @@ const GIBS_META: Record<
   },
 };
 
+const LAYER_PREFERENCES_STORAGE_KEY = 'easup_webgis_layer_preferences_v2';
+
+const DEFAULT_SYSTEM_LAYERS: {
+  markers: boolean;
+  buffer: boolean;
+  floodMarks2023: boolean;
+  vulnerableFacilities: boolean;
+  mikeKmlFile: boolean;
+  villages: boolean;
+} = {
+  markers: true,
+  buffer: true,
+  mikeKmlFile: true,
+  floodMarks2023: false,
+  vulnerableFacilities: false,
+  villages: false,
+};
+
+const getStoredLayerPreferences = () => {
+  if (typeof window === 'undefined') {
+    return {
+      systemLayers: DEFAULT_SYSTEM_LAYERS,
+      activeLayerTab: 'SYSTEM' as const,
+      enabledKmzLayers: {} as Record<string, boolean>,
+    };
+  }
+  try {
+    const raw = localStorage.getItem(LAYER_PREFERENCES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        systemLayers: {
+          markers: typeof parsed?.systemLayers?.markers === 'boolean' ? parsed.systemLayers.markers : DEFAULT_SYSTEM_LAYERS.markers,
+          buffer: typeof parsed?.systemLayers?.buffer === 'boolean' ? parsed.systemLayers.buffer : DEFAULT_SYSTEM_LAYERS.buffer,
+          mikeKmlFile: typeof parsed?.systemLayers?.mikeKmlFile === 'boolean' ? parsed.systemLayers.mikeKmlFile : DEFAULT_SYSTEM_LAYERS.mikeKmlFile,
+          floodMarks2023: typeof parsed?.systemLayers?.floodMarks2023 === 'boolean' ? parsed.systemLayers.floodMarks2023 : DEFAULT_SYSTEM_LAYERS.floodMarks2023,
+          vulnerableFacilities: typeof parsed?.systemLayers?.vulnerableFacilities === 'boolean' ? parsed.systemLayers.vulnerableFacilities : DEFAULT_SYSTEM_LAYERS.vulnerableFacilities,
+          villages: typeof parsed?.systemLayers?.villages === 'boolean' ? parsed.systemLayers.villages : DEFAULT_SYSTEM_LAYERS.villages,
+        },
+        activeLayerTab: ['SYSTEM', 'FLOOD', 'VILLAGE'].includes(parsed?.activeLayerTab)
+          ? (parsed.activeLayerTab as 'SYSTEM' | 'FLOOD' | 'VILLAGE')
+          : ('SYSTEM' as const),
+        enabledKmzLayers: (parsed?.enabledKmzLayers && typeof parsed.enabledKmzLayers === 'object') ? parsed.enabledKmzLayers : {},
+      };
+    }
+  } catch {}
+  return {
+    systemLayers: DEFAULT_SYSTEM_LAYERS,
+    activeLayerTab: 'SYSTEM' as const,
+    enabledKmzLayers: {} as Record<string, boolean>,
+  };
+};
+
 export const WebGISMap: React.FC = () => {
   const { iotData, scenarioId, hydraulicModel } = useTelemetryStore();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -348,9 +401,9 @@ export const WebGISMap: React.FC = () => {
     initY: 48,
   });
   const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
-  const [activeLayerTab, setActiveLayerTab] = useState<'SYSTEM' | 'FLOOD' | 'VILLAGE'>('FLOOD');
-  const [uploadTargetTab, setUploadTargetTab] = useState<'SYSTEM' | 'FLOOD' | 'VILLAGE'>('FLOOD');
-  const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
+  const [activeLayerTab, setActiveLayerTab] = useState<'SYSTEM' | 'FLOOD' | 'VILLAGE'>(() => getStoredLayerPreferences().activeLayerTab);
+  const [uploadTargetTab, setUploadTargetTab] = useState<'SYSTEM' | 'FLOOD' | 'VILLAGE'>(() => getStoredLayerPreferences().activeLayerTab);
+  const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>(() => getStoredLayerPreferences().enabledKmzLayers);
   const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingLayerName, setEditingLayerName] = useState<string>('');
@@ -370,14 +423,22 @@ export const WebGISMap: React.FC = () => {
     vulnerableFacilities: boolean;
     mikeKmlFile: boolean;
     villages: boolean;
-  }>({
-    markers: true,
-    buffer: true,
-    floodMarks2023: true,
-    vulnerableFacilities: true,
-    mikeKmlFile: true,
-    villages: true,
-  });
+  }>(() => getStoredLayerPreferences().systemLayers);
+
+  // Tự động ghi nhớ cấu hình lớp bản đồ và tab vào localStorage khi có thay đổi
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const dataToSave = {
+        systemLayers,
+        enabledKmzLayers,
+        activeLayerTab,
+      };
+      localStorage.setItem(LAYER_PREFERENCES_STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (err) {
+      console.error('Không thể lưu cấu hình lớp bản đồ:', err);
+    }
+  }, [systemLayers, enabledKmzLayers, activeLayerTab]);
 
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
   useEffect(() => {
@@ -947,7 +1008,14 @@ export const WebGISMap: React.FC = () => {
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       canvasRendererRef.current = L.canvas({ padding: 0.5, tolerance: 8 });
-      const markersGroup = L.featureGroup().addTo(map);
+
+      // Lấy cấu hình lớp đã lưu hoặc mặc định (3 lớp hệ thống bật, các lớp khác tắt)
+      const initialLayerPrefs = getStoredLayerPreferences();
+
+      const markersGroup = L.featureGroup();
+      if (initialLayerPrefs.systemLayers.markers) {
+        markersGroup.addTo(map);
+      }
       systemMarkersGroupRef.current = markersGroup;
 
       // Nạp basemap ban đầu
@@ -1077,7 +1145,7 @@ export const WebGISMap: React.FC = () => {
         `);
 
       // 5. Vùng đệm 5km
-      bufferCircleLayerRef.current = L.circle([13.045, 107.905], {
+      const bufferCircle = L.circle([13.045, 107.905], {
         color: '#E67700',
         weight: 1.5,
         dashArray: '5, 5',
@@ -1085,10 +1153,17 @@ export const WebGISMap: React.FC = () => {
         fillOpacity: 0.04,
         radius: 12000,
         interactive: false,
-      }).addTo(map);
+      });
+      if (initialLayerPrefs.systemLayers.buffer) {
+        bufferCircle.addTo(map);
+      }
+      bufferCircleLayerRef.current = bufferCircle;
 
-      // 6. Lớp file Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml (5 cấp độ sâu ngập chuẩn MIKE 21 FM)
-      const mikeKmlGroup = L.featureGroup().addTo(map);
+      // 6. Lớp file Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml (Bản đồ ngập lụt chuẩn MIKE 21 FM)
+      const mikeKmlGroup = L.featureGroup();
+      if (initialLayerPrefs.systemLayers.mikeKmlFile) {
+        mikeKmlGroup.addTo(map);
+      }
       mikeKmlLayerRef.current = mikeKmlGroup;
 
       const mikeBands: Array<{
@@ -1141,7 +1216,10 @@ export const WebGISMap: React.FC = () => {
       });
 
       // 7. Lớp '10 Vết lũ kiểm định thực tế (7/2023)' - Bảng 3.1 báo cáo MIKE FLOOD
-      const floodMarksGroup = L.featureGroup().addTo(map);
+      const floodMarksGroup = L.featureGroup();
+      if (initialLayerPrefs.systemLayers.floodMarks2023) {
+        floodMarksGroup.addTo(map);
+      }
       floodMarks2023LayerRef.current = floodMarksGroup;
 
       VERIFIED_FLOOD_MARKS_2023.forEach((mark, idx) => {
@@ -1205,7 +1283,10 @@ export const WebGISMap: React.FC = () => {
       });
 
       // 9. Lớp 'Công trình Y tế - Giáo dục có nguy cơ ngập' (10 công trình trọng điểm)
-      const facilitiesGroup = L.featureGroup().addTo(map);
+      const facilitiesGroup = L.featureGroup();
+      if (initialLayerPrefs.systemLayers.vulnerableFacilities) {
+        facilitiesGroup.addTo(map);
+      }
       facilitiesLayerRef.current = facilitiesGroup;
 
       VULNERABLE_FACILITIES_EASUP.forEach((fac, idx) => {
@@ -1264,7 +1345,10 @@ export const WebGISMap: React.FC = () => {
       });
 
       // 10. Lớp '20 Thôn, Buôn trực thuộc xã Ea Súp' (Trực chiến PCTT)
-      const villagesGroup = L.featureGroup().addTo(map);
+      const villagesGroup = L.featureGroup();
+      if (initialLayerPrefs.systemLayers.villages) {
+        villagesGroup.addTo(map);
+      }
       villagesLayerRef.current = villagesGroup;
       villageMarkersMapRef.current = {};
 
@@ -1906,11 +1990,18 @@ export const WebGISMap: React.FC = () => {
         setKmzManifest(mergedList);
 
         const initialEnabled: Record<string, boolean> = {};
+        const storedPrefs = getStoredLayerPreferences();
+        const storedKmz = storedPrefs.enabledKmzLayers;
+
         for (const item of mergedList) {
-          initialEnabled[item.id] =
-            typeof enabledStates[item.id] === 'boolean'
-              ? enabledStates[item.id]
-              : item.defaultOn;
+          if (storedKmz && typeof storedKmz[item.id] === 'boolean') {
+            initialEnabled[item.id] = storedKmz[item.id];
+          } else if (typeof enabledStates[item.id] === 'boolean') {
+            initialEnabled[item.id] = enabledStates[item.id];
+          } else {
+            // Mặc định bỏ chọn các file KML phụ theo đúng chuẩn Ảnh 2 (Lũ: 0/4, Thôn: 0/23)
+            initialEnabled[item.id] = false;
+          }
         }
         setEnabledKmzLayers(initialEnabled);
 
@@ -2633,16 +2724,16 @@ export const WebGISMap: React.FC = () => {
   const systemTabActiveCount =
     (systemLayers.markers ? 1 : 0) +
     (systemLayers.buffer ? 1 : 0) +
+    (systemLayers.mikeKmlFile ? 1 : 0) +
     systemKmzItems.filter((m) => !!enabledKmzLayers[m.id]).length;
-  const systemTabTotalCount = 2 + systemKmzItems.length;
+  const systemTabTotalCount = 3 + systemKmzItems.length;
   const isAllSystemTabActive = systemTabActiveCount === systemTabTotalCount;
 
   const floodTabActiveCount =
     (systemLayers.floodMarks2023 ? 1 : 0) +
     (systemLayers.vulnerableFacilities ? 1 : 0) +
-    (systemLayers.mikeKmlFile ? 1 : 0) +
     floodKmzItems.filter((m) => !!enabledKmzLayers[m.id]).length;
-  const floodTabTotalCount = 3 + floodKmzItems.length;
+  const floodTabTotalCount = 2 + floodKmzItems.length;
   const isAllFloodTabActive = floodTabActiveCount === floodTabTotalCount;
 
   const villageTabActiveCount =
@@ -2658,16 +2749,17 @@ export const WebGISMap: React.FC = () => {
       ...prev,
       markers: nextVal,
       buffer: nextVal,
+      mikeKmlFile: nextVal,
     }));
     if (leafletMapRef.current) {
-      if (systemMarkersGroupRef.current) {
-        if (nextVal) systemMarkersGroupRef.current.addTo(leafletMapRef.current);
-        else leafletMapRef.current.removeLayer(systemMarkersGroupRef.current);
-      }
-      if (bufferCircleLayerRef.current) {
-        if (nextVal) bufferCircleLayerRef.current.addTo(leafletMapRef.current);
-        else leafletMapRef.current.removeLayer(bufferCircleLayerRef.current);
-      }
+      const map = leafletMapRef.current;
+      const refList = [systemMarkersGroupRef, bufferCircleLayerRef, mikeKmlLayerRef];
+      refList.forEach((ref) => {
+        if (ref.current) {
+          if (nextVal) ref.current.addTo(map);
+          else if (map.hasLayer(ref.current)) map.removeLayer(ref.current);
+        }
+      });
     }
     if (systemKmzItems.length > 0) {
       const copy = { ...enabledKmzLayers };
@@ -2692,14 +2784,12 @@ export const WebGISMap: React.FC = () => {
       ...prev,
       floodMarks2023: nextVal,
       vulnerableFacilities: nextVal,
-      mikeKmlFile: nextVal,
     }));
     if (leafletMapRef.current) {
       const map = leafletMapRef.current;
       const refList = [
         floodMarks2023LayerRef,
         facilitiesLayerRef,
-        mikeKmlLayerRef,
       ];
       refList.forEach((ref) => {
         if (ref.current) {
@@ -3389,6 +3479,32 @@ export const WebGISMap: React.FC = () => {
                     </span>
                   </div>
 
+                  {/* 3. Bản đồ ngập lụt (Hệ thống - Không sửa/xóa) */}
+                  <div className="flex items-center justify-between p-1.5 rounded hover:bg-[#F4F8FD] border border-slate-200">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.mikeKmlFile}
+                        onChange={() => handleToggleSystemLayer('mikeKmlFile')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-xs bg-cyan-400 inline-block shrink-0" />
+                      <span className="text-[11px] font-medium text-slate-800 truncate">
+                        Bản đồ ngập lụt
+                      </span>
+                    </label>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleFlyToSystemLayer('mikeKmlFile')}
+                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                        title="Phóng tới vùng Bản đồ ngập lụt"
+                      >
+                        <Crosshair className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Các file KML/GeoJSON do người dùng tải lên thuộc Tab Hệ Thống */}
                   {systemKmzItems.map((item) => {
                     const isChecked = !!enabledKmzLayers[item.id];
@@ -3541,35 +3657,6 @@ export const WebGISMap: React.FC = () => {
                         onClick={() => handleFlyToSystemLayer('vulnerableFacilities')}
                         className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
                         title="Phóng tới các Công trình Y tế - Giáo dục có nguy cơ ngập"
-                      >
-                        <Crosshair className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 3. File Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml - Hệ thống không sửa/xóa */}
-                  <div className="flex items-center justify-between p-1.5 rounded bg-sky-50/70 hover:bg-sky-50 border border-sky-200">
-                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={systemLayers.mikeKmlFile}
-                        onChange={() => handleToggleSystemLayer('mikeKmlFile')}
-                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                      />
-                      <span className="w-2.5 h-2.5 rounded-xs bg-sky-500 inline-block shrink-0" />
-                      <span className="text-[10.5px] font-mono font-bold text-sky-950 truncate">
-                        Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml
-                      </span>
-                    </label>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[9px] font-semibold text-sky-800 bg-white px-1.5 py-0.5 rounded border border-sky-200">
-                        Hệ thống
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleFlyToSystemLayer('mikeKmlFile')}
-                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                        title="Phóng tới vùng ngập Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml"
                       >
                         <Crosshair className="w-3 h-3" />
                       </button>
