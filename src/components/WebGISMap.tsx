@@ -50,6 +50,8 @@ import {
   Pencil,
   Trash2,
   MapPin,
+  Save,
+  Check,
   MousePointerClick,
   Crop,
   Sparkles,
@@ -326,6 +328,7 @@ export const WebGISMap: React.FC = () => {
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locateMessage, setLocateMessage] = useState<string | null>(null);
   const [gpsFloodRiskResult, setGpsFloodRiskResult] = useState<ReturnType<typeof evaluateGpsFloodRisk> | null>(null);
+  const [showGpsFloodAssessment, setShowGpsFloodAssessment] = useState<boolean>(false);
   const [isLegendExpanded, setIsLegendExpanded] = useState<boolean>(true);
   const [showLayerManager, setShowLayerManager] = useState<boolean>(false);
   const [layerPanelPosition, setLayerPanelPosition] = useState<'left' | 'right'>('left');
@@ -346,6 +349,13 @@ export const WebGISMap: React.FC = () => {
   const [editingLayerName, setEditingLayerName] = useState<string>('');
   const [userRole, setUserRole] = useState<MapUserRole>('GUEST');
   const canEditMap = userRole === 'ADMIN' || userRole === 'MAP_EDITOR';
+
+  // Quản lý tọa độ vị trí 20 thôn buôn tùy chỉnh do Admin nhập
+  const [customVillageCoords, setCustomVillageCoords] = useState<Record<string, [number, number]>>({});
+  const [editingVillageName, setEditingVillageName] = useState<string | null>(null);
+  const [editLatInput, setEditLatInput] = useState<string>('');
+  const [editLngInput, setEditLngInput] = useState<string>('');
+  const [coordSaveMessage, setCoordSaveMessage] = useState<string | null>(null);
   const [systemLayers, setSystemLayers] = useState<{
     markers: boolean;
     buffer: boolean;
@@ -378,6 +388,46 @@ export const WebGISMap: React.FC = () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
     };
   }, []);
+
+  // Tải tọa độ tùy chỉnh của 20 thôn buôn từ localStorage và máy chủ
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const local = localStorage.getItem('easup_custom_village_coords');
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && typeof parsed === 'object') {
+          setCustomVillageCoords(parsed);
+        }
+      }
+    } catch {}
+
+    fetch('/api/villages/coordinates')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.ok && data.coordinates && Object.keys(data.coordinates).length > 0) {
+          setCustomVillageCoords((prev) => {
+            const merged = { ...prev, ...data.coordinates };
+            try {
+              localStorage.setItem('easup_custom_village_coords', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Tự động cập nhật vị trí marker của các thôn buôn trên bản đồ Leaflet khi tọa độ thay đổi
+  useEffect(() => {
+    if (!villageMarkersMapRef.current) return;
+    Object.entries(customVillageCoords).forEach(([vilName, coords]) => {
+      const marker = villageMarkersMapRef.current[vilName];
+      if (marker && Array.isArray(coords) && coords.length === 2) {
+        marker.setLatLng(coords);
+      }
+    });
+  }, [customVillageCoords]);
 
   // Xử lý kéo thả tự do bảng Quản lý lớp bản đồ khắp màn hình
   useEffect(() => {
@@ -1234,7 +1284,11 @@ export const WebGISMap: React.FC = () => {
           iconAnchor: [0, 0],
         });
 
-        const m = L.marker(vil.coordinates, { icon: villageIcon })
+        const initCoords =
+          (typeof window !== 'undefined' &&
+            JSON.parse(localStorage.getItem('easup_custom_village_coords') || '{}')[vil.name]) ||
+          vil.coordinates;
+        const m = L.marker(initCoords, { icon: villageIcon })
           .bindTooltip(
             `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:${badgeBg};">${vil.name} • ${vil.totalHouseholds} hộ • Cao độ: +${vil.avgElevationM}m</div>`,
             { direction: 'top', offset: [0, -10] }
@@ -1976,9 +2030,11 @@ export const WebGISMap: React.FC = () => {
     if (!systemLayers.villages) {
       handleToggleSystemLayer('villages');
     }
-    const vil = VILLAGE_DISASTER_PROFILES[villageName];
-    if (vil) {
-      map.flyTo(vil.coordinates, 15, { duration: 1.0 });
+    const coords =
+      customVillageCoords[villageName] ||
+      VILLAGE_DISASTER_PROFILES[villageName]?.coordinates;
+    if (coords) {
+      map.flyTo(coords, 15, { duration: 1.0 });
       const m = villageMarkersMapRef.current[villageName];
       if (m) {
         setTimeout(() => {
@@ -1986,6 +2042,131 @@ export const WebGISMap: React.FC = () => {
         }, 500);
       }
     }
+  };
+
+  // Quản lý chỉnh sửa tọa độ thôn/buôn thủ công dành cho Admin
+  const handleStartEditVillageCoords = (villageName: string) => {
+    if (editingVillageName === villageName) {
+      setEditingVillageName(null);
+      setCoordSaveMessage(null);
+      return;
+    }
+    setEditingVillageName(villageName);
+    setCoordSaveMessage(null);
+    const coords =
+      customVillageCoords[villageName] ||
+      VILLAGE_DISASTER_PROFILES[villageName]?.coordinates || [13.064, 107.888];
+    setEditLatInput(String(coords[0]));
+    setEditLngInput(String(coords[1]));
+  };
+
+  const handleGetMapCenterForVillage = () => {
+    const center = leafletMapRef.current?.getCenter();
+    if (center) {
+      setEditLatInput(center.lat.toFixed(6));
+      setEditLngInput(center.lng.toFixed(6));
+    }
+  };
+
+  const handleSaveVillageCoords = async (villageName: string) => {
+    const lat = parseFloat(editLatInput);
+    const lng = parseFloat(editLngInput);
+
+    if (
+      isNaN(lat) ||
+      isNaN(lng) ||
+      lat < 12.0 ||
+      lat > 14.5 ||
+      lng < 106.5 ||
+      lng > 109.5
+    ) {
+      alert(
+        'Tọa độ không hợp lệ! Vui lòng nhập số hợp lệ trong phạm vi tỉnh Đắk Lắk (Vĩ độ Lat ~12.5-13.5, Kinh độ Lng ~107.5-108.5).'
+      );
+      return;
+    }
+
+    const nextCoords: Record<string, [number, number]> = {
+      ...customVillageCoords,
+      [villageName]: [lat, lng],
+    };
+
+    setCustomVillageCoords(nextCoords);
+    try {
+      localStorage.setItem('easup_custom_village_coords', JSON.stringify(nextCoords));
+    } catch {}
+
+    // Cập nhật marker trên bản đồ ngay lập tức
+    const m = villageMarkersMapRef.current[villageName];
+    if (m) {
+      m.setLatLng([lat, lng]);
+    }
+    if (leafletMapRef.current) {
+      leafletMapRef.current.flyTo([lat, lng], 15, { duration: 0.8 });
+      setTimeout(() => {
+        m?.openPopup();
+      }, 500);
+    }
+
+    setCoordSaveMessage('Đã lưu thành công!');
+
+    // Gửi lên máy chủ để lưu vĩnh viễn
+    try {
+      await fetch('/api/villages/coordinates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ villageName, lat, lng }),
+      });
+    } catch (err) {
+      console.error('Save village coords to server error:', err);
+    }
+
+    setTimeout(() => {
+      setEditingVillageName(null);
+      setCoordSaveMessage(null);
+    }, 800);
+  };
+
+  const handleResetVillageCoords = async (villageName: string) => {
+    const defaultCoords = VILLAGE_DISASTER_PROFILES[villageName]?.coordinates;
+    if (!defaultCoords) return;
+
+    setEditLatInput(String(defaultCoords[0]));
+    setEditLngInput(String(defaultCoords[1]));
+
+    const nextCoords = { ...customVillageCoords };
+    delete nextCoords[villageName];
+    setCustomVillageCoords(nextCoords);
+
+    try {
+      localStorage.setItem('easup_custom_village_coords', JSON.stringify(nextCoords));
+    } catch {}
+
+    const m = villageMarkersMapRef.current[villageName];
+    if (m) {
+      m.setLatLng(defaultCoords);
+    }
+    if (leafletMapRef.current) {
+      leafletMapRef.current.flyTo(defaultCoords, 15, { duration: 0.8 });
+    }
+
+    try {
+      await fetch('/api/villages/coordinates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          villageName,
+          lat: defaultCoords[0],
+          lng: defaultCoords[1],
+        }),
+      });
+    } catch {}
+
+    setCoordSaveMessage('Đã khôi phục mặc định!');
+    setTimeout(() => {
+      setEditingVillageName(null);
+      setCoordSaveMessage(null);
+    }, 700);
   };
 
   // Chọn tất cả / Bỏ chọn tất cả cho cả Nhóm lớp hệ thống, MIKE FLOOD & Nhóm lớp thôn/buôn
@@ -2690,12 +2871,19 @@ export const WebGISMap: React.FC = () => {
           )}
         </button>
 
-        {/* GÓC DƯỚI BÊN TRÁI: THANH CHÚ GIẢI (LEGEND) 5 CẤP ĐỘ SÂU NGẬP CHUẨN MIKE 21 FM + CÔNG CỤ KIỂM TRA NGUY CƠ NGẬP TẠI TỌA ĐỘ GPS */}
+        {/* GÓC DƯỚI BÊN TRÁI: CÔNG CỤ KIỂM TRA NGUY CƠ NGẬP TẠI TỌA ĐỘ GPS + CHÚ GIẢI (CHỈ HIỆN KHI BẤM NÚT) */}
         <div className="absolute bottom-2.5 left-2.5 z-[500] max-w-[285px] sm:max-w-[330px] flex flex-col gap-1.5 font-sans">
           {/* Công cụ: Kiểm tra nguy cơ ngập tại tọa độ GPS của tôi */}
           <button
             type="button"
-            onClick={handleCheckGpsFloodRisk}
+            onClick={() => {
+              if (showGpsFloodAssessment && !isLocating) {
+                setShowGpsFloodAssessment(false);
+              } else {
+                setShowGpsFloodAssessment(true);
+                handleCheckGpsFloodRisk();
+              }
+            }}
             disabled={isLocating}
             className="px-2.5 py-1.5 rounded-lg bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white border border-white/60 shadow-lg text-[10px] sm:text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all"
             title="Kiểm tra độ sâu ngập MIKE 21 FM tại tọa độ GPS của tôi"
@@ -2708,87 +2896,92 @@ export const WebGISMap: React.FC = () => {
             <span className="truncate">Kiểm tra nguy cơ ngập tại tọa độ GPS của tôi</span>
           </button>
 
-          {/* Kết quả đối chiếu GPS nhanh nếu người dùng vừa bấm kiểm tra */}
-          {gpsFloodRiskResult && (
-            <div className="bg-white/95 backdrop-blur-xs border-2 border-[#0A4393] rounded-lg p-2 shadow-xl text-[10px] font-mono text-slate-800 space-y-1">
-              <div className="flex items-center justify-between font-bold text-[#0A4393]">
-                <span>📍 Kết quả GPS ({gpsFloodRiskResult.scenarioCode})</span>
-                <button
-                  type="button"
-                  onClick={() => setGpsFloodRiskResult(null)}
-                  className="text-slate-400 hover:text-rose-600 font-bold px-1"
-                  title="Đóng kết quả GPS"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="text-[9px] text-slate-600">
-                VN-2000: X={gpsFloodRiskResult.vn2000_x.toLocaleString('en-US')} | Y=
-                {gpsFloodRiskResult.vn2000_y.toLocaleString('en-US')}
-              </div>
-              <div
-                className="px-1.5 py-0.5 rounded text-white font-bold text-[10px]"
-                style={{ backgroundColor: gpsFloodRiskResult.badgeColor }}
-              >
-                {gpsFloodRiskResult.riskLabel}
-              </div>
-              <div className="text-[9px] text-slate-700 leading-snug font-sans">
-                Gần {gpsFloodRiskResult.nearestMark.code} ({gpsFloodRiskResult.minDistKm}km):{' '}
-                {gpsFloodRiskResult.recommendation}
+          {/* Khối Chú giải & Kết quả GPS liên quan: Mặc định ẩn, chỉ hiện khi người dùng bấm nút GPS */}
+          {showGpsFloodAssessment && (
+            <div className="flex flex-col gap-1.5 animate-fadeIn">
+              {/* Kết quả đối chiếu GPS nhanh nếu có */}
+              {gpsFloodRiskResult && (
+                <div className="bg-white/95 backdrop-blur-xs border-2 border-[#0A4393] rounded-lg p-2 shadow-xl text-[10px] font-mono text-slate-800 space-y-1">
+                  <div className="flex items-center justify-between font-bold text-[#0A4393]">
+                    <span>📍 Kết quả GPS ({gpsFloodRiskResult.scenarioCode})</span>
+                    <button
+                      type="button"
+                      onClick={() => setGpsFloodRiskResult(null)}
+                      className="text-slate-400 hover:text-rose-600 font-bold px-1"
+                      title="Đóng kết quả GPS"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="text-[9px] text-slate-600">
+                    VN-2000: X={gpsFloodRiskResult.vn2000_x.toLocaleString('en-US')} | Y=
+                    {gpsFloodRiskResult.vn2000_y.toLocaleString('en-US')}
+                  </div>
+                  <div
+                    className="px-1.5 py-0.5 rounded text-white font-bold text-[10px]"
+                    style={{ backgroundColor: gpsFloodRiskResult.badgeColor }}
+                  >
+                    {gpsFloodRiskResult.riskLabel}
+                  </div>
+                  <div className="text-[9px] text-slate-700 leading-snug font-sans">
+                    Gần {gpsFloodRiskResult.nearestMark.code} ({gpsFloodRiskResult.minDistKm}km):{' '}
+                    {gpsFloodRiskResult.recommendation}
+                  </div>
+                </div>
+              )}
+
+              {/* Thanh chú giải (Legend) 5 cấp độ sâu ngập chuẩn MIKE 21 FM */}
+              <div className="bg-white/95 backdrop-blur-xs border border-[#0A4393]/40 rounded-lg shadow-lg overflow-hidden text-[10px] font-mono">
+                <div className="w-full px-2.5 py-1 bg-[#F0F6FF] text-[#0A4393] font-bold flex items-center justify-between gap-2 border-b border-[#0A4393]/15">
+                  <span className="flex items-center gap-1">
+                    <Droplets className="w-3 h-3 text-[#0A4393] shrink-0" />
+                    <span>CHÚ GIẢI ĐỘ SÂU NGẬP MIKE 21 FM</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowGpsFloodAssessment(false)}
+                    className="text-slate-400 hover:text-rose-600 font-bold px-1.5 py-0.5 rounded hover:bg-slate-100"
+                    title="Đóng bảng chú giải độ sâu ngập"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-2 space-y-1">
+                  <div className="grid grid-cols-5 gap-1 text-center">
+                    {MIKE21_DEPTH_LEGEND.map((item) => (
+                      <div
+                        key={item.level}
+                        className="flex flex-col items-center bg-slate-50 rounded p-1 border border-slate-200"
+                        title={item.desc}
+                      >
+                        <span
+                          className="w-full h-2 rounded-xs mb-0.5 border"
+                          style={{
+                            backgroundColor: item.color,
+                            borderColor: item.borderColor,
+                          }}
+                        />
+                        <span className="text-[9px] font-bold text-slate-800 whitespace-nowrap">
+                          {item.level}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-slate-600 pt-0.5 border-t border-slate-100">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-purple-700 inline-block" />
+                      10 Vết lũ 7/2023
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span>🏥🏫</span>
+                      Y tế - Giáo dục ngập
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
-
-          {/* Thanh chú giải (Legend) 5 cấp độ sâu ngập chuẩn MIKE 21 FM */}
-          <div className="bg-white/95 backdrop-blur-xs border border-[#0A4393]/40 rounded-lg shadow-lg overflow-hidden text-[10px] font-mono">
-            <button
-              type="button"
-              onClick={() => setIsLegendExpanded(!isLegendExpanded)}
-              className="w-full px-2.5 py-1 bg-[#F0F6FF] hover:bg-[#E6F0FA] text-[#0A4393] font-bold flex items-center justify-between gap-2 border-b border-[#0A4393]/15"
-              title="Thu gọn / Mở rộng chú giải độ sâu ngập MIKE 21 FM"
-            >
-              <span className="flex items-center gap-1">
-                <Droplets className="w-3 h-3 text-[#0A4393] shrink-0" />
-                <span>CHÚ GIẢI ĐỘ SÂU NGẬP MIKE 21 FM</span>
-              </span>
-              <span className="text-[9px]">{isLegendExpanded ? '▾' : '▸'}</span>
-            </button>
-
-            {isLegendExpanded && (
-              <div className="p-2 space-y-1">
-                <div className="grid grid-cols-5 gap-1 text-center">
-                  {MIKE21_DEPTH_LEGEND.map((item) => (
-                    <div
-                      key={item.level}
-                      className="flex flex-col items-center bg-slate-50 rounded p-1 border border-slate-200"
-                      title={item.desc}
-                    >
-                      <span
-                        className="w-full h-2 rounded-xs mb-0.5 border"
-                        style={{
-                          backgroundColor: item.color,
-                          borderColor: item.borderColor,
-                        }}
-                      />
-                      <span className="text-[9px] font-bold text-slate-800 whitespace-nowrap">
-                        {item.level}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between text-[9px] text-slate-600 pt-0.5 border-t border-slate-100">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-purple-700 inline-block" />
-                    10 Vết lũ 7/2023
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span>🏥🏫</span>
-                    Y tế - Giáo dục ngập
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ (Hỗ trợ kéo thả tự do khắp bản đồ hoặc đổi bên nhanh) */}
@@ -3285,7 +3478,7 @@ export const WebGISMap: React.FC = () => {
               {/* TAB 3: NHÓM LỚP THÔN/BUÔN */}
               {activeLayerTab === 'VILLAGE' && (
                 <div className="space-y-1.5">
-                  {/* 1. Lớp 20 Thôn, Buôn trực thuộc xã Ea Súp (Hệ thống - Không sửa/xóa) */}
+                  {/* 1. Điểm tập trung 20 thôn/buôn */}
                   <div className="p-1.5 rounded-lg bg-emerald-50/70 hover:bg-emerald-50 border border-emerald-200 transition-colors">
                     <div className="flex items-center justify-between">
                       <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
@@ -3297,13 +3490,10 @@ export const WebGISMap: React.FC = () => {
                         />
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block shrink-0" />
                         <span className="text-[11px] font-bold text-emerald-950 truncate">
-                          20 Thôn, Buôn trực thuộc xã Ea Súp
+                          Điểm tập trung 20 thôn/buôn
                         </span>
                       </label>
                       <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[9px] font-semibold text-emerald-800 bg-white px-1.5 py-0.5 rounded border border-emerald-200">
-                          Hệ thống
-                        </span>
                         <button
                           type="button"
                           onClick={() => handleFlyToSystemLayer('villages')}
@@ -3315,9 +3505,9 @@ export const WebGISMap: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Danh sách 20 Thôn Buôn chi tiết để kiểm tra & định vị nhanh */}
+                    {/* Danh sách 20 Thôn Buôn chi tiết để kiểm tra & cập nhật tọa độ vị trí */}
                     {systemLayers.villages && (
-                      <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-44 overflow-y-auto space-y-1 pr-0.5">
+                      <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-56 overflow-y-auto space-y-1 pr-0.5">
                         {Object.values(VILLAGE_DISASTER_PROFILES).map((vil) => {
                           const isBuon = vil.groupLabel === '03 Buôn đồng bào';
                           const isThonTen = vil.groupLabel === '04 Thôn tên';
@@ -3326,36 +3516,155 @@ export const WebGISMap: React.FC = () => {
                             : isThonTen
                             ? 'bg-sky-100 text-sky-800'
                             : 'bg-blue-100 text-[#0A4393]';
+                          const isEditingThisVillage =
+                            canEditMap && editingVillageName === vil.name;
+                          const isCustomized = !!customVillageCoords[vil.name];
+
                           return (
-                            <div
-                              key={vil.name}
-                              className="flex items-center justify-between p-1 rounded bg-white hover:bg-emerald-100/50 border border-slate-200 text-[10.5px]"
-                            >
+                            <div key={vil.name} className="flex flex-col">
                               <div
-                                onClick={() => handleFlyToVillage(vil.name)}
-                                className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
-                                title={`Nhấn để phóng tới ${vil.name}`}
+                                className={`flex items-center justify-between p-1 rounded border transition-colors ${
+                                  isEditingThisVillage
+                                    ? 'bg-[#E6F0FA] border-[#0A4393]'
+                                    : 'bg-white hover:bg-emerald-100/50 border-slate-200'
+                                } text-[10.5px]`}
                               >
-                                <span className="font-semibold text-slate-800 truncate">
-                                  {vil.name}
-                                </span>
-                                <span
-                                  className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
+                                <div
+                                  onClick={() => handleFlyToVillage(vil.name)}
+                                  className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
+                                  title={`Nhấn để phóng tới ${vil.name}`}
                                 >
-                                  +{vil.avgElevationM}m
-                                </span>
-                                <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
-                                  ({vil.totalHouseholds} hộ)
-                                </span>
+                                  <span className="font-semibold text-slate-800 truncate">
+                                    {vil.name}
+                                  </span>
+                                  <span
+                                    className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
+                                  >
+                                    +{vil.avgElevationM}m
+                                  </span>
+                                  <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
+                                    ({vil.totalHouseholds} hộ)
+                                  </span>
+                                  {isCustomized && (
+                                    <span
+                                      className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold shrink-0"
+                                      title="Tọa độ đã được Admin tinh chỉnh vị trí"
+                                    >
+                                      Đã sửa vị trí
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  {canEditMap && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartEditVillageCoords(vil.name)}
+                                      className={`p-0.5 rounded border transition-colors ${
+                                        isEditingThisVillage
+                                          ? 'bg-[#0A4393] text-white border-[#0A4393]'
+                                          : 'bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border-slate-300'
+                                      }`}
+                                      title="Admin: Nhập tọa độ vị trí (X, Y) cập nhật trực tiếp cho thôn này"
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFlyToVillage(vil.name)}
+                                    className="p-0.5 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors"
+                                    title={`Phóng tới ${vil.name} trên bản đồ`}
+                                  >
+                                    <Crosshair className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => handleFlyToVillage(vil.name)}
-                                className="p-0.5 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors shrink-0"
-                                title={`Phóng tới ${vil.name} trên bản đồ`}
-                              >
-                                <Crosshair className="w-3 h-3" />
-                              </button>
+
+                              {/* Form Admin nhập tọa độ X, Y trực tiếp cho từng thôn */}
+                              {isEditingThisVillage && (
+                                <div className="p-2 bg-[#F0F6FF] rounded-lg border border-[#0A4393]/35 mt-1 mb-1 space-y-1.5 shadow-xs">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-[#0A4393]">
+                                    <span>📍 NHẬP TỌA ĐỘ VỊ TRÍ: {vil.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={handleGetMapCenterForVillage}
+                                      className="text-[9px] px-1.5 py-0.5 rounded bg-white text-[#0A4393] hover:bg-blue-100 border border-[#0A4393]/30 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                      title="Lấy tọa độ tâm bản đồ Leaflet đang hiển thị"
+                                    >
+                                      <MapPin className="w-2.5 h-2.5" />
+                                      <span>Lấy tâm bản đồ</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <div>
+                                      <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
+                                        Tọa độ Y / Vĩ độ (Lat):
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={editLatInput}
+                                        onChange={(e) => setEditLatInput(e.target.value)}
+                                        placeholder="Ví dụ: 13.069298"
+                                        className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
+                                        Tọa độ X / Kinh độ (Lng):
+                                      </label>
+                                      <input
+                                        type="number"
+                                        step="any"
+                                        value={editLngInput}
+                                        onChange={(e) => setEditLngInput(e.target.value)}
+                                        placeholder="Ví dụ: 107.881527"
+                                        className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {coordSaveMessage && (
+                                    <div className="text-[9.5px] text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-200">
+                                      ✓ {coordSaveMessage}
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                                    {isCustomized ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleResetVillageCoords(vil.name)}
+                                        className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[9px] font-semibold cursor-pointer"
+                                        title="Khôi phục lại tọa độ gốc ban đầu"
+                                      >
+                                        Đặt lại mặc định
+                                      </button>
+                                    ) : (
+                                      <div />
+                                    )}
+
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingVillageName(null)}
+                                        className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-600 text-[9.5px] font-semibold border border-slate-300 cursor-pointer"
+                                      >
+                                        Hủy
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveVillageCoords(vil.name)}
+                                        className="px-2.5 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold shadow-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                      >
+                                        <Save className="w-3 h-3" />
+                                        <span>Lưu tọa độ</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
