@@ -578,9 +578,8 @@ export const CommandCenterDashboard: React.FC = () => {
                   : 'text-[#0A4393] hover:bg-[#F0F6FF]'
               }`}
             >
-              <Cpu className="w-3 h-3 shrink-0" />
-              <span className="truncate">TAB MÔ PHỎNG IoT</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'SIMULATOR' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LAB</span>
+              <Cpu className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate font-bold">MÔ PHỎNG</span>
             </button>
           </div>
 

@@ -2,8 +2,8 @@
   {
     "id": "KMZ_BAN_VE_MAT_CAT",
     "rawName": "ban_ve,_mat_cat.kmz",
-    "label": "Bản vẽ & Mặt cắt",
-    "category": "Nhóm lớp thôn/buôn",
+    "label": "Bản đồ vùng ngập lụt",
+    "category": "Nhóm lớp hệ thống",
     "defaultOn": true,
     "color": "#00e5ff",
     "bounds": [

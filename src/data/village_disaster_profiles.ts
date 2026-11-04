@@ -9,6 +9,7 @@ export interface VillageHydraulicContext {
 export interface VillageDisasterProfile {
   name: string;
   groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)' | '04 Thôn tên' | '03 Buôn đồng bào';
+  coordinates: [number, number]; // [lat, lng]
   avgElevationM: number; // Cao độ địa hình trung bình (+172m đến +185m)
   terrainNote: string;
   totalHouseholds: number;
@@ -23,6 +24,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn Đoàn Kết': {
     name: 'Thôn Đoàn Kết',
     groupLabel: '04 Thôn tên',
+    coordinates: [13.069298, 107.881527],
     avgElevationM: 172.4,
     terrainNote: 'Vùng trũng thấp giáp Hồ Trung Chuyển và hành lang thoát lũ suối Ea Súp',
     totalHouseholds: 245,
@@ -35,6 +37,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn Bình Lợi': {
     name: 'Thôn Bình Lợi',
     groupLabel: '04 Thôn tên',
+    coordinates: [13.0642, 107.8885],
     avgElevationM: 172.9,
     terrainNote: 'Bãi bồi ven suối Ea Súp, nhạy cảm ngập sâu khi xả tràn Hồ Thượng',
     totalHouseholds: 210,
@@ -47,6 +50,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn Thắng Lợi': {
     name: 'Thôn Thắng Lợi',
     groupLabel: '04 Thôn tên',
+    coordinates: [13.0585, 107.8825],
     avgElevationM: 177.6,
     terrainNote: 'Địa hình thoải dần về phía kênh chính Tây, ngập cục bộ khi vỡ đập',
     totalHouseholds: 195,
@@ -59,6 +63,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn Hòa Bình': {
     name: 'Thôn Hòa Bình',
     groupLabel: '04 Thôn tên',
+    coordinates: [13.0525, 107.8865],
     avgElevationM: 178.4,
     terrainNote: 'Thềm địa hình trung bình cao, an toàn trong xả lũ thường xuyên',
     totalHouseholds: 188,
@@ -71,6 +76,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 1': {
     name: 'Thôn 1',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0545, 107.8985],
     avgElevationM: 176.2,
     terrainNote: 'Khu vực trung tâm hành chính - thương mại, ven trục thoát nước chính',
     totalHouseholds: 260,
@@ -83,6 +89,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 2': {
     name: 'Thôn 2',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0592, 107.9042],
     avgElevationM: 176.8,
     terrainNote: 'Giáp trục giao thông Tỉnh lộ 681, có nguy cơ ngập đoạn trũng',
     totalHouseholds: 230,
@@ -95,6 +102,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 3': {
     name: 'Thôn 3',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0638, 107.9125],
     avgElevationM: 178.9,
     terrainNote: 'Vùng gò đồi thoải phía Đông Bắc trung tâm xã',
     totalHouseholds: 205,
@@ -107,6 +115,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 4': {
     name: 'Thôn 4',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0682, 107.9182],
     avgElevationM: 179.5,
     terrainNote: 'Khu dân cư ổn định dọc tuyến kênh chính Đông',
     totalHouseholds: 198,
@@ -119,6 +128,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 5': {
     name: 'Thôn 5',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0725, 107.8918],
     avgElevationM: 173.8,
     terrainNote: 'Vùng trũng ven suối Ea Súp, chịu ảnh hưởng trực tiếp khi xả lũ > BĐ III',
     totalHouseholds: 215,
@@ -131,6 +141,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 6': {
     name: 'Thôn 6',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0778, 107.8855],
     avgElevationM: 173.5,
     terrainNote: 'Hành lang ngập hạ du suối Ea Súp và cánh đồng lúa 2 vụ',
     totalHouseholds: 224,
@@ -143,6 +154,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 7': {
     name: 'Thôn 7',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0832, 107.8808],
     avgElevationM: 173.2,
     terrainNote: 'Khu dân cư ven suối Ea Súp (gần Vết lũ kiểm định số 14)',
     totalHouseholds: 218,
@@ -155,6 +167,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 8': {
     name: 'Thôn 8',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0608, 107.8732],
     avgElevationM: 172.6,
     terrainNote: 'Trọng điểm trũng thấp hạ lưu đập Hồ Hạ và ngầm tràn liên thôn',
     totalHouseholds: 236,
@@ -167,6 +180,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 9': {
     name: 'Thôn 9',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0878, 107.8748],
     avgElevationM: 174.1,
     terrainNote: 'Vùng bãi bồi tả ngạn suối Ea Súp, dễ chia cắt giao thông nội đồng',
     totalHouseholds: 192,
@@ -179,6 +193,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 10': {
     name: 'Thôn 10',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0945, 107.8685],
     avgElevationM: 174.6,
     terrainNote: 'Vùng trũng hạ du cánh đồng Ea Súp giáp tuyến QL14C',
     totalHouseholds: 185,
@@ -191,6 +206,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 11': {
     name: 'Thôn 11',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.1018, 107.8618],
     avgElevationM: 175.0,
     terrainNote: 'Khu vực hạ lưu suối Ea Súp hướng về vùng giáp ranh Ea Rốk',
     totalHouseholds: 178,
@@ -203,6 +219,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 12': {
     name: 'Thôn 12',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0478, 107.9178],
     avgElevationM: 180.8,
     terrainNote: 'Địa hình đồi thoải ổn định, ít chịu tác động ngập lụt',
     totalHouseholds: 170,
@@ -215,6 +232,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Thôn 13': {
     name: 'Thôn 13',
     groupLabel: '13 Thôn số (Thôn 1 - Thôn 13)',
+    coordinates: [13.0255, 107.9145],
     avgElevationM: 181.6,
     terrainNote: 'Khu vực địa hình cao giáp ranh vùng đệm lâm nghiệp Tiểu khu 293',
     totalHouseholds: 165,
@@ -227,6 +245,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Buôn A': {
     name: 'Buôn A',
     groupLabel: '03 Buôn đồng bào',
+    coordinates: [13.0418, 107.8818],
     avgElevationM: 182.5,
     terrainNote: 'Buôn đồng bào dân tộc thiểu số trên thềm địa hình cao ráo',
     totalHouseholds: 156,
@@ -239,6 +258,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Buôn B': {
     name: 'Buôn B',
     groupLabel: '03 Buôn đồng bào',
+    coordinates: [13.0368, 107.8758],
     avgElevationM: 183.8,
     terrainNote: 'Địa hình cao ổn định, cần chú ý phòng chống khô hạn & cháy rừng mùa khô',
     totalHouseholds: 148,
@@ -251,6 +271,7 @@ export const VILLAGE_DISASTER_PROFILES: Record<string, VillageDisasterProfile> =
   'Buôn C': {
     name: 'Buôn C',
     groupLabel: '03 Buôn đồng bào',
+    coordinates: [13.0312, 107.8688],
     avgElevationM: 184.6,
     terrainNote: 'Vùng địa hình cao (+184.6m) giáp hành lang rừng khộp',
     totalHouseholds: 142,

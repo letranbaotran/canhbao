@@ -316,7 +316,7 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
         <div className="flex items-center gap-2">
           <Cpu className="w-4 h-4 text-white" />
           <span className="text-xs font-bold text-white uppercase tracking-wider">
-            TAB MÔ PHỎNG IoT LAB & THỦY LỰC MIKE FLOOD
+            MÔ PHỎNG THỦY LỰC & CẢM BIẾN IoT
           </span>
         </div>
         <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded font-bold">

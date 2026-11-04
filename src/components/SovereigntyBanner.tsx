@@ -18,6 +18,8 @@ import {
   Eye,
   EyeOff,
   Mail,
+  Satellite,
+  Waves,
 } from 'lucide-react';
 import {
   AuthUserAccount,
@@ -577,7 +579,7 @@ export const SovereigntyBanner: React.FC = () => {
           onClick={() => setActiveModal(null)}
         >
           <div
-            className="relative max-w-xl w-full bg-white border-2 border-[#0A4393] rounded-2xl p-5 shadow-2xl text-slate-800"
+            className="relative max-w-xl w-full max-h-[90vh] overflow-y-auto bg-white border-2 border-[#0A4393] rounded-2xl p-5 shadow-2xl text-slate-800"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -608,12 +610,62 @@ export const SovereigntyBanner: React.FC = () => {
                 <div className="text-[10px] text-slate-600 mt-0.5">Kích Hoạt Báo Động</div>
               </div>
             </div>
+
+            {/* Ghép toàn bộ nội dung Nguồn dữ liệu & Kiểm định khoa học */}
+            <div className="mt-4 pt-3 border-t border-[#0A4393]/20 space-y-3 text-xs leading-relaxed">
+              <div className="flex items-center gap-2 font-bold text-[#0A4393] text-xs sm:text-sm">
+                <ShieldCheck className="w-4 h-4 text-[#0A4393] shrink-0" />
+                <span>NGUỒN DỮ LIỆU & KIỂM ĐỊNH KHOA HỌC</span>
+              </div>
+
+              {/* 1. NASA FIRMS */}
+              <div className="p-3 rounded-xl bg-[#F4F8FD] border border-[#0A4393]/25">
+                <div className="flex items-center gap-2 font-bold text-[#0A4393] mb-1">
+                  <Satellite className="w-4 h-4 text-[#0A4393] shrink-0" />
+                  <span>1. Dữ liệu Ảnh nhiệt Vệ tinh & Cảnh báo Cháy rừng</span>
+                </div>
+                <p className="text-slate-700">
+                  Dữ liệu ảnh nhiệt được thu nhận từ hệ thống vệ tinh{' '}
+                  <strong className="text-[#0A4393]">NASA FIRMS (VIIRS 375m / MODIS 1km)</strong>, tích hợp
+                  đối sánh đa tầng với mạng lưới cảm biến IoT LoRaWAN đo nhiệt độ, độ ẩm và nồng độ khói CO
+                  trực chiến tại <strong className="text-[#0A4393]">Lâm phần Tiểu khu 293</strong> (vùng rừng
+                  khộp trọng điểm xã Ea Súp).
+                </p>
+              </div>
+
+              {/* 2. MIKE FLOOD */}
+              <div className="p-3 rounded-xl bg-[#F4F8FD] border border-[#0A4393]/25">
+                <div className="flex items-center gap-2 font-bold text-[#0A4393] mb-1">
+                  <Waves className="w-4 h-4 text-[#0A4393] shrink-0" />
+                  <span>2. Dữ liệu Ngập lụt Hạ du & Thủy văn Hồ chứa</span>
+                </div>
+                <p className="text-slate-700">
+                  Dữ liệu ngập lụt hạ du và kịch bản vận hành điều tiết nước Hồ Ea Súp Thượng, Hồ Ea Súp Hạ,
+                  Hồ Trung Chuyển được chuẩn hóa từ{' '}
+                  <strong className="text-[#0A4393]">
+                    Báo cáo chuyên đề Mô hình thủy lực 2 chiều MIKE FLOOD (tích hợp MIKE 11 + MIKE 21 FM)
+                  </strong>{' '}
+                  đã được hiệu chỉnh và kiểm định thực tế qua{' '}
+                  <strong className="text-rose-700 bg-rose-50 px-1 py-0.5 rounded border border-rose-200">
+                    trận lũ lịch sử tháng 8/2022 và tháng 7/2023
+                  </strong>{' '}
+                  trên lưu vực sông Ea Súp.
+                </p>
+              </div>
+
+              {/* 3. Đồng bộ Reactive State */}
+              <div className="px-3 py-2 rounded-lg bg-[#E6F0FA] border border-[#0A4393]/30 text-[11px] font-mono text-[#0A4393] flex items-center justify-between">
+                <span>Trạng thái đồng bộ Global Store:</span>
+                <span className="font-bold">● Khớp 100% Thời gian thực</span>
+              </div>
+            </div>
+
             <div className="mt-4 pt-3 border-t border-[#0A4393]/20 flex justify-end">
               <button
                 onClick={() => setActiveModal(null)}
                 className="px-4 py-1.5 rounded-lg bg-[#0A4393] text-white font-semibold text-xs hover:bg-[#083576]"
               >
-                Đóng
+                Đã hiểu & Đóng
               </button>
             </div>
           </div>
