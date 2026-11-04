@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   KEY_MONITORING_TARGETS,
   EASUP_VILLAGES,
@@ -324,6 +324,13 @@ export const WebGISMap: React.FC = () => {
   const layerManagerPanelRef = useRef<HTMLDivElement | null>(null);
   const layerManagerBtnTopRef = useRef<HTMLButtonElement | null>(null);
   const layerManagerBtnFloatRef = useRef<HTMLButtonElement | null>(null);
+
+  // Quản lý ghim định vị vị trí (khi bấm đè chuột trái / chạm giữ trên bản đồ)
+  const pinnedMarkerRef = useRef<any>(null);
+  const longPressTimerRef = useRef<any>(null);
+  const pressStartPointRef = useRef<{ x: number; y: number } | null>(null);
+  const pinLocationRef = useRef<((lat: number, lng: number) => void) | null>(null);
+  const [pinnedCoord, setPinnedCoord] = useState<{ lat: number; lng: number } | null>(null);
 
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locateMessage, setLocateMessage] = useState<string | null>(null);
@@ -1316,29 +1323,63 @@ export const WebGISMap: React.FC = () => {
         villageMarkersMapRef.current[vil.name] = m;
       });
 
-      // LẮNG NGHE SỰ KIỆN VẼ KHU VỰC TÙY CHỌN BẰNG CHUỘT
+      // LẮNG NGHE SỰ KIỆN BẤM ĐÈ CHUỘT TRÁI / CHUỘT PHẢI ĐỂ CẮM GHIM & VẼ KHU VỰC
       map.on('mousedown', (e: any) => {
-        if (!isDrawingModeRef.current) return;
-        startLatLngRef.current = e.latlng;
-        if (drawingRectRef.current) {
-          map.removeLayer(drawingRectRef.current);
-          drawingRectRef.current = null;
+        if (isDrawingModeRef.current) {
+          startLatLngRef.current = e.latlng;
+          if (drawingRectRef.current) {
+            map.removeLayer(drawingRectRef.current);
+            drawingRectRef.current = null;
+          }
+          drawingRectRef.current = L.rectangle([e.latlng, e.latlng], {
+            color: '#f59e0b',
+            weight: 2.5,
+            dashArray: '5, 5',
+            fillColor: '#fbbf24',
+            fillOpacity: 0.25,
+          }).addTo(map);
+          return;
         }
-        drawingRectRef.current = L.rectangle([e.latlng, e.latlng], {
-          color: '#f59e0b',
-          weight: 2.5,
-          dashArray: '5, 5',
-          fillColor: '#fbbf24',
-          fillOpacity: 0.25,
-        }).addTo(map);
+
+        // Bấm đè chuột trái (Long-press ~450ms) để cắm ghim vị trí & xem số tọa độ
+        const origEv = e.originalEvent;
+        if (!origEv || origEv.button === 0) {
+          pressStartPointRef.current = { x: e.containerPoint.x, y: e.containerPoint.y };
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+          longPressTimerRef.current = setTimeout(() => {
+            pinLocationRef.current?.(e.latlng.lat, e.latlng.lng);
+            longPressTimerRef.current = null;
+          }, 450);
+        }
       });
 
       map.on('mousemove', (e: any) => {
-        if (!isDrawingModeRef.current || !startLatLngRef.current || !drawingRectRef.current) return;
-        drawingRectRef.current.setBounds(L.latLngBounds(startLatLngRef.current, e.latlng));
+        if (isDrawingModeRef.current) {
+          if (!startLatLngRef.current || !drawingRectRef.current) return;
+          drawingRectRef.current.setBounds(L.latLngBounds(startLatLngRef.current, e.latlng));
+          return;
+        }
+
+        // Nếu di chuyển chuột vượt quá 6px thì hủy hẹn giờ bấm đè (người dùng đang kéo bản đồ)
+        if (longPressTimerRef.current && pressStartPointRef.current) {
+          const dx = e.containerPoint.x - pressStartPointRef.current.x;
+          const dy = e.containerPoint.y - pressStartPointRef.current.y;
+          if (Math.hypot(dx, dy) > 6) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }
       });
 
       map.on('mouseup', (e: any) => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+
         if (!isDrawingModeRef.current || !startLatLngRef.current) return;
         const bounds = L.latLngBounds(startLatLngRef.current, e.latlng);
         startLatLngRef.current = null;
@@ -1378,6 +1419,31 @@ export const WebGISMap: React.FC = () => {
         }
 
         renderComparisonLayer(compareMode, 'CUSTOM', newCustomArea);
+      });
+
+      map.on('dragstart', () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      });
+
+      map.on('zoomstart', () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      });
+
+      map.on('contextmenu', (e: any) => {
+        if (e.originalEvent) {
+          e.originalEvent.preventDefault();
+        }
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        pinLocationRef.current?.(e.latlng.lat, e.latlng.lng);
       });
 
       leafletMapRef.current = map;
@@ -2023,6 +2089,138 @@ export const WebGISMap: React.FC = () => {
       map.flyTo([13.078, 107.882], 12, { duration: 0.9 });
     }
   };
+
+  // Xử lý cắm ghim vị trí và hiển thị tọa độ chi tiết khi bấm đè chuột trái / chuột phải
+  const handlePinMapLocation = useCallback(async (lat: number, lng: number) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    const L = await import('leaflet');
+
+    // Xóa marker cũ nếu đang có
+    if (pinnedMarkerRef.current) {
+      try {
+        map.removeLayer(pinnedMarkerRef.current);
+      } catch {}
+      pinnedMarkerRef.current = null;
+    }
+
+    setPinnedCoord({ lat, lng });
+
+    // Icon SVG ghim định vị màu đỏ sắc nét có đổ bóng 3D
+    const pinIcon = L.divIcon({
+      className: 'custom-pinned-location-marker',
+      html: `
+        <div style="position:relative; width:34px; height:44px; transform:translate(-50%, -100%); cursor:grab;">
+          <svg viewBox="0 0 384 512" width="34" height="44" style="filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));">
+            <path fill="#dc2626" stroke="#ffffff" stroke-width="16" d="M384 192C384 279.4 267.4 435 215.7 499.2C207.8 509 192.2 509 184.3 499.2C132.6 435 16 279.4 16 192C16 86 101.9 0 208 0C314.1 0 384 86 384 192Z"/>
+            <circle cx="192" cy="192" r="72" fill="#ffffff"/>
+            <circle cx="192" cy="192" r="42" fill="#991b1b"/>
+          </svg>
+        </div>
+      `,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+      popupAnchor: [0, -44],
+    });
+
+    const marker = L.marker([lat, lng], {
+      icon: pinIcon,
+      draggable: true,
+      zIndexOffset: 12000,
+    }).addTo(map);
+
+    pinnedMarkerRef.current = marker;
+
+    const buildPopupEl = (curLat: number, curLng: number) => {
+      const box = document.createElement('div');
+      box.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+      box.style.minWidth = '230px';
+      box.style.padding = '2px';
+
+      box.innerHTML = `
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; border-bottom:1px solid #e2e8f0; padding-bottom:5px;">
+          <span style="font-size:16px;">📍</span>
+          <strong style="color:#0f172a; font-size:13px; text-transform:uppercase; letter-spacing:0.3px;">Điểm Ghim Tọa Độ</strong>
+        </div>
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:7px 9px; margin-bottom:8px; font-size:11.5px; line-height:1.6;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="color:#64748b; font-size:11px;">Vĩ độ (Lat / Y):</span>
+            <strong style="color:#0f172a; font-family:monospace; font-size:13px;">${curLat.toFixed(6)}°</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px;">
+            <span style="color:#64748b; font-size:11px;">Kinh độ (Lng / X):</span>
+            <strong style="color:#0f172a; font-family:monospace; font-size:13px;">${curLng.toFixed(6)}°</strong>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <button id="btn-copy-pin" style="width:100%; background:#0a4393; color:#fff; border:none; padding:7px 10px; border-radius:6px; font-weight:700; font-size:11.5px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:5px; transition:0.15s;">
+            📋 Sao chép tọa độ (${curLat.toFixed(4)}, ${curLng.toFixed(4)})
+          </button>
+          <button id="btn-remove-pin" style="width:100%; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:5px 10px; border-radius:6px; font-weight:600; font-size:11px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:4px;">
+            ✕ Bỏ ghim vị trí này
+          </button>
+        </div>
+        <div style="margin-top:6px; font-size:10px; color:#94a3b8; text-align:center;">
+          💡 Giữ chuột kéo ghim để tinh chỉnh vị trí
+        </div>
+      `;
+
+      const copyBtn = box.querySelector('#btn-copy-pin') as HTMLButtonElement | null;
+      if (copyBtn) {
+        copyBtn.onclick = (e) => {
+          e.stopPropagation();
+          navigator.clipboard?.writeText(`${curLat.toFixed(6)}, ${curLng.toFixed(6)}`);
+          copyBtn.innerText = '✅ Đã chép tọa độ vào Clipboard!';
+          copyBtn.style.background = '#16a34a';
+          setTimeout(() => {
+            if (copyBtn) {
+              copyBtn.innerText = `📋 Sao chép tọa độ (${curLat.toFixed(4)}, ${curLng.toFixed(4)})`;
+              copyBtn.style.background = '#0a4393';
+            }
+          }, 1600);
+        };
+      }
+
+      const removeBtn = box.querySelector('#btn-remove-pin') as HTMLButtonElement | null;
+      if (removeBtn) {
+        removeBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (pinnedMarkerRef.current && leafletMapRef.current) {
+            try {
+              leafletMapRef.current.removeLayer(pinnedMarkerRef.current);
+            } catch {}
+            pinnedMarkerRef.current = null;
+          }
+          setPinnedCoord(null);
+        };
+      }
+
+      return box;
+    };
+
+    marker.bindPopup(buildPopupEl(lat, lng), {
+      autoClose: false,
+      closeOnClick: false,
+      className: 'pinned-coord-popup',
+    }).openPopup();
+
+    marker.on('dragend', (ev: any) => {
+      const pos = ev.target.getLatLng();
+      setPinnedCoord({ lat: pos.lat, lng: pos.lng });
+      marker.setPopupContent(buildPopupEl(pos.lat, pos.lng));
+      marker.openPopup();
+    });
+
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    pinLocationRef.current = handlePinMapLocation;
+  }, [handlePinMapLocation]);
 
   const handleFlyToVillage = (villageName: string) => {
     const map = leafletMapRef.current;
@@ -3583,17 +3781,33 @@ export const WebGISMap: React.FC = () => {
                               {/* Form Admin nhập tọa độ X, Y trực tiếp cho từng thôn */}
                               {isEditingThisVillage && (
                                 <div className="p-2 bg-[#F0F6FF] rounded-lg border border-[#0A4393]/35 mt-1 mb-1 space-y-1.5 shadow-xs">
-                                  <div className="flex items-center justify-between text-[10px] font-bold text-[#0A4393]">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-[#0A4393] flex-wrap gap-1">
                                     <span>📍 NHẬP TỌA ĐỘ VỊ TRÍ: {vil.name}</span>
-                                    <button
-                                      type="button"
-                                      onClick={handleGetMapCenterForVillage}
-                                      className="text-[9px] px-1.5 py-0.5 rounded bg-white text-[#0A4393] hover:bg-blue-100 border border-[#0A4393]/30 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                      title="Lấy tọa độ tâm bản đồ Leaflet đang hiển thị"
-                                    >
-                                      <MapPin className="w-2.5 h-2.5" />
-                                      <span>Lấy tâm bản đồ</span>
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                      {pinnedCoord && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditLatInput(pinnedCoord.lat.toFixed(6));
+                                            setEditLngInput(pinnedCoord.lng.toFixed(6));
+                                          }}
+                                          className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                          title={`Điền tọa độ điểm vừa ghim: ${pinnedCoord.lat.toFixed(6)}, ${pinnedCoord.lng.toFixed(6)}`}
+                                        >
+                                          <MapPin className="w-2.5 h-2.5 text-red-600" />
+                                          <span>Lấy điểm ghim ({pinnedCoord.lat.toFixed(4)}, {pinnedCoord.lng.toFixed(4)})</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={handleGetMapCenterForVillage}
+                                        className="text-[9px] px-1.5 py-0.5 rounded bg-white text-[#0A4393] hover:bg-blue-100 border border-[#0A4393]/30 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                        title="Lấy tọa độ tâm bản đồ Leaflet đang hiển thị"
+                                      >
+                                        <MapPin className="w-2.5 h-2.5" />
+                                        <span>Lấy tâm bản đồ</span>
+                                      </button>
+                                    </div>
                                   </div>
 
                                   <div className="grid grid-cols-2 gap-1.5">
