@@ -321,9 +321,6 @@ export const CommandCenterDashboard: React.FC = () => {
               content={bulletin.content}
               autoPlayTrigger={dominoAutoPlayTs}
             />
-            <p className="text-[11px] text-slate-700 mt-1 italic leading-relaxed">
-              {bulletin.content}
-            </p>
           </section>
 
           {/* 20 Thôn Buôn Matrix Quick Overview + Card Chi Tiết Thôn/Buôn + Báo Tin Thiên Tai Cộng Đồng */}

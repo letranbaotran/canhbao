@@ -346,14 +346,12 @@ export const WebGISMap: React.FC = () => {
     floodMarks2023: boolean;
     vulnerableFacilities: boolean;
     mikeKmlFile: boolean;
-    mikeGeojsonFile: boolean;
   }>({
     markers: true,
     buffer: true,
     floodMarks2023: true,
     vulnerableFacilities: true,
     mikeKmlFile: true,
-    mikeGeojsonFile: true,
   });
 
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
@@ -1077,30 +1075,7 @@ export const WebGISMap: React.FC = () => {
         poly.addTo(mikeKmlGroup);
       });
 
-      // 7. Lớp file Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson (Trục thủy lực MIKE 11 & Mặt cắt kiểm định)
-      const mikeGeojsonGroup = L.featureGroup().addTo(map);
-      mikeGeojsonLayerRef.current = mikeGeojsonGroup;
-
-      const streamCenterline = VERIFIED_FLOOD_MARKS_2023.slice()
-        .sort((a, b) => a.lat - b.lat)
-        .map((pt) => [pt.lat, pt.lng] as [number, number]);
-
-      L.polyline([[13.043116, 107.937218], ...streamCenterline], {
-        color: '#0284c7',
-        weight: 3,
-        dashArray: '8, 4',
-        opacity: 0.9,
-      })
-        .bindTooltip(
-          `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:#0A4393;">Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson (Trục thủy lực MIKE 11)</div>`,
-          { sticky: true, direction: 'top' }
-        )
-        .bindPopup(
-          `<div style="font-family:sans-serif;font-size:12px;font-weight:700;color:#0A4393;">Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson</div>`
-        )
-        .addTo(mikeGeojsonGroup);
-
-      // 8. Lớp '10 Vết lũ kiểm định thực tế (7/2023)' - Bảng 3.1 báo cáo MIKE FLOOD
+      // 7. Lớp '10 Vết lũ kiểm định thực tế (7/2023)' - Bảng 3.1 báo cáo MIKE FLOOD
       const floodMarksGroup = L.featureGroup().addTo(map);
       floodMarks2023LayerRef.current = floodMarksGroup;
 
@@ -1889,7 +1864,6 @@ export const WebGISMap: React.FC = () => {
       | 'floodMarks2023'
       | 'vulnerableFacilities'
       | 'mikeKmlFile'
-      | 'mikeGeojsonFile'
   ) => {
     const map = leafletMapRef.current;
     if (!map) return;
@@ -1902,7 +1876,6 @@ export const WebGISMap: React.FC = () => {
       floodMarks2023: floodMarks2023LayerRef,
       vulnerableFacilities: facilitiesLayerRef,
       mikeKmlFile: mikeKmlLayerRef,
-      mikeGeojsonFile: mikeGeojsonLayerRef,
     };
 
     const targetRef = refMap[key];
@@ -1913,14 +1886,14 @@ export const WebGISMap: React.FC = () => {
   };
 
   const handleFlyToSystemLayer = (
-    key: 'floodMarks2023' | 'vulnerableFacilities' | 'mikeKmlFile' | 'mikeGeojsonFile'
+    key: 'floodMarks2023' | 'vulnerableFacilities' | 'mikeKmlFile'
   ) => {
     const map = leafletMapRef.current;
     if (!map) return;
     if (!systemLayers[key]) {
       handleToggleSystemLayer(key);
     }
-    if (key === 'floodMarks2023' || key === 'mikeGeojsonFile') {
+    if (key === 'floodMarks2023') {
       map.flyTo([13.084, 107.878], 13, { duration: 0.9 });
     } else if (key === 'vulnerableFacilities') {
       map.flyTo([13.072, 107.886], 13, { duration: 0.9 });
@@ -1940,7 +1913,6 @@ export const WebGISMap: React.FC = () => {
       floodMarks2023: selectAll,
       vulnerableFacilities: selectAll,
       mikeKmlFile: selectAll,
-      mikeGeojsonFile: selectAll,
     });
 
     [
@@ -1949,7 +1921,6 @@ export const WebGISMap: React.FC = () => {
       floodMarks2023LayerRef,
       facilitiesLayerRef,
       mikeKmlLayerRef,
-      mikeGeojsonLayerRef,
     ].forEach((ref) => {
       if (ref.current) {
         if (selectAll) ref.current.addTo(map);
@@ -2059,13 +2030,9 @@ export const WebGISMap: React.FC = () => {
           setSystemLayers((prev) => ({
             ...prev,
             floodMarks2023: true,
-            mikeGeojsonFile: true,
           }));
           if (floodMarks2023LayerRef.current && leafletMapRef.current) {
             floodMarks2023LayerRef.current.addTo(leafletMapRef.current);
-          }
-          if (mikeGeojsonLayerRef.current && leafletMapRef.current) {
-            mikeGeojsonLayerRef.current.addTo(leafletMapRef.current);
           }
         }
       } else {
@@ -2153,14 +2120,13 @@ export const WebGISMap: React.FC = () => {
     e.target.value = '';
   };
 
-  const totalLayerCount = 6 + kmzManifest.length;
+  const totalLayerCount = 5 + kmzManifest.length;
   const activeLayerCount =
     (systemLayers.markers ? 1 : 0) +
     (systemLayers.buffer ? 1 : 0) +
     (systemLayers.floodMarks2023 ? 1 : 0) +
     (systemLayers.vulnerableFacilities ? 1 : 0) +
     (systemLayers.mikeKmlFile ? 1 : 0) +
-    (systemLayers.mikeGeojsonFile ? 1 : 0) +
     kmzManifest.filter((m) => enabledKmzLayers[m.id]).length;
 
   const handleTriggerTabUpload = (tab: 'SYSTEM' | 'FLOOD' | 'VILLAGE') => {
@@ -2198,9 +2164,8 @@ export const WebGISMap: React.FC = () => {
     (systemLayers.floodMarks2023 ? 1 : 0) +
     (systemLayers.vulnerableFacilities ? 1 : 0) +
     (systemLayers.mikeKmlFile ? 1 : 0) +
-    (systemLayers.mikeGeojsonFile ? 1 : 0) +
     floodKmzItems.filter((m) => !!enabledKmzLayers[m.id]).length;
-  const floodTabTotalCount = 4 + floodKmzItems.length;
+  const floodTabTotalCount = 3 + floodKmzItems.length;
   const isAllFloodTabActive = floodTabActiveCount === floodTabTotalCount;
 
   const villageTabActiveCount = villageKmzItems.filter((m) => !!enabledKmzLayers[m.id]).length;
@@ -2249,7 +2214,6 @@ export const WebGISMap: React.FC = () => {
       floodMarks2023: nextVal,
       vulnerableFacilities: nextVal,
       mikeKmlFile: nextVal,
-      mikeGeojsonFile: nextVal,
     }));
     if (leafletMapRef.current) {
       const map = leafletMapRef.current;
@@ -2257,7 +2221,6 @@ export const WebGISMap: React.FC = () => {
         floodMarks2023LayerRef,
         facilitiesLayerRef,
         mikeKmlLayerRef,
-        mikeGeojsonLayerRef,
       ];
       refList.forEach((ref) => {
         if (ref.current) {
@@ -3123,35 +3086,6 @@ export const WebGISMap: React.FC = () => {
                         onClick={() => handleFlyToSystemLayer('mikeKmlFile')}
                         className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
                         title="Phóng tới vùng ngập Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml"
-                      >
-                        <Crosshair className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 4. File Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson - Hệ thống không sửa/xóa */}
-                  <div className="flex items-center justify-between p-1.5 rounded bg-blue-50/70 hover:bg-blue-50 border border-blue-200">
-                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={systemLayers.mikeGeojsonFile}
-                        onChange={() => handleToggleSystemLayer('mikeGeojsonFile')}
-                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                      />
-                      <span className="w-2.5 h-2.5 rounded-xs bg-blue-600 inline-block shrink-0" />
-                      <span className="text-[10.5px] font-mono font-bold text-blue-950 truncate">
-                        Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson
-                      </span>
-                    </label>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[9px] font-semibold text-blue-800 bg-white px-1.5 py-0.5 rounded border border-blue-200">
-                        Hệ thống
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleFlyToSystemLayer('mikeGeojsonFile')}
-                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                        title="Phóng tới lớp Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson"
                       >
                         <Crosshair className="w-3 h-3" />
                       </button>
