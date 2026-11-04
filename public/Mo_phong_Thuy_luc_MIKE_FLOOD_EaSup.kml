@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml</name>
+    <description>Mô phỏng Thủy lực 2 chiều MIKE FLOOD (MIKE 11 + MIKE 21 FM) lưu vực Hồ Ea Súp Thượng - Hồ Ea Súp Hạ - Suối Ea Súp</description>
+    <Placemark>
+      <name>Hành lang ngập sâu MIKE 21 FM (&gt; 2.0m - 3.0m)</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              107.9350,13.0430,0
+              107.9040,13.0565,0
+              107.8860,13.0695,0
+              107.8680,13.0885,0
+              107.8480,13.1160,0
+              107.8350,13.1365,0
+              107.8420,13.1395,0
+              107.8560,13.1180,0
+              107.8750,13.0910,0
+              107.8930,13.0725,0
+              107.9110,13.0595,0
+              107.9380,13.0465,0
+              107.9350,13.0430,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    <Placemark>
+      <name>Vùng ngập trung bình MIKE 21 FM (0.5m - 2.0m) - Thôn Đoàn Kết, Thôn 5-11, Bình Lợi</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              107.9370,13.0380,0
+              107.8980,13.0490,0
+              107.8760,13.0620,0
+              107.8580,13.0820,0
+              107.8360,13.1120,0
+              107.8260,13.1340,0
+              107.8480,13.1440,0
+              107.8680,13.1220,0
+              107.8880,13.0960,0
+              107.9040,13.0760,0
+              107.9180,13.0630,0
+              107.9420,13.0490,0
+              107.9370,13.0380,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>
+

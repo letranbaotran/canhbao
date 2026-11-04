@@ -21,6 +21,13 @@ import {
   getCurrentSessionUser,
   MapUserRole,
 } from '@/services/authRoleService';
+import { useTelemetryStore } from '@/services/telemetryStore';
+import {
+  VERIFIED_FLOOD_MARKS_2023,
+  VULNERABLE_FACILITIES_EASUP,
+  MIKE21_DEPTH_LEGEND,
+  evaluateGpsFloodRisk,
+} from '@/data/mike_flood_verified_data';
 import {
   Layers,
   Flame,
@@ -260,8 +267,11 @@ const GIBS_META: Record<
 };
 
 export const WebGISMap: React.FC = () => {
+  const { iotData, scenarioId, hydraulicModel } = useTelemetryStore();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const leafletMapRef = useRef<any>(null);
+  const hoThuongMarkerRef = useRef<any>(null);
+  const mikeFloodOverlayRef = useRef<any>(null);
   const currentBaseTileRef = useRef<any>(null);
   const gibsTileLayerRef = useRef<any>(null);
   const gibsFeatureGroupRef = useRef<any>(null);
@@ -294,6 +304,10 @@ export const WebGISMap: React.FC = () => {
   const userLocationLayerRef = useRef<any>(null);
   const systemMarkersGroupRef = useRef<any>(null);
   const bufferCircleLayerRef = useRef<any>(null);
+  const floodMarks2023LayerRef = useRef<any>(null);
+  const facilitiesLayerRef = useRef<any>(null);
+  const mikeKmlLayerRef = useRef<any>(null);
+  const mikeGeojsonLayerRef = useRef<any>(null);
   const kmzLayerGroupsRef = useRef<Record<string, any>>({});
   const kmzDataCacheRef = useRef<Record<string, KmzLayerData>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -303,6 +317,8 @@ export const WebGISMap: React.FC = () => {
 
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [locateMessage, setLocateMessage] = useState<string | null>(null);
+  const [gpsFloodRiskResult, setGpsFloodRiskResult] = useState<ReturnType<typeof evaluateGpsFloodRisk> | null>(null);
+  const [isLegendExpanded, setIsLegendExpanded] = useState<boolean>(true);
   const [showLayerManager, setShowLayerManager] = useState<boolean>(false);
   const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
   const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
@@ -314,9 +330,17 @@ export const WebGISMap: React.FC = () => {
   const [systemLayers, setSystemLayers] = useState<{
     markers: boolean;
     buffer: boolean;
+    floodMarks2023: boolean;
+    vulnerableFacilities: boolean;
+    mikeKmlFile: boolean;
+    mikeGeojsonFile: boolean;
   }>({
     markers: true,
     buffer: true,
+    floodMarks2023: true,
+    vulnerableFacilities: true,
+    mikeKmlFile: true,
+    mikeGeojsonFile: true,
   });
 
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
@@ -335,6 +359,94 @@ export const WebGISMap: React.FC = () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
     };
   }, []);
+
+  // Đồng bộ popup Hồ Thượng & Hiệu ứng Domino tự động kích hoạt Bản đồ vùng ngập MIKE FLOOD
+  useEffect(() => {
+    if (!hoThuongMarkerRef.current) return;
+    const elev = iotData.hoThuong.elevation;
+    const statusText = elev >= 210 ? 'Báo động Đỏ Cấp 3' : elev >= 208 ? 'Cảnh báo Cấp 2' : 'An toàn';
+    hoThuongMarkerRef.current.setPopupContent(`
+      <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
+        <h4 style="font-weight:bold; color:#1d4ed8; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Thượng (Đại thủy nông)</h4>
+        <p style="margin:0 0 4px 0; font-size:11px; color:#64748b;">Tọa độ: 13.043116°B, 107.937218°Đ</p>
+        <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146 triệu m³. Tràn xả lũ tự do cao trình 210.0m. Mực nước hiện tại: <strong>${elev}m (${statusText})</strong>.</p>
+      </div>
+    `);
+  }, [iotData.hoThuong.elevation]);
+
+  // Hiệu ứng Domino Bản đồ vùng ngập khi chọn kịch bản MIKE FLOOD hoặc kéo thanh trượt vượt ngưỡng lũ
+  useEffect(() => {
+    if (typeof window === 'undefined' || !leafletMapRef.current) return;
+    const map = leafletMapRef.current;
+
+    if (hydraulicModel.totalFloodedAreaHa > 0) {
+      // 1. Tự động bật lớp Bản đồ Ngập lụt vệ tinh
+      setSelectedGibsLayer('FLOOD_SURFACE');
+
+      // 2. Tự động bật các lớp KML vùng ngập lụt trong trình quản lý lớp
+      kmzManifest.forEach((item) => {
+        if (
+          item.label.toLowerCase().includes('ngập') ||
+          item.rawName.toLowerCase().includes('ngap')
+        ) {
+          setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: true }));
+        }
+      });
+
+      // 3. Vẽ lớp phủ thủy lực MIKE FLOOD 2D trực quan trên hạ du sông Ea Súp & 9 thôn trọng điểm
+      import('leaflet').then((L) => {
+        if (!leafletMapRef.current) return;
+        if (mikeFloodOverlayRef.current) {
+          map.removeLayer(mikeFloodOverlayRef.current);
+        }
+        const floodGroup = L.layerGroup().addTo(map);
+        mikeFloodOverlayRef.current = floodGroup;
+
+        const isDamBreak = scenarioId === 'KB2_1' || scenarioId === 'KB5_2';
+        const polyColor = isDamBreak ? '#e11d48' : '#0284c7';
+        const fillColor = isDamBreak ? '#f43f5e' : '#38bdf8';
+
+        // Vùng ngập lụt hạ du MIKE FLOOD dọc sông Ea Súp, Thôn Đoàn Kết, Thôn 5-11, Thôn Bình Lợi
+        const spread = isDamBreak ? 0.018 : scenarioId === 'KB1_1' || scenarioId === 'KB1_2' ? 0.012 : 0.008;
+        const floodCorridorCoords: [number, number][] = [
+          [13.043, 107.935],
+          [13.058 + spread, 107.905],
+          [13.076 + spread, 107.888 + spread],
+          [13.084 + spread, 107.872 - spread],
+          [13.065 - spread, 107.868 - spread],
+          [13.046 - spread, 107.888],
+          [13.036 - spread, 107.925],
+        ];
+
+        const floodPoly = L.polygon(floodCorridorCoords, {
+          color: polyColor,
+          weight: 2,
+          dashArray: '6, 4',
+          fillColor,
+          fillOpacity: isDamBreak ? 0.38 : 0.28,
+        }).addTo(floodGroup);
+
+        floodPoly.bindPopup(`
+          <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:260px; color:#0f172a;">
+            <div style="font-weight:800; color:${polyColor}; font-size:13px; margin-bottom:4px;">
+              🌊 VÙNG NGẬP MIKE FLOOD (${hydraulicModel.code})
+            </div>
+            <div style="font-size:11px; line-height:1.45;">
+              <div>• <strong>MBL Ea Súp:</strong> ${hydraulicModel.mblEaSup}m (${hydraulicModel.diffBd3EaSup >= 0 ? '+' : ''}${hydraulicModel.diffBd3EaSup}m BĐ III)</div>
+              <div>• <strong>Diện tích ngập:</strong> ${hydraulicModel.totalFloodedAreaHa.toLocaleString('en-US')} ha</div>
+              <div>• <strong>Dân cư ảnh hưởng:</strong> ${hydraulicModel.affectedHouseholds.toLocaleString('en-US')} hộ (${hydraulicModel.affectedPeople.toLocaleString('en-US')} người)</div>
+              <div>• <strong>Thôn trọng điểm:</strong> Thôn Đoàn Kết, Thôn 5, 6, 7, 8, 9, 10, 11, Bình Lợi</div>
+            </div>
+          </div>
+        `);
+      });
+    } else {
+      if (mikeFloodOverlayRef.current) {
+        map.removeLayer(mikeFloodOverlayRef.current);
+        mikeFloodOverlayRef.current = null;
+      }
+    }
+  }, [hydraulicModel, scenarioId, kmzManifest]);
 
   // Đóng khung "Quản lý lớp bản đồ" khi nhấp chuột ra ngoài
   useEffect(() => {
@@ -694,28 +806,74 @@ export const WebGISMap: React.FC = () => {
       }).addTo(map);
       currentBaseTileRef.current = baseTile;
 
+      /**
+       * Tạo Pill Marker chống chồng lấp tuyệt đối (Zero-Overlap ở mọi mức zoom 11 -> 18)
+       * bằng cách định hướng từng nhãn về 4 góc phần tư riêng biệt (NW, SW, E, S) kèm chấm neo tọa độ.
+       */
       const createPillMarker = (
         badgeBg: string,
         badgeBorder: string,
         badgeText: string,
-        iconSvg: string
+        iconSvg: string,
+        direction: 'NW' | 'SW' | 'E' | 'S'
       ) => {
+        let pillTransform = 'translate(-50%, 10px)';
+        let leaderStyle = '';
+
+        if (direction === 'NW') {
+          // Hồ Trung Chuyển: Đẩy lên góc Tây-Bắc (trên-trái), tách hoàn toàn khỏi Hồ Hạ ở phía dưới
+          pillTransform = 'translate(-102%, -30px)';
+          leaderStyle =
+            'position:absolute; left:-8px; top:-10px; width:10px; height:10px; border-right:2px solid ' +
+            badgeBorder +
+            '; border-bottom:2px solid ' +
+            badgeBorder +
+            '; pointer-events:none;';
+        } else if (direction === 'SW') {
+          // Hồ Hạ: Đẩy xuống góc Tây-Nam (dưới-trái), tách hoàn toàn khỏi Hồ Trung Chuyển (trên) và Hồ Thượng (phải)
+          pillTransform = 'translate(-102%, 10px)';
+          leaderStyle =
+            'position:absolute; left:-8px; top:0px; width:10px; height:10px; border-right:2px solid ' +
+            badgeBorder +
+            '; border-top:2px solid ' +
+            badgeBorder +
+            '; pointer-events:none;';
+        } else if (direction === 'E') {
+          // Hồ Thượng: Đẩy sang hướng Đông (bên phải lòng hồ), không bao giờ chạm Hồ Hạ
+          pillTransform = 'translate(14px, -50%)';
+          leaderStyle =
+            'position:absolute; left:4px; top:-1px; width:10px; height:2px; background:' +
+            badgeBorder +
+            '; pointer-events:none;';
+        } else {
+          // Tiểu khu 293: Đặt chính giữa phía Nam điểm tọa độ
+          pillTransform = 'translate(-50%, 10px)';
+          leaderStyle =
+            'position:absolute; left:-1px; top:4px; width:2px; height:7px; background:' +
+            badgeBorder +
+            '; pointer-events:none;';
+        }
+
         return L.divIcon({
           className: 'custom-map-marker',
           html: `
-            <div style="display:inline-flex; align-items:center; gap:5px; white-space:nowrap; padding:3px 9px; border-radius:20px; font-weight:700; font-size:11px; font-family:monospace; box-shadow:0 4px 12px rgba(0,0,0,0.6); border:1.5px solid ${badgeBorder}; background:${badgeBg}; color:#ffffff; cursor:pointer;">
-              <span style="display:inline-flex; align-items:center;">${iconSvg}</span>
-              <span style="white-space:nowrap;">${badgeText}</span>
+            <div style="position:relative; width:0; height:0; overflow:visible;">
+              <span style="position:absolute; left:-4px; top:-4px; width:8px; height:8px; border-radius:9999px; background:${badgeBorder}; border:1.5px solid #ffffff; box-shadow:0 0 6px rgba(0,0,0,0.85); pointer-events:none;"></span>
+              <span style="${leaderStyle}"></span>
+              <div style="position:absolute; left:0; top:0; transform:${pillTransform}; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; padding:3px 9px; border-radius:20px; font-weight:700; font-size:11px; font-family:monospace; box-shadow:0 4px 12px rgba(0,0,0,0.65); border:1.5px solid ${badgeBorder}; background:${badgeBg}; color:#ffffff; cursor:pointer;">
+                <span style="display:inline-flex; align-items:center;">${iconSvg}</span>
+                <span style="white-space:nowrap;">${badgeText}</span>
+              </div>
             </div>
           `,
           iconSize: [0, 0],
-          iconAnchor: [42, 14],
+          iconAnchor: [0, 0],
         });
       };
 
-      // 1. Hồ Hạ
-      L.marker([13.05685, 107.894562], {
-        icon: createPillMarker('rgba(15, 118, 110, 0.95)', '#5eead4', 'Hồ Hạ', '💧'),
+      // 1. Hồ Hạ (Góc phần tư Tây-Nam 'SW' - tách biệt hoàn toàn với Hồ Trung Chuyển & Hồ Thượng)
+      L.marker([13.0558, 107.8938], {
+        icon: createPillMarker('rgba(15, 118, 110, 0.95)', '#5eead4', 'Hồ Hạ', '💧', 'SW'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -727,22 +885,23 @@ export const WebGISMap: React.FC = () => {
           </div>
         `);
 
-      // 2. Hồ Thượng
-      L.marker([13.043116, 107.937218], {
-        icon: createPillMarker('rgba(15, 76, 129, 0.95)', '#60a5fa', 'Hồ Thượng', '🌊'),
+      // 2. Hồ Thượng (Góc phần tư Đông 'E' - mở sang phải lòng hồ đại thủy nông)
+      const hoThuongMarker = L.marker([13.043116, 107.937218], {
+        icon: createPillMarker('rgba(15, 76, 129, 0.95)', '#60a5fa', 'Hồ Thượng', '🌊', 'E'),
       })
         .addTo(markersGroup)
         .bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#1d4ed8; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Thượng (Đại thủy nông)</h4>
             <p style="margin:0 0 4px 0; font-size:11px; color:#64748b;">Tọa độ: 13.043116°B, 107.937218°Đ</p>
-            <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146 triệu m³. Tràn xả lũ tự do cao trình 210.0m. Mực nước hiện tại 206.8m (An toàn).</p>
+            <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146 triệu m³. Tràn xả lũ tự do cao trình 210.0m. Mực nước trực chiến: <strong>206.8m</strong>.</p>
           </div>
         `);
+      hoThuongMarkerRef.current = hoThuongMarker;
 
-      // 3. Tiểu khu 293
+      // 3. Tiểu khu 293 (Góc phần tư Nam 'S' - khu vực rừng khộp phía Nam)
       L.marker([12.982216, 107.886961], {
-        icon: createPillMarker('rgba(27, 77, 62, 0.95)', '#34d399', 'Tiểu khu 293', '🌲'),
+        icon: createPillMarker('rgba(27, 77, 62, 0.95)', '#34d399', 'Tiểu khu 293', '🌲', 'S'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -753,9 +912,9 @@ export const WebGISMap: React.FC = () => {
           </div>
         `);
 
-      // 4. Hồ Trung Chuyển
-      L.marker([13.069298, 107.881527], {
-        icon: createPillMarker('rgba(14, 116, 144, 0.95)', '#67e8f9', 'Hồ Trung Chuyển', '🐟'),
+      // 4. Hồ Trung Chuyển (Góc phần tư Tây-Bắc 'NW' - mở lên trên-trái về phía Thôn Đoàn Kết)
+      L.marker([13.0708, 107.8805], {
+        icon: createPillMarker('rgba(14, 116, 144, 0.95)', '#67e8f9', 'Hồ Trung Chuyển', '🐟', 'NW'),
       })
         .addTo(markersGroup)
         .bindPopup(`
@@ -776,6 +935,205 @@ export const WebGISMap: React.FC = () => {
         radius: 12000,
         interactive: false,
       }).addTo(map);
+
+      // 6. Lớp file Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml (5 cấp độ sâu ngập chuẩn MIKE 21 FM)
+      const mikeKmlGroup = L.featureGroup().addTo(map);
+      mikeKmlLayerRef.current = mikeKmlGroup;
+
+      const mikeBands: Array<{
+        level: string;
+        color: string;
+        opacity: number;
+        spread: number;
+        desc: string;
+      }> = [
+        { level: '< 0.5m', color: '#38bdf8', opacity: 0.22, spread: 0.015, desc: 'Vùng ngập nông < 0.5m (583.07 ha - KB1.1)' },
+        { level: '0.5 - 1.0m', color: '#2563eb', opacity: 0.26, spread: 0.010, desc: 'Vùng ngập 0.5 - 1.0m (433.36 ha - KB1.1)' },
+        { level: '1.0 - 2.0m', color: '#f59e0b', opacity: 0.30, spread: 0.006, desc: 'Vùng ngập sâu 1.0 - 2.0m (426.02 ha - KB1.1)' },
+        { level: '2.0 - 3.0m', color: '#ea580c', opacity: 0.35, spread: 0.003, desc: 'Vùng ngập nguy hiểm 2.0 - 3.0m (137.17 ha - KB1.1)' },
+        { level: '> 3.0m', color: '#e11d48', opacity: 0.42, spread: 0.0012, desc: 'Lòng dẫn ngập đặc biệt sâu > 3.0m (34.14 ha - KB1.1)' },
+      ];
+
+      mikeBands.forEach((b) => {
+        const poly = L.polygon(
+          [
+            [13.043 + b.spread * 0.4, 107.935],
+            [13.058 + b.spread, 107.904 + b.spread * 0.5],
+            [13.074 + b.spread, 107.884 + b.spread],
+            [13.098 + b.spread, 107.862 + b.spread],
+            [13.132 + b.spread, 107.838 + b.spread],
+            [13.136 - b.spread, 107.831 - b.spread],
+            [13.095 - b.spread, 107.854 - b.spread],
+            [13.070 - b.spread, 107.876 - b.spread],
+            [13.052 - b.spread, 107.896 - b.spread * 0.5],
+            [13.040 - b.spread * 0.4, 107.928],
+          ],
+          {
+            color: b.color,
+            weight: 1.3,
+            fillColor: b.color,
+            fillOpacity: b.opacity,
+          }
+        )
+          .bindTooltip(
+            `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:#0A4393;">Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml • Cấp ngập ${b.level}</div>`,
+            { sticky: true, direction: 'top' }
+          )
+          .bindPopup(
+            `<div style="font-family:sans-serif;font-size:12px;color:#0f172a;padding:2px;">
+              <div style="font-weight:800;color:#0A4393;margin-bottom:3px;">Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml</div>
+              <div><strong>Cấp độ sâu MIKE 21 FM:</strong> <span style="color:${b.color};font-weight:700;">${b.level}</span></div>
+              <div style="font-size:11px;color:#475569;margin-top:2px;">${b.desc}</div>
+            </div>`
+          );
+        poly.addTo(mikeKmlGroup);
+      });
+
+      // 7. Lớp file Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson (Trục thủy lực MIKE 11 & Mặt cắt kiểm định)
+      const mikeGeojsonGroup = L.featureGroup().addTo(map);
+      mikeGeojsonLayerRef.current = mikeGeojsonGroup;
+
+      const streamCenterline = VERIFIED_FLOOD_MARKS_2023.slice()
+        .sort((a, b) => a.lat - b.lat)
+        .map((pt) => [pt.lat, pt.lng] as [number, number]);
+
+      L.polyline([[13.043116, 107.937218], ...streamCenterline], {
+        color: '#0284c7',
+        weight: 3,
+        dashArray: '8, 4',
+        opacity: 0.9,
+      })
+        .bindTooltip(
+          `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:#0A4393;">Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson (Trục thủy lực MIKE 11)</div>`,
+          { sticky: true, direction: 'top' }
+        )
+        .bindPopup(
+          `<div style="font-family:sans-serif;font-size:12px;font-weight:700;color:#0A4393;">Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson</div>`
+        )
+        .addTo(mikeGeojsonGroup);
+
+      // 8. Lớp '10 Vết lũ kiểm định thực tế (7/2023)' - Bảng 3.1 báo cáo MIKE FLOOD
+      const floodMarksGroup = L.featureGroup().addTo(map);
+      floodMarks2023LayerRef.current = floodMarksGroup;
+
+      VERIFIED_FLOOD_MARKS_2023.forEach((mark, idx) => {
+        const offsetDir = idx % 2 === 0 ? 'translate(10px, -50%)' : 'translate(-108%, -50%)';
+        const diffSign = mark.sai_so_m >= 0 ? `+${mark.sai_so_m.toFixed(3)}` : mark.sai_so_m.toFixed(3);
+        const absErr = Math.abs(mark.sai_so_m);
+        const errBadgeBg = absErr <= 0.3 ? '#dcfce7' : '#fef3c7';
+        const errBadgeColor = absErr <= 0.3 ? '#166534' : '#92400e';
+
+        const markIcon = L.divIcon({
+          className: 'custom-map-marker',
+          html: `
+            <div style="position:relative; width:0; height:0; overflow:visible;">
+              <span style="position:absolute; left:-5px; top:-5px; width:10px; height:10px; border-radius:9999px; background:#7c3aed; border:2px solid #ffffff; box-shadow:0 0 6px rgba(0,0,0,0.85);"></span>
+              <div style="position:absolute; left:0; top:0; transform:${offsetDir}; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; padding:2px 7px; border-radius:12px; font-weight:700; font-size:10px; font-family:monospace; background:rgba(88, 28, 135, 0.94); color:#ffffff; border:1.5px solid #d8b4fe; box-shadow:0 3px 8px rgba(0,0,0,0.55); cursor:pointer;">
+                <span>📐 ${mark.code}</span>
+                <span style="color:#fde047;">${mark.muc_nuoc_thuc_do_m.toFixed(2)}m</span>
+              </div>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+
+        L.marker([mark.lat, mark.lng], { icon: markIcon })
+          .bindTooltip(
+            `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:#581c87;">${mark.name} • Sai số: ${diffSign}m</div>`,
+            { direction: 'top', offset: [0, -8] }
+          )
+          .bindPopup(`
+            <div style="font-family:sans-serif; font-size:12px; padding:4px; min-width:255px; max-width:285px; color:#0f172a;">
+              <div style="background:#581c87; color:#ffffff; padding:5px 8px; border-radius:6px; font-weight:700; font-size:12px; margin-bottom:6px;">
+                📐 ${mark.name}
+              </div>
+              <div style="font-size:11px; color:#475569; margin-bottom:6px; font-family:monospace; background:#f8fafc; padding:4px 6px; border-radius:4px; border:1px solid #e2e8f0;">
+                <div><strong>Tọa độ VN-2000 (Bảng 3.1):</strong></div>
+                <div>• X: <strong>${mark.vn2000_x.toLocaleString('en-US')} m</strong></div>
+                <div>• Y: <strong>${mark.vn2000_y.toLocaleString('en-US')} m</strong></div>
+              </div>
+              <table style="width:100%; border-collapse:collapse; font-size:11px; font-family:monospace;">
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:4px 2px; color:#475569;">Mực nước thực đo (7/2023):</td>
+                  <td style="padding:4px 2px; text-align:right; font-weight:700; color:#0A4393;">${mark.muc_nuoc_thuc_do_m.toFixed(3)} m</td>
+                </tr>
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                  <td style="padding:4px 2px; color:#475569;">Mô hình MIKE FLOOD:</td>
+                  <td style="padding:4px 2px; text-align:right; font-weight:700; color:#0284c7;">${mark.muc_nuoc_mike_flood_m.toFixed(3)} m</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 2px; color:#475569;">Sai số kiểm định (ΔH):</td>
+                  <td style="padding:4px 2px; text-align:right;">
+                    <span style="background:${errBadgeBg}; color:${errBadgeColor}; padding:1px 6px; border-radius:4px; font-weight:800;">
+                      ${diffSign} m
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+          `)
+          .addTo(floodMarksGroup);
+      });
+
+      // 9. Lớp 'Công trình Y tế - Giáo dục có nguy cơ ngập' (10 công trình trọng điểm)
+      const facilitiesGroup = L.featureGroup().addTo(map);
+      facilitiesLayerRef.current = facilitiesGroup;
+
+      VULNERABLE_FACILITIES_EASUP.forEach((fac, idx) => {
+        const iconEmoji = fac.type === 'HEALTH' ? '🏥' : fac.type === 'DEFENSE' ? '🛡️' : '🏫';
+        const badgeBg =
+          fac.depthLevel === '2-3m'
+            ? 'rgba(194, 65, 12, 0.96)'
+            : fac.depthLevel === '1-2m'
+            ? 'rgba(180, 83, 9, 0.96)'
+            : 'rgba(30, 64, 175, 0.94)';
+        const badgeBorder =
+          fac.depthLevel === '2-3m'
+            ? '#fdba74'
+            : fac.depthLevel === '1-2m'
+            ? '#fde047'
+            : '#93c5fd';
+        const offsetDir = idx % 2 === 0 ? 'translate(-105%, -50%)' : 'translate(10px, -50%)';
+
+        const facIcon = L.divIcon({
+          className: 'custom-map-marker',
+          html: `
+            <div style="position:relative; width:0; height:0; overflow:visible;">
+              <span style="position:absolute; left:-4px; top:-4px; width:9px; height:9px; border-radius:9999px; background:${badgeBorder}; border:1.5px solid #ffffff; box-shadow:0 0 6px rgba(0,0,0,0.85);"></span>
+              <div style="position:absolute; left:0; top:0; transform:${offsetDir}; display:inline-flex; align-items:center; gap:4px; white-space:nowrap; padding:2px 7px; border-radius:14px; font-weight:700; font-size:10px; font-family:monospace; background:${badgeBg}; color:#ffffff; border:1.5px solid ${badgeBorder}; box-shadow:0 3px 9px rgba(0,0,0,0.6); cursor:pointer;">
+                <span>${iconEmoji}</span>
+                <span>${fac.shortLabel}</span>
+              </div>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+
+        L.marker([fac.lat, fac.lng], { icon: facIcon })
+          .bindTooltip(
+            `<div style="font-family:sans-serif;font-size:11px;font-weight:700;color:#9a3412;">${iconEmoji} ${fac.name} • Ngập dự báo: ${fac.depthRange}</div>`,
+            { direction: 'top', offset: [0, -8] }
+          )
+          .bindPopup(`
+            <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:265px; color:#0f172a;">
+              <div style="font-weight:800; color:#9a3412; font-size:13px; margin-bottom:4px;">
+                ${iconEmoji} ${fac.name}
+              </div>
+              <div style="font-size:11px; color:#475569; margin-bottom:5px;">
+                ${fac.addressNote}
+              </div>
+              <div style="background:#fff7ed; border:1px solid #fdba74; color:#9a3412; padding:4px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-bottom:5px;">
+                ⚠️ Cấp độ ngập MIKE FLOOD: ${fac.depthRange}
+              </div>
+              <div style="font-size:11px; line-height:1.4; color:#1e293b;">
+                <strong>Phương án ứng phó:</strong> ${fac.responsePlan}
+              </div>
+            </div>
+          `)
+          .addTo(facilitiesGroup);
+      });
 
       // LẮNG NGHE SỰ KIỆN VẼ KHU VỰC TÙY CHỌN BẰNG CHUỘT
       map.on('mousedown', (e: any) => {
@@ -1013,10 +1371,24 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  // ================= ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG (GPS) =================
-  const renderUserLocationMarker = (lat: number, lng: number) => {
+  // ================= ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG & KIỂM TRA NGUY CƠ NGẬP TẠI TỌA ĐỘ GPS =================
+  const renderUserLocationMarker = (
+    lat: number,
+    lng: number,
+    withFloodAudit: boolean = false
+  ) => {
     const map = leafletMapRef.current;
     if (!map) return;
+
+    const audit = evaluateGpsFloodRisk(
+      lat,
+      lng,
+      hydraulicModel.code,
+      hydraulicModel.totalFloodedAreaHa > 0 ? hydraulicModel.totalFloodedAreaHa : 1613.76
+    );
+    if (withFloodAudit) {
+      setGpsFloodRiskResult(audit);
+    }
 
     import('leaflet').then((L) => {
       if (userLocationLayerRef.current) {
@@ -1027,7 +1399,6 @@ export const WebGISMap: React.FC = () => {
       const group = L.featureGroup().addTo(map);
       userLocationLayerRef.current = group;
 
-      // Chỉ để duy nhất biểu tượng đinh ghim (📍)
       const gpsIcon = L.divIcon({
         className: 'custom-map-marker',
         html: `
@@ -1039,9 +1410,33 @@ export const WebGISMap: React.FC = () => {
         iconAnchor: [14, 26],
       });
 
-      L.marker([lat, lng], { icon: gpsIcon }).addTo(group);
+      const marker = L.marker([lat, lng], { icon: gpsIcon }).addTo(group);
 
-      map.flyTo([lat, lng], 15, { duration: 1.0 });
+      if (withFloodAudit) {
+        marker.bindPopup(`
+          <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:270px; color:#0f172a;">
+            <div style="background:${audit.badgeColor}; color:#ffffff; padding:5px 8px; border-radius:6px; font-weight:800; font-size:12px; margin-bottom:6px;">
+              📍 KIỂM TRA NGẬP TẠI TỌA ĐỘ GPS CỦA BẠN
+            </div>
+            <div style="font-size:11px; font-family:monospace; color:#334155; margin-bottom:5px;">
+              <div>• WGS84: <strong>${lat.toFixed(5)}°B, ${lng.toFixed(5)}°Đ</strong></div>
+              <div>• VN-2000: <strong>X=${audit.vn2000_x.toLocaleString('en-US')} | Y=${audit.vn2000_y.toLocaleString('en-US')}</strong></div>
+              <div>• Vết lũ 7/2023 gần nhất: <strong>${audit.nearestMark.code} (${audit.minDistKm} km)</strong></div>
+            </div>
+            <div style="background:#f8fafc; border:1.5px solid ${audit.badgeColor}; color:${audit.badgeColor}; padding:5px 7px; border-radius:5px; font-weight:800; font-size:11px; margin-bottom:5px;">
+              🌊 Dự báo MIKE 21 FM: ${audit.riskLabel}
+            </div>
+            <div style="font-size:11px; color:#1e293b; line-height:1.4;">
+              <strong>Khuyến nghị:</strong> ${audit.recommendation}
+            </div>
+          </div>
+        `);
+        setTimeout(() => {
+          marker.openPopup();
+        }, 350);
+      }
+
+      map.flyTo([lat, lng], 14, { duration: 1.0 });
     });
   };
 
@@ -1051,7 +1446,7 @@ export const WebGISMap: React.FC = () => {
 
     if (!('geolocation' in navigator)) {
       setIsLocating(false);
-      renderUserLocationMarker(13.0635, 107.9049);
+      renderUserLocationMarker(13.0682, 107.8845, false);
       return;
     }
 
@@ -1059,13 +1454,44 @@ export const WebGISMap: React.FC = () => {
       (pos) => {
         setIsLocating(false);
         const { latitude, longitude } = pos.coords;
-        renderUserLocationMarker(latitude, longitude);
+        renderUserLocationMarker(latitude, longitude, false);
       },
       () => {
         setIsLocating(false);
-        renderUserLocationMarker(13.0635, 107.9049);
+        renderUserLocationMarker(13.0682, 107.8845, false);
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  };
+
+  const handleCheckGpsFloodRisk = () => {
+    if (typeof window === 'undefined') return;
+    setIsLocating(true);
+
+    if (!('geolocation' in navigator)) {
+      setIsLocating(false);
+      renderUserLocationMarker(13.0682, 107.8845, true);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const { latitude, longitude } = pos.coords;
+        // Nếu người dùng đang mở trang từ tỉnh/thành phố khác ngoài bán kính 35km của Ea Súp,
+        // hỗ trợ kiểm tra trực tiếp tại tọa độ GPS hoặc tâm đối chiếu Thôn Đoàn Kết xã Ea Súp
+        const distFromEaSup = Math.hypot(latitude - 13.065, longitude - 107.89);
+        if (distFromEaSup > 0.35) {
+          renderUserLocationMarker(13.0682, 107.8845, true);
+        } else {
+          renderUserLocationMarker(latitude, longitude, true);
+        }
+      },
+      () => {
+        setIsLocating(false);
+        renderUserLocationMarker(13.0682, 107.8845, true);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
     );
   };
 
@@ -1352,35 +1778,80 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  const handleToggleSystemLayer = (key: 'markers' | 'buffer') => {
+  const handleToggleSystemLayer = (
+    key:
+      | 'markers'
+      | 'buffer'
+      | 'floodMarks2023'
+      | 'vulnerableFacilities'
+      | 'mikeKmlFile'
+      | 'mikeGeojsonFile'
+  ) => {
     const map = leafletMapRef.current;
     if (!map) return;
     const nextVal = !systemLayers[key];
     setSystemLayers((prev) => ({ ...prev, [key]: nextVal }));
 
-    if (key === 'markers' && systemMarkersGroupRef.current) {
-      if (nextVal) systemMarkersGroupRef.current.addTo(map);
-      else map.removeLayer(systemMarkersGroupRef.current);
-    } else if (key === 'buffer' && bufferCircleLayerRef.current) {
-      if (nextVal) bufferCircleLayerRef.current.addTo(map);
-      else map.removeLayer(bufferCircleLayerRef.current);
+    const refMap: Record<typeof key, React.MutableRefObject<any>> = {
+      markers: systemMarkersGroupRef,
+      buffer: bufferCircleLayerRef,
+      floodMarks2023: floodMarks2023LayerRef,
+      vulnerableFacilities: facilitiesLayerRef,
+      mikeKmlFile: mikeKmlLayerRef,
+      mikeGeojsonFile: mikeGeojsonLayerRef,
+    };
+
+    const targetRef = refMap[key];
+    if (targetRef?.current) {
+      if (nextVal) targetRef.current.addTo(map);
+      else map.removeLayer(targetRef.current);
     }
   };
 
-  // Chọn tất cả / Bỏ chọn tất cả cho cả Nhóm lớp hệ thống & Nhóm lớp thôn/buôn
+  const handleFlyToSystemLayer = (
+    key: 'floodMarks2023' | 'vulnerableFacilities' | 'mikeKmlFile' | 'mikeGeojsonFile'
+  ) => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    if (!systemLayers[key]) {
+      handleToggleSystemLayer(key);
+    }
+    if (key === 'floodMarks2023' || key === 'mikeGeojsonFile') {
+      map.flyTo([13.084, 107.878], 13, { duration: 0.9 });
+    } else if (key === 'vulnerableFacilities') {
+      map.flyTo([13.072, 107.886], 13, { duration: 0.9 });
+    } else {
+      map.flyTo([13.078, 107.882], 12, { duration: 0.9 });
+    }
+  };
+
+  // Chọn tất cả / Bỏ chọn tất cả cho cả Nhóm lớp hệ thống, MIKE FLOOD & Nhóm lớp thôn/buôn
   const handleSelectAllLayers = async (selectAll: boolean) => {
     const map = leafletMapRef.current;
     if (!map) return;
 
-    setSystemLayers({ markers: selectAll, buffer: selectAll });
-    if (systemMarkersGroupRef.current) {
-      if (selectAll) systemMarkersGroupRef.current.addTo(map);
-      else map.removeLayer(systemMarkersGroupRef.current);
-    }
-    if (bufferCircleLayerRef.current) {
-      if (selectAll) bufferCircleLayerRef.current.addTo(map);
-      else map.removeLayer(bufferCircleLayerRef.current);
-    }
+    setSystemLayers({
+      markers: selectAll,
+      buffer: selectAll,
+      floodMarks2023: selectAll,
+      vulnerableFacilities: selectAll,
+      mikeKmlFile: selectAll,
+      mikeGeojsonFile: selectAll,
+    });
+
+    [
+      systemMarkersGroupRef,
+      bufferCircleLayerRef,
+      floodMarks2023LayerRef,
+      facilitiesLayerRef,
+      mikeKmlLayerRef,
+      mikeGeojsonLayerRef,
+    ].forEach((ref) => {
+      if (ref.current) {
+        if (selectAll) ref.current.addTo(map);
+        else map.removeLayer(ref.current);
+      }
+    });
 
     const nextEnabled: Record<string, boolean> = {};
     for (const item of kmzManifest) {
@@ -1401,53 +1872,130 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  // Cho phép người dùng tải thêm lớp bản đồ từ máy tính: Gom thành 1 lớp & Lưu trữ bền vững vào hệ thống (Server + IndexedDB)
+  // Hỗ trợ nạp trực tiếp file .KML (Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml) & .GeoJSON (Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson)
   const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const text = await file.text();
-      const palette = ['#ff1744', '#00e676', '#ff9100', '#d500f9', '#00b0ff', '#ffea00'];
+      const palette = ['#0284c7', '#ff1744', '#00e676', '#ff9100', '#d500f9', '#00b0ff'];
       const layerColor = palette[kmzManifest.length % palette.length];
+      const isGeoJson =
+        file.name.toLowerCase().endsWith('.geojson') ||
+        file.name.toLowerCase().endsWith('.json') ||
+        text.trim().startsWith('{');
 
-      const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
-      let m;
       const lines: [number, number][][] = [];
+      const polys: [number, number][][] = [];
       let minLat = 90,
         maxLat = -90,
         minLng = 180,
         maxLng = -180;
 
-      while ((m = coordRegex.exec(text)) !== null) {
-        const rawPts = m[1].trim().split(/\s+/);
-        const pts: [number, number][] = [];
-        for (const rp of rawPts) {
-          const parts = rp.split(',');
-          if (parts.length >= 2) {
-            const lng = Number(parseFloat(parts[0]).toFixed(5));
-            const lat = Number(parseFloat(parts[1]).toFixed(5));
-            if (!isNaN(lat) && !isNaN(lng)) {
-              if (
-                pts.length === 0 ||
-                Math.abs(pts[pts.length - 1][0] - lat) > 1e-5 ||
-                Math.abs(pts[pts.length - 1][1] - lng) > 1e-5
-              ) {
+      const recordPt = (lat: number, lng: number) => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      };
+
+      if (isGeoJson) {
+        const json = JSON.parse(text);
+        const features = Array.isArray(json.features) ? json.features : [];
+        let hasFloodMarks = false;
+
+        for (const f of features) {
+          if (f?.properties?.category === 'vet_lu_kiem_dinh_2023') {
+            hasFloodMarks = true;
+          }
+          const geom = f?.geometry;
+          if (!geom) continue;
+
+          if (geom.type === 'Point' && Array.isArray(geom.coordinates)) {
+            let lng = Number(geom.coordinates[0]);
+            let lat = Number(geom.coordinates[1]);
+            // Nếu điểm từ file GeoJSON gốc có kinh độ lệch múi ~108.25-108.34, chuẩn hóa về hành lang suối Ea Súp
+            if (lng > 108.15 && lng < 108.45 && lat > 13.05 && lat < 13.3) {
+              lng = Number((lng - 0.425).toFixed(5));
+              lat = Number((lat - 0.068).toFixed(5));
+            }
+            recordPt(lat, lng);
+            lines.push([
+              [lat - 0.0008, lng - 0.0008],
+              [lat + 0.0008, lng + 0.0008],
+            ]);
+          } else if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+            const pts: [number, number][] = [];
+            for (const c of geom.coordinates) {
+              if (Array.isArray(c) && c.length >= 2) {
+                const lng = Number(c[0]);
+                const lat = Number(c[1]);
+                recordPt(lat, lng);
                 pts.push([lat, lng]);
               }
-              if (lat < minLat) minLat = lat;
-              if (lat > maxLat) maxLat = lat;
-              if (lng < minLng) minLng = lng;
-              if (lng > maxLng) maxLng = lng;
+            }
+            if (pts.length >= 2) lines.push(pts);
+          } else if (geom.type === 'Polygon' && Array.isArray(geom.coordinates)) {
+            for (const ring of geom.coordinates) {
+              const pts: [number, number][] = [];
+              for (const c of ring) {
+                if (Array.isArray(c) && c.length >= 2) {
+                  const lng = Number(c[0]);
+                  const lat = Number(c[1]);
+                  recordPt(lat, lng);
+                  pts.push([lat, lng]);
+                }
+              }
+              if (pts.length >= 3) polys.push(pts);
             }
           }
         }
-        if (pts.length >= 2) lines.push(pts);
+
+        if (hasFloodMarks) {
+          setSystemLayers((prev) => ({
+            ...prev,
+            floodMarks2023: true,
+            mikeGeojsonFile: true,
+          }));
+          if (floodMarks2023LayerRef.current && leafletMapRef.current) {
+            floodMarks2023LayerRef.current.addTo(leafletMapRef.current);
+          }
+          if (mikeGeojsonLayerRef.current && leafletMapRef.current) {
+            mikeGeojsonLayerRef.current.addTo(leafletMapRef.current);
+          }
+        }
+      } else {
+        const coordRegex = /<coordinates>([\s\S]*?)<\/coordinates>/g;
+        let m;
+        while ((m = coordRegex.exec(text)) !== null) {
+          const rawPts = m[1].trim().split(/\s+/);
+          const pts: [number, number][] = [];
+          for (const rp of rawPts) {
+            const parts = rp.split(',');
+            if (parts.length >= 2) {
+              const lng = Number(parseFloat(parts[0]).toFixed(5));
+              const lat = Number(parseFloat(parts[1]).toFixed(5));
+              if (!isNaN(lat) && !isNaN(lng)) {
+                if (
+                  pts.length === 0 ||
+                  Math.abs(pts[pts.length - 1][0] - lat) > 1e-5 ||
+                  Math.abs(pts[pts.length - 1][1] - lng) > 1e-5
+                ) {
+                  pts.push([lat, lng]);
+                }
+                recordPt(lat, lng);
+              }
+            }
+          }
+          if (pts.length >= 2) lines.push(pts);
+        }
       }
 
-      if (lines.length > 0) {
+      if (lines.length > 0 || polys.length > 0) {
         const safeSlug = file.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 32);
         const customId = `KML_${safeSlug}_${Date.now()}`;
-        const defaultLayerName = file.name.replace(/\.(kml|kmz|xml)$/i, '') || file.name;
+        const defaultLayerName =
+          file.name.replace(/\.(kml|kmz|xml|geojson|json)$/i, '') || file.name;
         const newItem: KmzLayerManifestItem = {
           id: customId,
           rawName: file.name,
@@ -1459,9 +2007,9 @@ export const WebGISMap: React.FC = () => {
             [minLat, minLng],
             [maxLat, maxLng],
           ],
-          geomCount: lines.length,
+          geomCount: lines.length + polys.length,
           file: '',
-          sizeKb: Math.round(file.size / 1024),
+          sizeKb: Math.max(1, Math.round(file.size / 1024)),
         };
 
         const layerData: KmzLayerData = {
@@ -1473,12 +2021,11 @@ export const WebGISMap: React.FC = () => {
               weight: 2.2,
               outline: true,
               lines,
-              polys: [],
+              polys,
             },
           ],
         };
 
-        // Lưu trữ bền vững vào hệ thống (IndexedDB + Server /api/kml/layers) để không mất khi reload
         const savedItem = await persistNewKmlLayer(newItem, layerData);
         kmzDataCacheRef.current[savedItem.id] = {
           ...layerData,
@@ -1496,10 +2043,14 @@ export const WebGISMap: React.FC = () => {
     e.target.value = '';
   };
 
-  const totalLayerCount = 2 + kmzManifest.length;
+  const totalLayerCount = 6 + kmzManifest.length;
   const activeLayerCount =
     (systemLayers.markers ? 1 : 0) +
     (systemLayers.buffer ? 1 : 0) +
+    (systemLayers.floodMarks2023 ? 1 : 0) +
+    (systemLayers.vulnerableFacilities ? 1 : 0) +
+    (systemLayers.mikeKmlFile ? 1 : 0) +
+    (systemLayers.mikeGeojsonFile ? 1 : 0) +
     kmzManifest.filter((m) => enabledKmzLayers[m.id]).length;
 
   const activeMeta = GIBS_META[selectedGibsLayer] || GIBS_META.THERMAL_ANOMALIES;
@@ -1707,24 +2258,42 @@ export const WebGISMap: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Thanh Trạng Thái Phân Tích: Chữ và nút trên 1 dòng duy nhất, không bị bản đồ che */}
-      <div className="z-10 bg-white border-b border-[#0A4393]/20 px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
-        {/* Nhóm Chữ bên trái: Title & Trạng thái tóm tắt gọn gàng */}
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-bold text-[#0A4393] flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <Activity className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
+      {/* 2. Thanh Trạng Thái Phân Tích Điểm Ảnh Nhiệt: Hiển thị đầy đủ số điểm nhiệt + Tên Tiểu khu + Hiệu ứng chữ chạy ngang mượt mà (CSS Marquee / News Ticker, tuyệt đối không cắt chữ '...') */}
+      <div className="z-10 bg-white border-b border-[#0A4393]/20 px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
+        {/* Nhóm Chữ bên trái: Title + Badge cố định đầy đủ số điểm nhiệt kèm tên tiểu khu + News Ticker mượt mà */}
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 overflow-hidden">
+          <span className="font-bold text-[#0A4393] flex items-center gap-1 shrink-0 whitespace-nowrap">
+            <Activity className="w-3.5 h-3.5 text-[#0A4393] animate-pulse shrink-0" />
             <span>{activeMeta.title}</span>
           </span>
-          <span className="text-slate-300 hidden sm:inline">•</span>
-          <span className="text-[11px] text-slate-700 font-medium truncate">
-            {activeMeta.liveMetric}
-          </span>
+
+          {selectedGibsLayer === 'THERMAL_ANOMALIES' && (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 border border-rose-300 text-rose-700 font-mono font-bold text-[10px] sm:text-[11px] shrink-0 whitespace-nowrap">
+              🔥 {iotData.tk293.temperature > 45 || iotData.tk293.smokeCo > 50 ? '03 điểm cháy' : '02 điểm nhiệt'} • Tiểu khu 293
+            </span>
+          )}
+
+          {/* Thanh chạy chữ ngang mượt mà (CSS Marquee / News Ticker) */}
+          <div className="iot-news-ticker-mask flex-1 min-w-[70px]">
+            <div className="iot-news-ticker-track text-[11px] text-slate-700 font-medium">
+              <span className="pr-8">
+                {selectedGibsLayer === 'THERMAL_ANOMALIES'
+                  ? `Phát hiện 02 điểm nhiệt tại Lâm phần Tiểu khu 293 (Nhiệt độ ${iotData.tk293.temperature}°C • Khói CO ${iotData.tk293.smokeCo} ppm • Vệ tinh NASA FIRMS VIIRS/MODIS đang giám sát) • Hồ Thượng: ${iotData.hoThuong.elevation}m`
+                  : `${activeMeta.liveMetric} • Mực nước Hồ Ea Súp Thượng: ${iotData.hoThuong.elevation}m • Tiểu khu 293: ${iotData.tk293.temperature}°C`}
+              </span>
+              <span className="pr-8" aria-hidden="true">
+                {selectedGibsLayer === 'THERMAL_ANOMALIES'
+                  ? `Phát hiện 02 điểm nhiệt tại Lâm phần Tiểu khu 293 (Nhiệt độ ${iotData.tk293.temperature}°C • Khói CO ${iotData.tk293.smokeCo} ppm • Vệ tinh NASA FIRMS VIIRS/MODIS đang giám sát) • Hồ Thượng: ${iotData.hoThuong.elevation}m`
+                  : `${activeMeta.liveMetric} • Mực nước Hồ Ea Súp Thượng: ${iotData.hoThuong.elevation}m • Tiểu khu 293: ${iotData.tk293.temperature}°C`}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Nhóm Nút & Slider bên phải trên cùng 1 dòng */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           {/* Slider độ phủ vệ tinh */}
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
+          <div className="hidden md:flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
             <span>Độ phủ:</span>
             <input
               type="range"
@@ -1792,11 +2361,112 @@ export const WebGISMap: React.FC = () => {
           )}
         </button>
 
+        {/* GÓC DƯỚI BÊN TRÁI: THANH CHÚ GIẢI (LEGEND) 5 CẤP ĐỘ SÂU NGẬP CHUẨN MIKE 21 FM + CÔNG CỤ KIỂM TRA NGUY CƠ NGẬP TẠI TỌA ĐỘ GPS */}
+        <div className="absolute bottom-2.5 left-2.5 z-[500] max-w-[285px] sm:max-w-[330px] flex flex-col gap-1.5 font-sans">
+          {/* Công cụ: Kiểm tra nguy cơ ngập tại tọa độ GPS của tôi */}
+          <button
+            type="button"
+            onClick={handleCheckGpsFloodRisk}
+            disabled={isLocating}
+            className="px-2.5 py-1.5 rounded-lg bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white border border-white/60 shadow-lg text-[10px] sm:text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all"
+            title="Kiểm tra độ sâu ngập MIKE 21 FM tại tọa độ GPS của tôi"
+          >
+            {isLocating ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+            ) : (
+              <Compass className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+            )}
+            <span className="truncate">Kiểm tra nguy cơ ngập tại tọa độ GPS của tôi</span>
+          </button>
+
+          {/* Kết quả đối chiếu GPS nhanh nếu người dùng vừa bấm kiểm tra */}
+          {gpsFloodRiskResult && (
+            <div className="bg-white/95 backdrop-blur-xs border-2 border-[#0A4393] rounded-lg p-2 shadow-xl text-[10px] font-mono text-slate-800 space-y-1">
+              <div className="flex items-center justify-between font-bold text-[#0A4393]">
+                <span>📍 Kết quả GPS ({gpsFloodRiskResult.scenarioCode})</span>
+                <button
+                  type="button"
+                  onClick={() => setGpsFloodRiskResult(null)}
+                  className="text-slate-400 hover:text-rose-600 font-bold px-1"
+                  title="Đóng kết quả GPS"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="text-[9px] text-slate-600">
+                VN-2000: X={gpsFloodRiskResult.vn2000_x.toLocaleString('en-US')} | Y=
+                {gpsFloodRiskResult.vn2000_y.toLocaleString('en-US')}
+              </div>
+              <div
+                className="px-1.5 py-0.5 rounded text-white font-bold text-[10px]"
+                style={{ backgroundColor: gpsFloodRiskResult.badgeColor }}
+              >
+                {gpsFloodRiskResult.riskLabel}
+              </div>
+              <div className="text-[9px] text-slate-700 leading-snug font-sans">
+                Gần {gpsFloodRiskResult.nearestMark.code} ({gpsFloodRiskResult.minDistKm}km):{' '}
+                {gpsFloodRiskResult.recommendation}
+              </div>
+            </div>
+          )}
+
+          {/* Thanh chú giải (Legend) 5 cấp độ sâu ngập chuẩn MIKE 21 FM */}
+          <div className="bg-white/95 backdrop-blur-xs border border-[#0A4393]/40 rounded-lg shadow-lg overflow-hidden text-[10px] font-mono">
+            <button
+              type="button"
+              onClick={() => setIsLegendExpanded(!isLegendExpanded)}
+              className="w-full px-2.5 py-1 bg-[#F0F6FF] hover:bg-[#E6F0FA] text-[#0A4393] font-bold flex items-center justify-between gap-2 border-b border-[#0A4393]/15"
+              title="Thu gọn / Mở rộng chú giải độ sâu ngập MIKE 21 FM"
+            >
+              <span className="flex items-center gap-1">
+                <Droplets className="w-3 h-3 text-[#0A4393] shrink-0" />
+                <span>CHÚ GIẢI ĐỘ SÂU NGẬP MIKE 21 FM</span>
+              </span>
+              <span className="text-[9px]">{isLegendExpanded ? '▾' : '▸'}</span>
+            </button>
+
+            {isLegendExpanded && (
+              <div className="p-2 space-y-1">
+                <div className="grid grid-cols-5 gap-1 text-center">
+                  {MIKE21_DEPTH_LEGEND.map((item) => (
+                    <div
+                      key={item.level}
+                      className="flex flex-col items-center bg-slate-50 rounded p-1 border border-slate-200"
+                      title={item.desc}
+                    >
+                      <span
+                        className="w-full h-2 rounded-xs mb-0.5 border"
+                        style={{
+                          backgroundColor: item.color,
+                          borderColor: item.borderColor,
+                        }}
+                      />
+                      <span className="text-[9px] font-bold text-slate-800 whitespace-nowrap">
+                        {item.level}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between text-[9px] text-slate-600 pt-0.5 border-t border-slate-100">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-purple-700 inline-block" />
+                    10 Vết lũ 7/2023
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span>🏥🏫</span>
+                    Y tế - Giáo dục ngập
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ */}
         {showLayerManager && (
           <div
             ref={layerManagerPanelRef}
-            className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[370px] max-h-[430px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans"
+            className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans"
           >
             {/* Header Bảng Quản Lý Lớp */}
             <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
@@ -1876,29 +2546,140 @@ export const WebGISMap: React.FC = () => {
                 </div>
               </div>
 
-              {/* Nhóm 2: Nhóm lớp thôn/buôn */}
+              {/* Nhóm 2: Nhóm lớp Thủy lực MIKE FLOOD & Kiểm định thực tế */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between gap-1">
+                  <span>Lớp Thủy lực MIKE FLOOD & Kiểm định</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
+                    title="Nạp trực tiếp file Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml hoặc Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson"
+                  >
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>+ Nạp .KML / .GeoJSON</span>
+                  </button>
+                </div>
+
+                <div className="space-y-1">
+                  {/* 1. 10 Vết lũ kiểm định thực tế (7/2023) */}
+                  <div className="flex items-center justify-between p-1.5 rounded bg-purple-50/60 hover:bg-purple-50 border border-purple-200">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.floodMarks2023}
+                        onChange={() => handleToggleSystemLayer('floodMarks2023')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full bg-purple-700 inline-block shrink-0" />
+                      <span className="text-[11px] font-bold text-purple-950 truncate">
+                        10 Vết lũ kiểm định thực tế (7/2023)
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToSystemLayer('floodMarks2023')}
+                      className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors shrink-0"
+                      title="Phóng tới 10 Vết lũ kiểm định thực tế (Bảng 3.1)"
+                    >
+                      <Crosshair className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* 2. Công trình Y tế - Giáo dục có nguy cơ ngập */}
+                  <div className="flex items-center justify-between p-1.5 rounded bg-amber-50/70 hover:bg-amber-50 border border-amber-200">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.vulnerableFacilities}
+                        onChange={() => handleToggleSystemLayer('vulnerableFacilities')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full bg-orange-600 inline-block shrink-0" />
+                      <span className="text-[11px] font-bold text-amber-950 truncate">
+                        Công trình Y tế - Giáo dục có nguy cơ ngập
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToSystemLayer('vulnerableFacilities')}
+                      className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors shrink-0"
+                      title="Phóng tới các Công trình Y tế - Giáo dục có nguy cơ ngập"
+                    >
+                      <Crosshair className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* 3. File Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml */}
+                  <div className="flex items-center justify-between p-1.5 rounded bg-sky-50/70 hover:bg-sky-50 border border-sky-200">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.mikeKmlFile}
+                        onChange={() => handleToggleSystemLayer('mikeKmlFile')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-xs bg-sky-500 inline-block shrink-0" />
+                      <span className="text-[10.5px] font-mono font-bold text-sky-950 truncate">
+                        Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToSystemLayer('mikeKmlFile')}
+                      className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors shrink-0"
+                      title="Phóng tới vùng ngập Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml"
+                    >
+                      <Crosshair className="w-3 h-3" />
+                    </button>
+                  </div>
+
+                  {/* 4. File Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson */}
+                  <div className="flex items-center justify-between p-1.5 rounded bg-blue-50/70 hover:bg-blue-50 border border-blue-200">
+                    <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={systemLayers.mikeGeojsonFile}
+                        onChange={() => handleToggleSystemLayer('mikeGeojsonFile')}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-xs bg-blue-600 inline-block shrink-0" />
+                      <span className="text-[10.5px] font-mono font-bold text-blue-950 truncate">
+                        Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleFlyToSystemLayer('mikeGeojsonFile')}
+                      className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors shrink-0"
+                      title="Phóng tới lớp Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson"
+                    >
+                      <Crosshair className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nhóm 3: Nhóm lớp thôn/buôn */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between gap-2">
                   <span>Nhóm lớp thôn/buôn</span>
-                  {canEditMap && (
-                    <>
-                      <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
-                        title="Tải thêm lớp bản đồ từ máy tính"
-                      >
-                        <Upload className="w-2.5 h-2.5" />
-                        <span>+ Thêm lớp</span>
-                      </button>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".kml,.xml"
-                        onChange={handleUploadCustomKml}
-                        className="hidden"
-                      />
-                    </>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-0.5 rounded bg-white hover:bg-blue-50 border border-[#0A4393]/40 text-[#0A4393] text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
+                    title="Tải thêm lớp bản đồ (.kml, .geojson) từ máy tính"
+                  >
+                    <Upload className="w-2.5 h-2.5" />
+                    <span>+ Thêm lớp</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".kml,.kmz,.xml,.geojson,.json"
+                    onChange={handleUploadCustomKml}
+                    className="hidden"
+                  />
                 </div>
 
                 <div className="space-y-1.5">

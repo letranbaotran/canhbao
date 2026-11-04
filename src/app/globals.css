@@ -205,3 +205,34 @@ select:disabled {
 .siren-wobble {
   animation: siren-ring 0.6s infinite ease-in-out;
 }
+
+/* Hiệu ứng chữ chạy ngang mượt mà (CSS Marquee / News Ticker) cho Thanh Cảnh Báo Điểm Ảnh Nhiệt */
+@keyframes iot-marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.iot-news-ticker-mask {
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+  mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+}
+
+.iot-news-ticker-track {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+  animation: iot-marquee-scroll 18s linear infinite;
+}
+
+.iot-news-ticker-track:hover,
+.iot-news-ticker-track:active {
+  animation-play-state: paused;
+}

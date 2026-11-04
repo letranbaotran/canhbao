@@ -9,6 +9,7 @@ export interface ArticleAudioPlayerProps {
   audioUrl?: string;
   voiceLabel?: string;
   content?: string;
+  autoPlayTrigger?: number;
 }
 
 export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
@@ -17,6 +18,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   audioUrl = '/storage/tts/sample_annhien_alert.mp3',
   voiceLabel = 'Nữ (1.4X)',
   content,
+  autoPlayTrigger = 0,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -89,6 +91,39 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       };
     }
   }, []);
+
+  // Tự động đồng bộ thời lượng và cập nhật giọng đọc ngay lập tức khi nội dung truyền thanh thay đổi từ Global Store
+  useEffect(() => {
+    const wordsCount = textToRead.split(/\s+/).length;
+    const estimatedSecs = Math.max(10, Math.round((wordsCount / (170 * playbackRate)) * 60));
+    setDuration(estimatedSecs);
+    setCurrentTime(0);
+
+    if (isPlaying) {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      const restartTimeout = setTimeout(() => {
+        startSpeech(playbackRate);
+      }, 60);
+      return () => clearTimeout(restartTimeout);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [textToRead]);
+
+  // Hiệu ứng Domino: Tự động kích hoạt phát thanh Loa truyền thanh số khi người dùng chọn Kịch bản MIKE FLOOD
+  useEffect(() => {
+    if (!autoPlayTrigger || autoPlayTrigger <= 0) return;
+    const autoTimer = setTimeout(() => {
+      startSpeech(playbackRate);
+    }, 80);
+    return () => clearTimeout(autoTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlayTrigger]);
 
   // Dọn dẹp khi unmount
   useEffect(() => {

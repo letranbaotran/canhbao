@@ -1,0 +1,167 @@
+{
+  "type": "FeatureCollection",
+  "name": "MIKE_FLOOD_EaSup_Verified_Data",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 02 (Thượng lưu suối Ea Súp)",
+        "vn2000_x": 1450401.29,
+        "vn2000_y": 482525.81,
+        "muc_nuoc_thuc_do_m": 179.039,
+        "muc_nuoc_mike_flood_m": 179.595,
+        "sai_so_m": 0.556
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.9162, 13.0485]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 04 (Khu vực Thôn Đoàn Kết - Trung tâm)",
+        "vn2000_x": 1454233.76,
+        "vn2000_y": 479922.7,
+        "muc_nuoc_thuc_do_m": 174.106,
+        "muc_nuoc_mike_flood_m": 173.668,
+        "sai_so_m": -0.438
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8845, 13.0682]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 10 (Hạ lưu giáp Ea Rốk - Ia Lốp)",
+        "vn2000_x": 1465448.99,
+        "vn2000_y": 473298.6,
+        "muc_nuoc_thuc_do_m": 162.304,
+        "muc_nuoc_mike_flood_m": 162.951,
+        "sai_so_m": 0.647
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8358, 13.1365]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 13 (Vùng trũng cánh đồng lúa 2 vụ)",
+        "vn2000_x": 1455965.24,
+        "vn2000_y": 478634.71,
+        "muc_nuoc_thuc_do_m": 171.98,
+        "muc_nuoc_mike_flood_m": 172.518,
+        "sai_so_m": 0.538
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8742, 13.0794]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 14 (Khu dân cư ven suối Ea Súp)",
+        "vn2000_x": 1455591.54,
+        "vn2000_y": 478759.02,
+        "muc_nuoc_thuc_do_m": 172.806,
+        "muc_nuoc_mike_flood_m": 172.31,
+        "sai_so_m": -0.496
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8786, 13.0748]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 16 (Khu vực cầu tràn liên thôn)",
+        "vn2000_x": 1457071.31,
+        "vn2000_y": 477306.03,
+        "muc_nuoc_thuc_do_m": 169.855,
+        "muc_nuoc_mike_flood_m": 170.0,
+        "sai_so_m": 0.145
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8664, 13.0868]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 18 (Bãi bồi tả ngạn suối Ea Súp)",
+        "vn2000_x": 1459570.7,
+        "vn2000_y": 476355.48,
+        "muc_nuoc_thuc_do_m": 166.318,
+        "muc_nuoc_mike_flood_m": 166.791,
+        "sai_so_m": 0.373
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8582, 13.1012]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 19 (Hợp lưu nhánh suối về sông Ea H'Leo)",
+        "vn2000_x": 1462552.55,
+        "vn2000_y": 473961.56,
+        "muc_nuoc_thuc_do_m": 162.959,
+        "muc_nuoc_mike_flood_m": 162.758,
+        "sai_so_m": -0.201
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8425, 13.1215]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 21 (Cánh đồng hạ du trũng thấp)",
+        "vn2000_x": 1462066.31,
+        "vn2000_y": 474777.22,
+        "muc_nuoc_thuc_do_m": 165.372,
+        "muc_nuoc_mike_flood_m": 165.822,
+        "sai_so_m": 0.45
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8504, 13.1142]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "category": "vet_lu_kiem_dinh_2023",
+        "name": "Vết lũ số 24 (Hữu ngạn suối Ea Súp - Ea Lê)",
+        "vn2000_x": 1459936.15,
+        "vn2000_y": 479655.44,
+        "muc_nuoc_thuc_do_m": 169.21,
+        "muc_nuoc_mike_flood_m": 169.117,
+        "sai_so_m": -0.093
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [107.8985, 13.0958]
+      }
+    }
+  ]
+}
+
