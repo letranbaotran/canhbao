@@ -57,6 +57,7 @@ import {
   Upload,
   Loader2,
   Crosshair,
+  GripHorizontal,
 } from 'lucide-react';
 
 export interface KmzLayerManifestItem {
@@ -321,6 +322,14 @@ export const WebGISMap: React.FC = () => {
   const [isLegendExpanded, setIsLegendExpanded] = useState<boolean>(true);
   const [showLayerManager, setShowLayerManager] = useState<boolean>(false);
   const [layerPanelPosition, setLayerPanelPosition] = useState<'left' | 'right'>('left');
+  const [panelCoords, setPanelCoords] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingPanel, setIsDraggingPanel] = useState<boolean>(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({
+    startX: 0,
+    startY: 0,
+    initX: 12,
+    initY: 48,
+  });
   const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
   const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
   const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
@@ -360,6 +369,81 @@ export const WebGISMap: React.FC = () => {
       window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
     };
   }, []);
+
+  // Xử lý kéo thả tự do bảng Quản lý lớp bản đồ khắp màn hình
+  useEffect(() => {
+    if (!isDraggingPanel) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragStartRef.current.startX;
+      const dy = e.clientY - dragStartRef.current.startY;
+      const panelWidth = Math.min(375, window.innerWidth - 20);
+      const maxX = Math.max(8, window.innerWidth - panelWidth - 8);
+      const maxY = Math.max(8, window.innerHeight - 150);
+
+      const nextX = Math.min(Math.max(8, dragStartRef.current.initX + dx), maxX);
+      const nextY = Math.min(Math.max(8, dragStartRef.current.initY + dy), maxY);
+      setPanelCoords({ x: nextX, y: nextY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingPanel(false);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragStartRef.current.startX;
+      const dy = touch.clientY - dragStartRef.current.startY;
+      const panelWidth = Math.min(375, window.innerWidth - 20);
+      const maxX = Math.max(8, window.innerWidth - panelWidth - 8);
+      const maxY = Math.max(8, window.innerHeight - 150);
+
+      const nextX = Math.min(Math.max(8, dragStartRef.current.initX + dx), maxX);
+      const nextY = Math.min(Math.max(8, dragStartRef.current.initY + dy), maxY);
+      setPanelCoords({ x: nextX, y: nextY });
+    };
+
+    const handleTouchEnd = () => {
+      setIsDraggingPanel(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDraggingPanel]);
+
+  const handlePanelDragStart = (clientX: number, clientY: number) => {
+    let currentX = panelCoords?.x;
+    let currentY = panelCoords?.y;
+
+    if (currentX === undefined || currentY === undefined) {
+      if (layerManagerPanelRef.current) {
+        const rect = layerManagerPanelRef.current.getBoundingClientRect();
+        currentX = rect.left;
+        currentY = rect.top;
+      } else {
+        currentX = layerPanelPosition === 'left' ? 12 : Math.max(12, window.innerWidth - 385);
+        currentY = 48;
+      }
+    }
+
+    dragStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      initX: currentX,
+      initY: currentY,
+    };
+    setIsDraggingPanel(true);
+  };
 
   // Đồng bộ popup Hồ Thượng & Hiệu ứng Domino tự động kích hoạt Bản đồ vùng ngập MIKE FLOOD
   useEffect(() => {
@@ -2463,34 +2547,69 @@ export const WebGISMap: React.FC = () => {
           </div>
         </div>
 
-        {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ (Có thể chuyển sang bên trái hoặc bên phải để né tránh đối chiếu bản đồ) */}
+        {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ (Hỗ trợ kéo thả tự do khắp bản đồ hoặc đổi bên nhanh) */}
         {showLayerManager && (
           <div
             ref={layerManagerPanelRef}
-            className={`absolute top-12 ${
-              layerPanelPosition === 'left' ? 'left-3' : 'right-3'
-            } z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans transition-all duration-200`}
+            style={
+              panelCoords
+                ? { left: `${panelCoords.x}px`, top: `${panelCoords.y}px` }
+                : undefined
+            }
+            className={`absolute ${
+              !panelCoords
+                ? `top-12 ${layerPanelPosition === 'left' ? 'left-3' : 'right-3'}`
+                : ''
+            } z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans ${
+              isDraggingPanel ? 'select-none shadow-3xl opacity-95 transition-none' : 'transition-all duration-150'
+            }`}
           >
-            {/* Header Bảng Quản Lý Lớp */}
-            <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
+            {/* Header Bảng Quản Lý Lớp - Hỗ trợ kéo thả di chuyển */}
+            <div
+              onMouseDown={(e) => {
+                if ((e.target as HTMLElement).closest('button')) return;
+                handlePanelDragStart(e.clientX, e.clientY);
+              }}
+              onTouchStart={(e) => {
+                if ((e.target as HTMLElement).closest('button') || !e.touches[0]) return;
+                handlePanelDragStart(e.touches[0].clientX, e.touches[0].clientY);
+              }}
+              className={`bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0 select-none ${
+                isDraggingPanel ? 'cursor-grabbing' : 'cursor-grab'
+              }`}
+              title="Nhấn giữ và kéo chuột / chạm vuốt để di chuyển bảng đến bất kỳ vị trí nào trên bản đồ"
+            >
               <div className="flex items-center gap-1.5 font-bold">
+                <GripHorizontal className="w-4 h-4 opacity-75 hover:opacity-100 cursor-grab" />
                 <Layers className="w-4 h-4" />
                 <span>QUẢN LÝ LỚP BẢN ĐỒ</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() =>
-                    setLayerPanelPosition(layerPanelPosition === 'left' ? 'right' : 'left')
-                  }
+                  onClick={() => {
+                    const isCurrentlyRight = panelCoords
+                      ? panelCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
+                      : layerPanelPosition === 'right';
+                    if (isCurrentlyRight) {
+                      setLayerPanelPosition('left');
+                      setPanelCoords({ x: 12, y: panelCoords?.y ?? 48 });
+                    } else {
+                      setLayerPanelPosition('right');
+                      const rightX = Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 390);
+                      setPanelCoords({ x: rightX, y: panelCoords?.y ?? 48 });
+                    }
+                  }}
                   className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] font-mono font-bold flex items-center gap-1 transition-colors"
-                  title={
-                    layerPanelPosition === 'left'
-                      ? 'Chuyển bảng sang bên phải'
-                      : 'Chuyển bảng sang bên trái (để lộ rõ khu vực hồ đập & đối chiếu bản đồ)'
-                  }
+                  title="Chuyển nhanh vị trí bảng sang góc đối diện"
                 >
-                  <span>{layerPanelPosition === 'left' ? '⇋ Sang phải' : '⇋ Sang trái'}</span>
+                  <span>
+                    {(panelCoords
+                      ? panelCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
+                      : layerPanelPosition === 'right')
+                      ? '⇋ Sang trái'
+                      : '⇋ Sang phải'}
+                  </span>
                 </button>
                 <button
                   onClick={() => setShowLayerManager(false)}
