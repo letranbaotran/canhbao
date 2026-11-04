@@ -21,3 +21,4 @@ public/storage/tts/*.mp3
 mosquitto/data
 mosquitto/log
 certbot
+

@@ -320,6 +320,7 @@ export const WebGISMap: React.FC = () => {
   const [gpsFloodRiskResult, setGpsFloodRiskResult] = useState<ReturnType<typeof evaluateGpsFloodRisk> | null>(null);
   const [isLegendExpanded, setIsLegendExpanded] = useState<boolean>(true);
   const [showLayerManager, setShowLayerManager] = useState<boolean>(false);
+  const [layerPanelPosition, setLayerPanelPosition] = useState<'left' | 'right'>('left');
   const [kmzManifest, setKmzManifest] = useState<KmzLayerManifestItem[]>([]);
   const [enabledKmzLayers, setEnabledKmzLayers] = useState<Record<string, boolean>>({});
   const [loadingKmzLayers, setLoadingKmzLayers] = useState<Record<string, boolean>>({});
@@ -2462,11 +2463,13 @@ export const WebGISMap: React.FC = () => {
           </div>
         </div>
 
-        {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ */}
+        {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ (Có thể chuyển sang bên trái hoặc bên phải để né tránh đối chiếu bản đồ) */}
         {showLayerManager && (
           <div
             ref={layerManagerPanelRef}
-            className="absolute top-12 right-3 z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans"
+            className={`absolute top-12 ${
+              layerPanelPosition === 'left' ? 'left-3' : 'right-3'
+            } z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans transition-all duration-200`}
           >
             {/* Header Bảng Quản Lý Lớp */}
             <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0">
@@ -2474,13 +2477,29 @@ export const WebGISMap: React.FC = () => {
                 <Layers className="w-4 h-4" />
                 <span>QUẢN LÝ LỚP BẢN ĐỒ</span>
               </div>
-              <button
-                onClick={() => setShowLayerManager(false)}
-                className="p-0.5 rounded hover:bg-white/20 text-white"
-                title="Đóng bảng quản lý lớp"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setLayerPanelPosition(layerPanelPosition === 'left' ? 'right' : 'left')
+                  }
+                  className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] font-mono font-bold flex items-center gap-1 transition-colors"
+                  title={
+                    layerPanelPosition === 'left'
+                      ? 'Chuyển bảng sang bên phải'
+                      : 'Chuyển bảng sang bên trái (để lộ rõ khu vực hồ đập & đối chiếu bản đồ)'
+                  }
+                >
+                  <span>{layerPanelPosition === 'left' ? '⇋ Sang phải' : '⇋ Sang trái'}</span>
+                </button>
+                <button
+                  onClick={() => setShowLayerManager(false)}
+                  className="p-0.5 rounded hover:bg-white/20 text-white transition-colors"
+                  title="Đóng bảng quản lý lớp"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Thanh nút Chọn tất cả / Bỏ chọn tất cả */}
@@ -2549,15 +2568,15 @@ export const WebGISMap: React.FC = () => {
               {/* Nhóm 2: Nhóm lớp Thủy lực MIKE FLOOD & Kiểm định thực tế */}
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#0A4393] bg-[#F0F6FF] px-2 py-1 rounded border border-[#0A4393]/15 mb-1.5 flex items-center justify-between gap-1">
-                  <span>Lớp Thủy lực MIKE FLOOD & Kiểm định</span>
+                  <span>LỚP BẢN ĐỒ LŨ ĐÃ KIỂM CHỨNG</span>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 normal-case tracking-normal shadow-2xs"
-                    title="Nạp trực tiếp file Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml hoặc Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson"
+                    className="p-1 rounded bg-[#0A4393] hover:bg-[#083576] text-white shadow-2xs flex items-center justify-center transition-all shrink-0 cursor-pointer"
+                    title="Nạp file .KML / .GeoJSON"
+                    aria-label="Nạp file .KML hoặc .GeoJSON"
                   >
-                    <Upload className="w-2.5 h-2.5" />
-                    <span>+ Nạp .KML / .GeoJSON</span>
+                    <Upload className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
