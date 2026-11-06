@@ -289,6 +289,47 @@ export const normalizeVillageKey = (str: string) =>
     .replace(/đ/g, 'd')
     .replace(/[^a-z0-9]/g, '');
 
+export const isVillageMatch = (villageName: string, layerLabel: string): boolean => {
+  if (!villageName || !layerLabel) return false;
+  const normV = normalizeVillageKey(villageName);
+  const normL = normalizeVillageKey(layerLabel);
+
+  // 1. Trường hợp Tiểu khu 249
+  if (normV.includes('249')) {
+    return normL.includes('249');
+  }
+
+  // 2. Trường hợp thôn số: Thôn 1 -> Thôn 13
+  // Bắt số nguyên vẹn của thôn để tránh "thon1" khớp nhầm với "thon10", "thon11", "thon12", "thon13"
+  const numMatchV = villageName.match(/\b(?:thôn|thon)\s*(\d+)\b/i) || normV.match(/^thon(\d+)$/);
+  if (numMatchV) {
+    const numV = numMatchV[1];
+    const numMatchL = layerLabel.match(/\b(?:thôn|thon)\s*(\d+)\b/i) || normL.match(/^thon(\d+)$/);
+    if (numMatchL) {
+      return numMatchL[1] === numV;
+    }
+    const digitMatch = normL.match(/thon(\d+)/);
+    if (digitMatch) {
+      return digitMatch[1] === numV;
+    }
+    return false;
+  }
+
+  // 3. Trường hợp Buôn: Buôn A, Buôn B, Buôn C
+  const buonMatchV = villageName.match(/\bbuon\s*([abc])\b/i) || normV.match(/^buon([abc])$/);
+  if (buonMatchV) {
+    const charV = buonMatchV[1].toLowerCase();
+    const buonMatchL = layerLabel.match(/\bbuon\s*([abc])\b/i) || normL.match(/buon([abc])/);
+    if (buonMatchL) {
+      return buonMatchL[1].toLowerCase() === charV;
+    }
+    return normL === normV;
+  }
+
+  // 4. Trường hợp thôn có tên chữ: Thôn Đoàn Kết, Thôn Hòa Bình, Thôn Thắng Lợi, Thôn Bình Lợi
+  return normL === normV || normL.includes(normV) || normV.includes(normL);
+};
+
 export const VILLAGE_LIST_21 = [
   {
     id: 'buon_a',
@@ -1787,13 +1828,7 @@ export const WebGISMap: React.FC = () => {
           `);
 
         m.on('click', () => {
-          setSelectedVillageBottomInfo({
-            name: vil.name,
-            elevation: vil.avgElevationM,
-            affectedHouseholds: vil.totalHouseholds,
-            evacuationPoint: vil.evacuationPoint,
-            coordinates: initCoords,
-          });
+          syncToggleVillage(vil.name, true);
         });
 
         const isVilVisible = initialLayerPrefs.villageVisibility?.[vil.name] !== false;
@@ -2281,12 +2316,8 @@ export const WebGISMap: React.FC = () => {
       </div>
     `;
 
-    // Nhận diện thôn buôn tương ứng với file KML/GeoJSON này để kích hoạt hiển thị thông tin khi bấm vào ranh thôn
-    const matchedVillageForKmz = VILLAGE_LIST_21.find((v) => {
-      const normV = normalizeVillageKey(v.name);
-      const normL = normalizeVillageKey(displayLabel);
-      return normL.includes(normV) || normV.includes(normL);
-    });
+    // Nhận diện thôn buôn tương ứng với file KML/GeoJSON này để kích hoạt hiển thị thông tin và đồng bộ khi bấm vào ranh thôn
+    const matchedVillageForKmz = VILLAGE_LIST_21.find((v) => isVillageMatch(v.name, displayLabel));
 
     for (const grp of layerData.groups) {
       const strokeColor = grp.color || item.color || '#38bdf8';
@@ -2310,13 +2341,7 @@ export const WebGISMap: React.FC = () => {
 
         if (matchedVillageForKmz) {
           polyLine.on('click', () => {
-            setSelectedVillageBottomInfo({
-              name: matchedVillageForKmz.name,
-              elevation: matchedVillageForKmz.elevation,
-              affectedHouseholds: matchedVillageForKmz.totalHouseholds,
-              evacuationPoint: matchedVillageForKmz.evacuationPoint,
-              coordinates: matchedVillageForKmz.coordinates,
-            });
+            syncToggleVillage(matchedVillageForKmz.name, true);
           });
         }
 
@@ -2348,13 +2373,7 @@ export const WebGISMap: React.FC = () => {
 
         if (matchedVillageForKmz) {
           polygon.on('click', () => {
-            setSelectedVillageBottomInfo({
-              name: matchedVillageForKmz.name,
-              elevation: matchedVillageForKmz.elevation,
-              affectedHouseholds: matchedVillageForKmz.totalHouseholds,
-              evacuationPoint: matchedVillageForKmz.evacuationPoint,
-              coordinates: matchedVillageForKmz.coordinates,
-            });
+            syncToggleVillage(matchedVillageForKmz.name, true);
           });
         }
 
@@ -2508,27 +2527,19 @@ export const WebGISMap: React.FC = () => {
     const map = leafletMapRef.current;
     if (!map) return;
 
+    // Kiểm tra xem đây có phải là lớp ranh thôn không để đồng bộ 2 chiều toàn diện
+    const matched = VILLAGE_LIST_21.find((v) => isVillageMatch(v.name, item.label));
+    if (matched) {
+      await syncToggleVillage(matched.name);
+      return;
+    }
+
     const nextState = !enabledKmzLayers[item.id];
     setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: nextState }));
     persistKmlLayerUpdate(item.id, { enabled: nextState });
 
     if (nextState) {
       await renderKmzLayerOnMap(item);
-      // Hiển thị thông tin thôn/buôn dưới đáy nếu lớp KML này là ranh thôn
-      const matched = VILLAGE_LIST_21.find((v) => {
-        const normV = normalizeVillageKey(v.name);
-        const normL = normalizeVillageKey(item.label);
-        return normL.includes(normV) || normV.includes(normL);
-      });
-      if (matched) {
-        setSelectedVillageBottomInfo({
-          name: matched.name,
-          elevation: matched.elevation,
-          affectedHouseholds: matched.totalHouseholds,
-          evacuationPoint: matched.evacuationPoint,
-          coordinates: matched.coordinates,
-        });
-      }
     } else {
       const existing = kmzLayerGroupsRef.current[item.id];
       if (existing && map.hasLayer(existing)) {
@@ -2563,25 +2574,18 @@ export const WebGISMap: React.FC = () => {
   const handleFlyToKmzLayer = async (item: KmzLayerManifestItem) => {
     const map = leafletMapRef.current;
     if (!map) return;
+
+    // Đồng bộ 2 chiều nếu là lớp ranh thôn
+    const matched = VILLAGE_LIST_21.find((v) => isVillageMatch(v.name, item.label));
+    if (matched) {
+      await syncToggleVillage(matched.name, true);
+      return;
+    }
+
     if (!enabledKmzLayers[item.id]) {
       setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: true }));
       persistKmlLayerUpdate(item.id, { enabled: true });
       await renderKmzLayerOnMap(item);
-    }
-    // Hiển thị thông tin thôn/buôn dưới đáy nếu lớp KML này là ranh thôn
-    const matched = VILLAGE_LIST_21.find((v) => {
-      const normV = normalizeVillageKey(v.name);
-      const normL = normalizeVillageKey(item.label);
-      return normL.includes(normV) || normV.includes(normL);
-    });
-    if (matched) {
-      setSelectedVillageBottomInfo({
-        name: matched.name,
-        elevation: matched.elevation,
-        affectedHouseholds: matched.totalHouseholds,
-        evacuationPoint: matched.evacuationPoint,
-        coordinates: matched.coordinates,
-      });
     }
     if (item.bounds && item.bounds.length === 2) {
       map.flyToBounds(item.bounds, { padding: [30, 30], maxZoom: 16, duration: 0.9 });
@@ -2769,108 +2773,153 @@ export const WebGISMap: React.FC = () => {
     pinLocationRef.current = handlePinMapLocation;
   }, [handlePinMapLocation]);
 
-  // Bật/tắt hiển thị từng thôn/buôn riêng lẻ
-  const handleToggleVillageVisibility = (villageName: string) => {
-    const isCurrentlyVisible = villageVisibility[villageName] !== false;
-    const nextVal = !isCurrentlyVisible;
+  // ================= ĐỒNG BỘ 2 CHIỀU THÔN/BUÔN: ĐIỂM TẬP TRUNG + RANH THÔN KML + BẢNG THÔNG TIN ĐỘ CAO/HỘ/SƠ TÁN =================
+  const syncToggleVillage = async (villageName: string, forceState?: boolean) => {
+    const map = leafletMapRef.current;
+    const vDef = VILLAGE_LIST_21.find((item) => item.name === villageName);
+    if (!vDef) return;
+
+    // Lọc chính xác 100% các file KML ranh giới thuộc thôn này (tránh Thôn 1 dính vào Thôn 10, 11, 12, 13)
+    const matchingKmz = villageKmzItems.filter((kmz) => isVillageMatch(villageName, kmz.label));
+
+    // Xác định trạng thái hiện tại (nếu đang active ở điểm hoặc ranh)
+    const isCurrentlyActive =
+      villageVisibility[villageName] === true ||
+      (matchingKmz.length > 0 && matchingKmz.some((m) => !!enabledKmzLayers[m.id]));
+
+    const nextVal = typeof forceState === 'boolean' ? forceState : !isCurrentlyActive;
+
+    // 1. Cập nhật state hiển thị điểm thôn buôn
     setVillageVisibility((prev) => ({ ...prev, [villageName]: nextVal }));
 
-    if (nextVal && !systemLayers.villages) {
-      handleToggleSystemLayer('villages');
+    // 2. Cập nhật Marker điểm tập trung trên bản đồ Leaflet
+    if (map) {
+      if (!systemLayers.villages && nextVal) {
+        setSystemLayers((prev) => ({ ...prev, villages: true }));
+      }
+      if (villagesLayerRef.current) {
+        if (!map.hasLayer(villagesLayerRef.current)) {
+          villagesLayerRef.current.addTo(map);
+        }
+        const marker = villageMarkersMapRef.current[villageName];
+        if (marker) {
+          if (nextVal) {
+            if (!villagesLayerRef.current.hasLayer(marker)) {
+              villagesLayerRef.current.addLayer(marker);
+            }
+          } else {
+            if (villagesLayerRef.current.hasLayer(marker)) {
+              villagesLayerRef.current.removeLayer(marker);
+            }
+          }
+        }
+      }
     }
 
+    // 3. Cập nhật các file KML ranh thôn (vẽ/gỡ ranh giới polygon tương ứng)
+    if (matchingKmz.length > 0) {
+      const copy = { ...enabledKmzLayers };
+      for (const m of matchingKmz) {
+        copy[m.id] = nextVal;
+        persistKmlLayerUpdate(m.id, { enabled: nextVal });
+        if (nextVal) {
+          await renderKmzLayerOnMap(m);
+        } else {
+          const g = kmzLayerGroupsRef.current[m.id];
+          if (g && map && map.hasLayer(g)) {
+            map.removeLayer(g);
+          }
+        }
+      }
+      setEnabledKmzLayers(copy);
+    }
+
+    // 4. Cập nhật thẻ thông tin Độ cao, Số hộ, Điểm sơ tán dưới đáy bản đồ
     if (nextVal) {
-      const vDef = VILLAGE_LIST_21.find((item) => item.name === villageName);
-      if (vDef) {
-        setSelectedVillageBottomInfo({
-          name: vDef.name,
-          elevation: vDef.elevation,
-          affectedHouseholds: vDef.totalHouseholds,
-          evacuationPoint: vDef.evacuationPoint,
-          coordinates: vDef.coordinates,
-        });
-      }
-    }
+      setSelectedVillageBottomInfo({
+        name: vDef.name,
+        elevation: vDef.elevation,
+        affectedHouseholds: vDef.totalHouseholds,
+        evacuationPoint: vDef.evacuationPoint,
+        coordinates: vDef.coordinates,
+      });
 
-    const marker = villageMarkersMapRef.current[villageName];
-    const group = villagesLayerRef.current;
-    if (marker && group) {
-      if (nextVal) {
-        if (!group.hasLayer(marker)) group.addLayer(marker);
-      } else {
-        if (group.hasLayer(marker)) group.removeLayer(marker);
+      // Phóng khung nhìn tới phạm vi thôn
+      if (map) {
+        if (matchingKmz.length > 0 && matchingKmz[0].bounds && matchingKmz[0].bounds.length === 2) {
+          map.flyToBounds(matchingKmz[0].bounds, { padding: [35, 35], maxZoom: 16, duration: 1.0 });
+        } else if (vDef.coordinates) {
+          map.flyTo(vDef.coordinates, 15, { duration: 1.0 });
+        }
       }
+    } else {
+      setSelectedVillageBottomInfo((curr) => (curr?.name === villageName ? null : curr));
     }
   };
 
-  // Chọn hiển thị tất cả các điểm thôn buôn
-  const handleSelectAllVillages = () => {
+  // Bật/tắt hiển thị từng thôn/buôn riêng lẻ (đồng bộ 2 chiều toàn diện)
+  const handleToggleVillageVisibility = (villageName: string) => {
+    syncToggleVillage(villageName);
+  };
+
+  // Chọn hiển thị tất cả các thôn buôn (bật cả điểm tập trung và ranh thôn)
+  const handleSelectAllVillages = async () => {
+    const map = leafletMapRef.current;
     if (!systemLayers.villages) {
-      handleToggleSystemLayer('villages');
+      setSystemLayers((prev) => ({ ...prev, villages: true }));
+    }
+    if (villagesLayerRef.current && map && !map.hasLayer(villagesLayerRef.current)) {
+      villagesLayerRef.current.addTo(map);
     }
     const nextState: Record<string, boolean> = {};
-    const group = villagesLayerRef.current;
-    Object.values(VILLAGE_DISASTER_PROFILES).forEach((vil) => {
+    VILLAGE_LIST_21.forEach((vil) => {
       nextState[vil.name] = true;
       const marker = villageMarkersMapRef.current[vil.name];
-      if (marker && group && !group.hasLayer(marker)) {
-        group.addLayer(marker);
+      if (marker && villagesLayerRef.current && !villagesLayerRef.current.hasLayer(marker)) {
+        villagesLayerRef.current.addLayer(marker);
       }
     });
     setVillageVisibility(nextState);
+
+    // Bật tất cả các file ranh thôn KML
+    const copy = { ...enabledKmzLayers };
+    for (const m of villageKmzItems) {
+      copy[m.id] = true;
+      persistKmlLayerUpdate(m.id, { enabled: true });
+      await renderKmzLayerOnMap(m);
+    }
+    setEnabledKmzLayers(copy);
   };
 
-  // Bỏ chọn tất cả các điểm thôn buôn
+  // Bỏ chọn tất cả các thôn buôn (tắt cả điểm tập trung và ranh thôn)
   const handleDeselectAllVillages = () => {
+    const map = leafletMapRef.current;
     const nextState: Record<string, boolean> = {};
-    const group = villagesLayerRef.current;
-    Object.values(VILLAGE_DISASTER_PROFILES).forEach((vil) => {
+    VILLAGE_LIST_21.forEach((vil) => {
       nextState[vil.name] = false;
       const marker = villageMarkersMapRef.current[vil.name];
-      if (marker && group && group.hasLayer(marker)) {
-        group.removeLayer(marker);
+      if (marker && villagesLayerRef.current && villagesLayerRef.current.hasLayer(marker)) {
+        villagesLayerRef.current.removeLayer(marker);
       }
     });
     setVillageVisibility(nextState);
+
+    // Tắt tất cả ranh thôn KML
+    const copy = { ...enabledKmzLayers };
+    for (const m of villageKmzItems) {
+      copy[m.id] = false;
+      persistKmlLayerUpdate(m.id, { enabled: false });
+      const g = kmzLayerGroupsRef.current[m.id];
+      if (g && map && map.hasLayer(g)) {
+        map.removeLayer(g);
+      }
+    }
+    setEnabledKmzLayers(copy);
+    setSelectedVillageBottomInfo(null);
   };
 
   const handleFlyToVillage = (villageName: string) => {
-    const map = leafletMapRef.current;
-    if (!map) return;
-    if (!systemLayers.villages) {
-      handleToggleSystemLayer('villages');
-    }
-    // Nếu điểm này đang bị ẩn, tự động tích chọn lại để hiển thị
-    if (villageVisibility[villageName] === false) {
-      setVillageVisibility((prev) => ({ ...prev, [villageName]: true }));
-      const marker = villageMarkersMapRef.current[villageName];
-      const group = villagesLayerRef.current;
-      if (marker && group && !group.hasLayer(marker)) {
-        group.addLayer(marker);
-      }
-    }
-    const coords =
-      customVillageCoords[villageName] ||
-      VILLAGE_DISASTER_PROFILES[villageName]?.coordinates;
-    if (coords) {
-      const vDef = VILLAGE_LIST_21.find((item) => item.name === villageName);
-      if (vDef) {
-        setSelectedVillageBottomInfo({
-          name: vDef.name,
-          elevation: vDef.elevation,
-          affectedHouseholds: vDef.totalHouseholds,
-          evacuationPoint: vDef.evacuationPoint,
-          coordinates: coords,
-        });
-      }
-      map.flyTo(coords, 15, { duration: 1.0 });
-      const m = villageMarkersMapRef.current[villageName];
-      if (m) {
-        setTimeout(() => {
-          m.openPopup();
-        }, 500);
-      }
-    }
+    syncToggleVillage(villageName, true);
   };
 
   // Quản lý chỉnh sửa tọa độ thôn/buôn thủ công dành cho Admin
@@ -3379,67 +3428,12 @@ export const WebGISMap: React.FC = () => {
     e.target.value = '';
   };
 
-  const handleToggleVillageFrom21List = (
-    v: (typeof VILLAGE_LIST_21)[number],
-    currentlyChecked: boolean,
-    matchingKmz: KmzLayerManifestItem[]
-  ) => {
-    const nextVal = !currentlyChecked;
-    if (v.name !== 'KV TK 249') {
-      handleToggleVillageVisibility(v.name);
-      if (nextVal && !systemLayers.villages) {
-        handleToggleSystemLayer('villages');
-      }
-    }
-
-    if (matchingKmz.length > 0) {
-      const copy = { ...enabledKmzLayers };
-      matchingKmz.forEach((m) => {
-        copy[m.id] = nextVal;
-        persistKmlLayerUpdate(m.id, { enabled: nextVal });
-        if (nextVal) renderKmzLayerOnMap(m);
-        else {
-          const g = kmzLayerGroupsRef.current[m.id];
-          if (g && leafletMapRef.current?.hasLayer(g)) {
-            leafletMapRef.current.removeLayer(g);
-          }
-        }
-      });
-      setEnabledKmzLayers(copy);
-    }
-
-    if (nextVal) {
-      setSelectedVillageBottomInfo({
-        name: v.name,
-        elevation: v.elevation,
-        affectedHouseholds: v.totalHouseholds,
-        evacuationPoint: v.evacuationPoint,
-        coordinates: v.coordinates,
-      });
-      if (matchingKmz.length > 0) {
-        handleFlyToKmzLayer(matchingKmz[0]);
-      } else {
-        handleFlyToVillage(v.name);
-      }
-    }
+  const handleToggleVillageFrom21List = (v: (typeof VILLAGE_LIST_21)[number]) => {
+    syncToggleVillage(v.name);
   };
 
-  const handleSelectVillageFrom21List = (
-    v: (typeof VILLAGE_LIST_21)[number],
-    matchingKmz: KmzLayerManifestItem[]
-  ) => {
-    setSelectedVillageBottomInfo({
-      name: v.name,
-      elevation: v.elevation,
-      affectedHouseholds: v.totalHouseholds,
-      evacuationPoint: v.evacuationPoint,
-      coordinates: v.coordinates,
-    });
-    if (matchingKmz.length > 0) {
-      handleFlyToKmzLayer(matchingKmz[0]);
-    } else {
-      handleFlyToVillage(v.name);
-    }
+  const handleSelectVillageFrom21List = (v: (typeof VILLAGE_LIST_21)[number]) => {
+    syncToggleVillage(v.name, true);
   };
 
   const totalLayerCount = 6 + kmzManifest.length;
@@ -3517,26 +3511,20 @@ export const WebGISMap: React.FC = () => {
     villageBoundariesActiveCount === villageBoundariesTotalCount;
 
   const totalVillagePointsCount = Object.keys(VILLAGE_DISASTER_PROFILES).length;
-  const activeVillagePointsCount = Object.values(VILLAGE_DISASTER_PROFILES).filter(
-    (v) => villageVisibility[v.name] !== false
-  ).length;
+  const activeVillagePointsCount = Object.values(VILLAGE_DISASTER_PROFILES).filter((v) => {
+    const matchingKmz = villageKmzItems.filter((kmz) => isVillageMatch(v.name, kmz.label));
+    return (
+      villageVisibility[v.name] === true ||
+      (matchingKmz.length > 0 && matchingKmz.some((m) => !!enabledKmzLayers[m.id]))
+    );
+  }).length;
 
   const handleToggleAllVillageBoundaries = () => {
     const nextVal = !isAllVillageBoundariesActive;
-    if (villageKmzItems.length > 0) {
-      const copy = { ...enabledKmzLayers };
-      villageKmzItems.forEach((m) => {
-        copy[m.id] = nextVal;
-        persistKmlLayerUpdate(m.id, { enabled: nextVal });
-        if (nextVal) renderKmzLayerOnMap(m);
-        else {
-          const g = kmzLayerGroupsRef.current[m.id];
-          if (g && leafletMapRef.current?.hasLayer(g)) {
-            leafletMapRef.current.removeLayer(g);
-          }
-        }
-      });
-      setEnabledKmzLayers(copy);
+    if (nextVal) {
+      handleSelectAllVillages();
+    } else {
+      handleDeselectAllVillages();
     }
   };
 
@@ -4001,21 +3989,10 @@ export const WebGISMap: React.FC = () => {
             {/* Danh sách 21 nút thôn buôn (Thứ tự đúng chuẩn) */}
             <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
               {VILLAGE_LIST_21.map((v) => {
-                const matchingKmz = villageKmzItems.filter((kmz) => {
-                  const normKmz = normalizeVillageKey(kmz.label);
-                  const normVil = normalizeVillageKey(v.name);
-                  return (
-                    normKmz.includes(normVil) ||
-                    normVil.includes(normKmz) ||
-                    (v.id === 'kv_tk_249' && (normKmz.includes('249') || normKmz.includes('tk249')))
-                  );
-                });
-
+                const matchingKmz = villageKmzItems.filter((kmz) => isVillageMatch(v.name, kmz.label));
                 const isChecked =
-                  v.name === 'KV TK 249'
-                    ? matchingKmz.some((m) => !!enabledKmzLayers[m.id])
-                    : (villageVisibility[v.name] !== false && systemLayers.villages) ||
-                      matchingKmz.some((m) => !!enabledKmzLayers[m.id]);
+                  villageVisibility[v.name] === true ||
+                  (matchingKmz.length > 0 && matchingKmz.some((m) => !!enabledKmzLayers[m.id]));
 
                 const isSelected = selectedVillageBottomInfo?.name === v.name;
 
@@ -4036,13 +4013,13 @@ export const WebGISMap: React.FC = () => {
                         checked={isChecked}
                         onChange={(e) => {
                           e.stopPropagation();
-                          handleToggleVillageFrom21List(v, isChecked, matchingKmz);
+                          syncToggleVillage(v.name);
                         }}
-                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0 village-toggle-trigger"
                         title={`Tích chọn để hiển thị lớp bản đồ ${v.name}`}
                       />
                       <div
-                        onClick={() => handleSelectVillageFrom21List(v, matchingKmz)}
+                        onClick={() => syncToggleVillage(v.name, true)}
                         className="truncate cursor-pointer flex-1 min-w-0"
                         title={`Nhấp để xem thông tin ${v.name}`}
                       >
@@ -4072,7 +4049,7 @@ export const WebGISMap: React.FC = () => {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleSelectVillageFrom21List(v, matchingKmz);
+                          syncToggleVillage(v.name, true);
                         }}
                         className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors cursor-pointer"
                         title={`Phóng tới vị trí ${v.name}`}
@@ -4843,7 +4820,10 @@ export const WebGISMap: React.FC = () => {
                             const isEditingThisVillage =
                               canEditMap && editingVillageName === vil.name;
                             const isCustomized = !!customVillageCoords[vil.name];
-                            const isVilVisible = villageVisibility[vil.name] !== false;
+                            const matchingKmz = villageKmzItems.filter((kmz) => isVillageMatch(vil.name, kmz.label));
+                            const isVilVisible =
+                              villageVisibility[vil.name] === true ||
+                              (matchingKmz.length > 0 && matchingKmz.some((m) => !!enabledKmzLayers[m.id]));
 
                             return (
                               <div key={vil.name} className="flex flex-col">
@@ -4863,13 +4843,13 @@ export const WebGISMap: React.FC = () => {
                                       checked={isVilVisible}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        handleToggleVillageVisibility(vil.name);
+                                        syncToggleVillage(vil.name);
                                       }}
                                       className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
                                       title={`Tích chọn để hiển thị hoặc ẩn điểm ${vil.name} trên bản đồ`}
                                     />
                                     <div
-                                      onClick={() => handleFlyToVillage(vil.name)}
+                                      onClick={() => syncToggleVillage(vil.name, true)}
                                       className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
                                       title={`Nhấn để phóng tới ${vil.name}`}
                                     >
@@ -4915,7 +4895,7 @@ export const WebGISMap: React.FC = () => {
                                     )}
                                     <button
                                       type="button"
-                                      onClick={() => handleFlyToVillage(vil.name)}
+                                      onClick={() => syncToggleVillage(vil.name, true)}
                                       className="p-0.5 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors"
                                       title={`Phóng tới ${vil.name} trên bản đồ`}
                                     >
@@ -5082,7 +5062,10 @@ export const WebGISMap: React.FC = () => {
                         </div>
                       ) : (
                         villageKmzItems.map((item) => {
-                          const isChecked = !!enabledKmzLayers[item.id];
+                          const matchedVillage = VILLAGE_LIST_21.find((v) => isVillageMatch(v.name, item.label));
+                          const isChecked = matchedVillage
+                            ? villageVisibility[matchedVillage.name] === true || !!enabledKmzLayers[item.id]
+                            : !!enabledKmzLayers[item.id];
                           const isLoading = !!loadingKmzLayers[item.id];
                           const isEditing = canEditMap && editingLayerId === item.id;
                           const isCustom = isUserUploadLayer(item);
@@ -5100,7 +5083,14 @@ export const WebGISMap: React.FC = () => {
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  onChange={() => handleToggleKmzLayer(item)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    if (matchedVillage) {
+                                      syncToggleVillage(matchedVillage.name);
+                                    } else {
+                                      handleToggleKmzLayer(item);
+                                    }
+                                  }}
                                   className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
                                 />
                                 <span
@@ -5131,7 +5121,13 @@ export const WebGISMap: React.FC = () => {
                                   </div>
                                 ) : (
                                   <div
-                                    onClick={() => handleToggleKmzLayer(item)}
+                                    onClick={() => {
+                                      if (matchedVillage) {
+                                        syncToggleVillage(matchedVillage.name, true);
+                                      } else {
+                                        handleToggleKmzLayer(item);
+                                      }
+                                    }}
                                     className="truncate cursor-pointer flex-1 min-w-0"
                                   >
                                     <div className="text-[11px] font-bold text-slate-800 truncate">
@@ -5160,7 +5156,13 @@ export const WebGISMap: React.FC = () => {
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleFlyToKmzLayer(item)}
+                                  onClick={() => {
+                                    if (matchedVillage) {
+                                      syncToggleVillage(matchedVillage.name, true);
+                                    } else {
+                                      handleFlyToKmzLayer(item);
+                                    }
+                                  }}
                                   className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
                                   title={`Phóng bản đồ tới vị trí lớp ${item.label}`}
                                 >
@@ -5201,7 +5203,11 @@ export const WebGISMap: React.FC = () => {
         {selectedVillageBottomInfo && (
           <div
             ref={villageBottomInfoRef}
-            className="absolute bottom-2.5 left-[56px] sm:left-[60px] right-14 sm:right-auto sm:max-w-md md:max-w-lg z-[505] bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-[#0A4393]/35 p-1.5 sm:p-2 animate-in fade-in slide-in-from-bottom-1 duration-150 select-none"
+            className={`absolute bottom-2.5 z-[540] bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-[#0A4393]/35 p-1.5 sm:p-2 animate-in fade-in slide-in-from-bottom-1 duration-150 select-none transition-all ${
+              isVillageSidebarOpen
+                ? 'left-[188px] sm:left-[205px] right-2 sm:right-auto sm:max-w-md'
+                : 'left-[56px] sm:left-[60px] right-14 sm:right-auto sm:max-w-md md:max-w-lg'
+            }`}
           >
             {/* Tiêu đề thu gọn sát nhau */}
             <div className="flex items-center justify-between gap-1 pb-1 border-b border-slate-100">
