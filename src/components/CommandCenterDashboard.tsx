@@ -361,7 +361,7 @@ export const CommandCenterDashboard: React.FC = () => {
                     className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white shadow-xs flex items-center gap-1 transition-all"
                   >
                     <Camera className="w-3 h-3" />
-                    <span>Báo tin thiên tai cộng đồng (Gửi ảnh & GPS)</span>
+                    <span>Báo Tin</span>
                   </button>
                 </div>
               </div>
@@ -910,12 +910,12 @@ export const CommandCenterDashboard: React.FC = () => {
           setShowCommunityReportModal(true);
         }}
         className="fixed bottom-4 right-4 z-[9000] bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2.5 rounded-full shadow-2xl border-2 border-white flex items-center gap-2 font-mono text-[11px] sm:text-xs font-bold transition-all hover:scale-105 cursor-pointer"
-        aria-label="Báo tin thiên tai cộng đồng (Gửi ảnh và GPS)"
+        aria-label="Báo Tin"
       >
         <span className="w-6 h-6 rounded-full bg-white text-rose-600 flex items-center justify-center shrink-0 shadow-xs">
           <Camera className="w-3.5 h-3.5" />
         </span>
-        <span>Báo tin thiên tai cộng đồng (Gửi ảnh & GPS)</span>
+        <span>Báo Tin</span>
       </button>
 
       {/* MODAL BÁO TIN THIÊN TAI CỘNG ĐỒNG & TỔ XUNG KÍCH PCTT 20 THÔN BUÔN */}

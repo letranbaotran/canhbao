@@ -66,6 +66,8 @@ import {
   GripHorizontal,
   Maximize2,
   Minimize2,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 
 export interface KmzLayerManifestItem {
@@ -278,6 +280,206 @@ const GIBS_META: Record<
 
 const LAYER_PREFERENCES_STORAGE_KEY = 'easup_webgis_layer_preferences_v2';
 
+export const normalizeVillageKey = (str: string) =>
+  str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/[^a-z0-9]/g, '');
+
+export const VILLAGE_LIST_21 = [
+  {
+    id: 'buon_a',
+    name: 'Buôn A',
+    shortName: 'Buôn A',
+    elevation: 182.5,
+    totalHouseholds: 156,
+    evacuationPoint: 'Nhà sinh hoạt cộng đồng Buôn A (+186.2m)',
+    coordinates: [13.0418, 107.8818] as [number, number],
+  },
+  {
+    id: 'buon_b',
+    name: 'Buôn B',
+    shortName: 'Buôn B',
+    elevation: 183.8,
+    totalHouseholds: 148,
+    evacuationPoint: 'Nhà sinh hoạt cộng đồng Buôn B (+187.0m)',
+    coordinates: [13.0368, 107.8758] as [number, number],
+  },
+  {
+    id: 'buon_c',
+    name: 'Buôn C',
+    shortName: 'Buôn C',
+    elevation: 184.6,
+    totalHouseholds: 142,
+    evacuationPoint: 'Nhà sinh hoạt cộng đồng Buôn C (+188.0m)',
+    coordinates: [13.0312, 107.8688] as [number, number],
+  },
+  {
+    id: 'thon_doan_ket',
+    name: 'Thôn Đoàn Kết',
+    shortName: 'Đoàn Kết',
+    elevation: 172.4,
+    totalHouseholds: 245,
+    evacuationPoint: 'Trường THPT Ea Súp & Nhà văn hóa xã (+188.5m)',
+    coordinates: [13.069298, 107.881527] as [number, number],
+  },
+  {
+    id: 'thon_hoa_binh',
+    name: 'Thôn Hòa Bình',
+    shortName: 'Hòa Bình',
+    elevation: 178.4,
+    totalHouseholds: 188,
+    evacuationPoint: 'Nhà văn hóa đa năng Thôn Hòa Bình (+186.8m)',
+    coordinates: [13.0525, 107.8865] as [number, number],
+  },
+  {
+    id: 'thon_thang_loi',
+    name: 'Thôn Thắng Lợi',
+    shortName: 'Thắng Lợi',
+    elevation: 177.6,
+    totalHouseholds: 195,
+    evacuationPoint: 'Trụ sở UBND & UBMTTQ xã Ea Súp (+189.5m)',
+    coordinates: [13.0585, 107.8825] as [number, number],
+  },
+  {
+    id: 'thon_binh_loi',
+    name: 'Thôn Bình Lợi',
+    shortName: 'Bình Lợi',
+    elevation: 172.9,
+    totalHouseholds: 210,
+    evacuationPoint: 'Trường THCS Lê Quý Đôn (+187.2m)',
+    coordinates: [13.0642, 107.8885] as [number, number],
+  },
+  {
+    id: 'thon_1',
+    name: 'Thôn 1',
+    shortName: 'Thôn 1',
+    elevation: 176.2,
+    totalHouseholds: 260,
+    evacuationPoint: 'Trụ sở HĐND - UBND xã Ea Súp (+189.5m)',
+    coordinates: [13.0545, 107.8985] as [number, number],
+  },
+  {
+    id: 'thon_2',
+    name: 'Thôn 2',
+    shortName: 'Thôn 2',
+    elevation: 176.8,
+    totalHouseholds: 230,
+    evacuationPoint: 'Trường THPT Ea Súp (+188.5m)',
+    coordinates: [13.0592, 107.9042] as [number, number],
+  },
+  {
+    id: 'thon_3',
+    name: 'Thôn 3',
+    shortName: 'Thôn 3',
+    elevation: 178.9,
+    totalHouseholds: 205,
+    evacuationPoint: 'Điểm cao Doanh trại Trung đoàn 736 (+187.8m)',
+    coordinates: [13.0638, 107.9125] as [number, number],
+  },
+  {
+    id: 'thon_4',
+    name: 'Thôn 4',
+    shortName: 'Thôn 4',
+    elevation: 179.5,
+    totalHouseholds: 198,
+    evacuationPoint: 'Nhà văn hóa liên thôn 3 - 4 (+187.0m)',
+    coordinates: [13.0682, 107.9182] as [number, number],
+  },
+  {
+    id: 'thon_5',
+    name: 'Thôn 5',
+    shortName: 'Thôn 5',
+    elevation: 173.8,
+    totalHouseholds: 215,
+    evacuationPoint: 'Trường TH Nguyễn Viết Xuân (+185.8m)',
+    coordinates: [13.0725, 107.8918] as [number, number],
+  },
+  {
+    id: 'thon_6',
+    name: 'Thôn 6',
+    shortName: 'Thôn 6',
+    elevation: 173.5,
+    totalHouseholds: 224,
+    evacuationPoint: 'Trường THCS Lê Quý Đôn (+187.2m)',
+    coordinates: [13.0778, 107.8855] as [number, number],
+  },
+  {
+    id: 'thon_7',
+    name: 'Thôn 7',
+    shortName: 'Thôn 7',
+    elevation: 173.2,
+    totalHouseholds: 218,
+    evacuationPoint: 'Trường TH Nguyễn Bá Ngọc (+186.5m)',
+    coordinates: [13.0832, 107.8808] as [number, number],
+  },
+  {
+    id: 'thon_8',
+    name: 'Thôn 8',
+    shortName: 'Thôn 8',
+    elevation: 172.6,
+    totalHouseholds: 236,
+    evacuationPoint: 'Trường THPT Quang Trung (+186.5m)',
+    coordinates: [13.0608, 107.8732] as [number, number],
+  },
+  {
+    id: 'thon_9',
+    name: 'Thôn 9',
+    shortName: 'Thôn 9',
+    elevation: 174.1,
+    totalHouseholds: 192,
+    evacuationPoint: 'Trường THPT Quang Trung (+186.5m)',
+    coordinates: [13.0878, 107.8748] as [number, number],
+  },
+  {
+    id: 'thon_10',
+    name: 'Thôn 10',
+    shortName: 'Thôn 10',
+    elevation: 174.6,
+    totalHouseholds: 185,
+    evacuationPoint: 'Chốt cao Đồn Biên phòng 735 (+185.6m)',
+    coordinates: [13.0945, 107.8685] as [number, number],
+  },
+  {
+    id: 'thon_11',
+    name: 'Thôn 11',
+    shortName: 'Thôn 11',
+    elevation: 175.0,
+    totalHouseholds: 178,
+    evacuationPoint: 'Cụm trường & Nhà văn hóa Thôn 12 (+186.0m)',
+    coordinates: [13.1018, 107.8618] as [number, number],
+  },
+  {
+    id: 'thon_12',
+    name: 'Thôn 12',
+    shortName: 'Thôn 12',
+    elevation: 180.8,
+    totalHouseholds: 170,
+    evacuationPoint: 'Nhà văn hóa cộng đồng Thôn 12 (+186.0m)',
+    coordinates: [13.0478, 107.9178] as [number, number],
+  },
+  {
+    id: 'thon_13',
+    name: 'Thôn 13',
+    shortName: 'Thôn 13',
+    elevation: 181.6,
+    totalHouseholds: 165,
+    evacuationPoint: 'Trạm Kiểm lâm & Nhà văn hóa Thôn 13 (+187.4m)',
+    coordinates: [13.0255, 107.9145] as [number, number],
+  },
+  {
+    id: 'kv_tk_249',
+    name: 'KV TK 249',
+    shortName: 'TK 249',
+    elevation: 185.0,
+    totalHouseholds: 0,
+    evacuationPoint: 'Trạm Kiểm lâm Tiểu khu 249 / Ban Quản lý Rừng (+192.0m)',
+    coordinates: [13.015, 107.865] as [number, number],
+  },
+];
+
 const DEFAULT_SYSTEM_LAYERS: {
   markers: boolean;
   buffer: boolean;
@@ -461,6 +663,41 @@ export const WebGISMap: React.FC = () => {
       console.error('Không thể lưu cấu hình lớp bản đồ:', err);
     }
   }, [systemLayers, enabledKmzLayers, activeLayerTab, villageSubTab, villageVisibility]);
+
+  // Thanh 21 Thôn / Buôn & TK 249 trượt bên trái bản đồ
+  const [isVillageSidebarOpen, setIsVillageSidebarOpen] = useState<boolean>(false);
+  const villageSidebarRef = useRef<HTMLDivElement | null>(null);
+  const villageSpecificFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [targetUploadVillage, setTargetUploadVillage] = useState<string | null>(null);
+
+  // Thanh thông tin hiển thị dưới cùng của khung bản đồ khi chọn thôn buôn
+  const [selectedVillageBottomInfo, setSelectedVillageBottomInfo] = useState<{
+    name: string;
+    elevation: number;
+    affectedHouseholds: number;
+    evacuationPoint: string;
+    coordinates: [number, number];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isVillageSidebarOpen) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        villageSidebarRef.current &&
+        !villageSidebarRef.current.contains(target) &&
+        !target.closest('#village-sidebar-trigger')
+      ) {
+        setIsVillageSidebarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isVillageSidebarOpen]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
   const handleToggleFullscreen = useCallback(() => {
@@ -2864,6 +3101,230 @@ export const WebGISMap: React.FC = () => {
     e.target.value = '';
   };
 
+  // Nạp file KML/GeoJSON riêng cho từng Thôn/Buôn trong danh sách 21 nút
+  const handleVillageSpecificFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !targetUploadVillage) return;
+    try {
+      const textContent = await file.text();
+      const isGeoJson =
+        file.name.toLowerCase().endsWith('.geojson') ||
+        file.name.toLowerCase().endsWith('.json') ||
+        textContent.trim().startsWith('{');
+
+      const lines: [number, number][][] = [];
+      const polys: [number, number][][] = [];
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      const recordPt = (lat: number, lng: number) => {
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+      };
+
+      const palette = ['#0284c7', '#ff1744', '#00e676', '#ff9100', '#d500f9', '#00b0ff'];
+      const layerColor = palette[kmzManifest.length % palette.length] || '#10b981';
+
+      if (isGeoJson) {
+        const parsed = JSON.parse(textContent);
+        const features = parsed.type === 'FeatureCollection' ? parsed.features : [parsed];
+        for (const feat of features) {
+          if (!feat.geometry) continue;
+          const geom = feat.geometry;
+          if (geom.type === 'Polygon') {
+            for (const ring of geom.coordinates) {
+              const ringPts: [number, number][] = [];
+              for (const c of ring) {
+                recordPt(c[1], c[0]);
+                ringPts.push([c[1], c[0]]);
+              }
+              if (ringPts.length >= 3) polys.push(ringPts);
+            }
+          } else if (geom.type === 'MultiPolygon') {
+            for (const poly of geom.coordinates) {
+              for (const ring of poly) {
+                const ringPts: [number, number][] = [];
+                for (const c of ring) {
+                  recordPt(c[1], c[0]);
+                  ringPts.push([c[1], c[0]]);
+                }
+                if (ringPts.length >= 3) polys.push(ringPts);
+              }
+            }
+          } else if (geom.type === 'LineString') {
+            const linePts: [number, number][] = [];
+            for (const c of geom.coordinates) {
+              recordPt(c[1], c[0]);
+              linePts.push([c[1], c[0]]);
+            }
+            if (linePts.length >= 2) lines.push(linePts);
+          }
+        }
+      } else {
+        const dom = new DOMParser().parseFromString(textContent, 'text/xml');
+        const polyNodes = dom.querySelectorAll('Polygon coordinates, LinearRing coordinates');
+        polyNodes.forEach((node) => {
+          const raw = (node.textContent || '').trim();
+          const pts: [number, number][] = [];
+          raw.split(/\s+/).forEach((chunk) => {
+            const parts = chunk.split(',');
+            if (parts.length >= 2) {
+              const lng = parseFloat(parts[0]);
+              const lat = parseFloat(parts[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                recordPt(lat, lng);
+                pts.push([lat, lng]);
+              }
+            }
+          });
+          if (pts.length >= 3) polys.push(pts);
+        });
+
+        const lineNodes = dom.querySelectorAll('LineString coordinates');
+        lineNodes.forEach((node) => {
+          const raw = (node.textContent || '').trim();
+          const pts: [number, number][] = [];
+          raw.split(/\s+/).forEach((chunk) => {
+            const parts = chunk.split(',');
+            if (parts.length >= 2) {
+              const lng = parseFloat(parts[0]);
+              const lat = parseFloat(parts[1]);
+              if (!isNaN(lat) && !isNaN(lng)) {
+                recordPt(lat, lng);
+                pts.push([lat, lng]);
+              }
+            }
+          });
+          if (pts.length >= 2) lines.push(pts);
+        });
+      }
+
+      if (lines.length > 0 || polys.length > 0) {
+        const safeSlug = targetUploadVillage.replace(/[^a-zA-Z0-9]/g, '_');
+        const customId = `KML_VIL_${safeSlug}_${Date.now()}`;
+        const newItem: KmzLayerManifestItem = {
+          id: customId,
+          rawName: file.name,
+          label: targetUploadVillage,
+          category: 'Nhóm lớp thôn/buôn',
+          defaultOn: true,
+          color: layerColor,
+          bounds: [
+            [minLat, minLng],
+            [maxLat, maxLng],
+          ],
+          geomCount: lines.length + polys.length,
+          file: '',
+          sizeKb: Math.max(1, Math.round(file.size / 1024)),
+          isUserUploaded: true,
+        };
+
+        const layerData: KmzLayerData = {
+          ...newItem,
+          groups: [
+            {
+              color: layerColor,
+              fillColor: layerColor,
+              weight: 2.2,
+              outline: true,
+              lines,
+              polys,
+            },
+          ],
+        };
+
+        const savedItem = await persistNewKmlLayer(newItem, layerData);
+        kmzDataCacheRef.current[savedItem.id] = {
+          ...layerData,
+          file: savedItem.file,
+        };
+
+        setKmzManifest((prev) => [...prev, savedItem]);
+        setEnabledKmzLayers((prev) => ({ ...prev, [savedItem.id]: true }));
+        await renderKmzLayerOnMap(savedItem);
+        handleFlyToKmzLayer(savedItem);
+
+        const vilDef = VILLAGE_LIST_21.find((item) => item.name === targetUploadVillage);
+        if (vilDef) {
+          setSelectedVillageBottomInfo({
+            name: vilDef.name,
+            elevation: vilDef.elevation,
+            affectedHouseholds: vilDef.totalHouseholds,
+            evacuationPoint: vilDef.evacuationPoint,
+            coordinates: vilDef.coordinates,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi tải file thôn buôn:', err);
+    }
+    setTargetUploadVillage(null);
+    e.target.value = '';
+  };
+
+  const handleToggleVillageFrom21List = (
+    v: (typeof VILLAGE_LIST_21)[number],
+    currentlyChecked: boolean,
+    matchingKmz: KmzLayerManifestItem[]
+  ) => {
+    const nextVal = !currentlyChecked;
+    if (v.name !== 'KV TK 249') {
+      handleToggleVillageVisibility(v.name);
+      if (nextVal && !systemLayers.villages) {
+        handleToggleSystemLayer('villages');
+      }
+    }
+
+    if (matchingKmz.length > 0) {
+      const copy = { ...enabledKmzLayers };
+      matchingKmz.forEach((m) => {
+        copy[m.id] = nextVal;
+        persistKmlLayerUpdate(m.id, { enabled: nextVal });
+        if (nextVal) renderKmzLayerOnMap(m);
+        else {
+          const g = kmzLayerGroupsRef.current[m.id];
+          if (g && leafletMapRef.current?.hasLayer(g)) {
+            leafletMapRef.current.removeLayer(g);
+          }
+        }
+      });
+      setEnabledKmzLayers(copy);
+    }
+
+    if (nextVal) {
+      setSelectedVillageBottomInfo({
+        name: v.name,
+        elevation: v.elevation,
+        affectedHouseholds: v.totalHouseholds,
+        evacuationPoint: v.evacuationPoint,
+        coordinates: v.coordinates,
+      });
+      if (matchingKmz.length > 0) {
+        handleFlyToKmzLayer(matchingKmz[0]);
+      } else {
+        handleFlyToVillage(v.name);
+      }
+    }
+  };
+
+  const handleSelectVillageFrom21List = (
+    v: (typeof VILLAGE_LIST_21)[number],
+    matchingKmz: KmzLayerManifestItem[]
+  ) => {
+    setSelectedVillageBottomInfo({
+      name: v.name,
+      elevation: v.elevation,
+      affectedHouseholds: v.totalHouseholds,
+      evacuationPoint: v.evacuationPoint,
+      coordinates: v.coordinates,
+    });
+    if (matchingKmz.length > 0) {
+      handleFlyToKmzLayer(matchingKmz[0]);
+    } else {
+      handleFlyToVillage(v.name);
+    }
+  };
+
   const totalLayerCount = 6 + kmzManifest.length;
   const activeLayerCount =
     (systemLayers.markers ? 1 : 0) +
@@ -3350,6 +3811,169 @@ export const WebGISMap: React.FC = () => {
       >
         <div ref={mapContainerRef} className="w-full h-full" />
 
+        {/* Input ẩn để nạp file KML/GeoJSON riêng cho từng thôn/buôn */}
+        <input
+          ref={villageSpecificFileInputRef}
+          type="file"
+          accept=".kml,.kmz,.geojson"
+          onChange={handleVillageSpecificFileUpload}
+          className="hidden"
+        />
+
+        {/* NÚT KÍCH HOẠT THANH 21 THÔN/BUÔN (Bên góc trái bản đồ, khi bấm thì thò ra) */}
+        {!isVillageSidebarOpen && (
+          <button
+            id="village-sidebar-trigger"
+            type="button"
+            onClick={() => setIsVillageSidebarOpen(true)}
+            className="absolute top-14 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2 py-2.5 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-2.5"
+            title="Mở danh sách 21 Thôn / Buôn & Quản lý lớp"
+          >
+            <MapPin className="w-3.5 h-3.5 text-emerald-300 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="font-mono text-[10px] tracking-tight">21 Thôn/Buôn</span>
+            <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
+
+        {/* BẢNG TRƯỢT 21 THÔN/BUÔN & TK 249 (Thò ra từ bên trái, bấm ra ngoài thì thu hẹp ẩn vào) */}
+        {isVillageSidebarOpen && (
+          <div
+            ref={villageSidebarRef}
+            className="absolute top-0 left-0 bottom-0 z-[530] w-[275px] sm:w-[310px] bg-white/95 backdrop-blur-md shadow-2xl border-r-2 border-[#0A4393] flex flex-col overflow-hidden text-xs font-sans animate-slideInLeft"
+          >
+            {/* Header thanh trượt */}
+            <div className="bg-[#0A4393] text-white px-3 py-2 flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-1.5 font-bold">
+                <MapPin className="w-4 h-4 text-emerald-300" />
+                <span className="text-[11.5px] uppercase tracking-wide">21 Thôn / Buôn & TK 249</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVillageSidebarOpen(false)}
+                className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
+                title="Thu hẹp bảng về bên trái"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Thanh tác vụ nhanh */}
+            <div className="px-2.5 py-1.5 bg-[#F0F6FF] border-b border-[#0A4393]/20 flex items-center justify-between gap-1 shrink-0 text-[10.5px]">
+              <span className="text-slate-600 font-mono font-semibold">
+                Quản lý 21 lớp bản đồ
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleSelectAllVillages}
+                  className="px-1.5 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold transition-colors cursor-pointer"
+                  title="Chọn hiển thị tất cả"
+                >
+                  Tất cả
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllVillages}
+                  className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 font-medium transition-colors cursor-pointer"
+                  title="Bỏ chọn tất cả"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+            </div>
+
+            {/* Danh sách 21 nút thôn buôn (Thứ tự đúng chuẩn) */}
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+              {VILLAGE_LIST_21.map((v) => {
+                const matchingKmz = villageKmzItems.filter((kmz) => {
+                  const normKmz = normalizeVillageKey(kmz.label);
+                  const normVil = normalizeVillageKey(v.name);
+                  return (
+                    normKmz.includes(normVil) ||
+                    normVil.includes(normKmz) ||
+                    (v.id === 'kv_tk_249' && (normKmz.includes('249') || normKmz.includes('tk249')))
+                  );
+                });
+
+                const isChecked =
+                  v.name === 'KV TK 249'
+                    ? matchingKmz.some((m) => !!enabledKmzLayers[m.id])
+                    : (villageVisibility[v.name] !== false && systemLayers.villages) ||
+                      matchingKmz.some((m) => !!enabledKmzLayers[m.id]);
+
+                const isSelected = selectedVillageBottomInfo?.name === v.name;
+
+                return (
+                  <div
+                    key={v.id}
+                    className={`flex items-center justify-between p-1.5 rounded-lg border transition-all ${
+                      isSelected
+                        ? 'bg-[#EBF3FF] border-[#0A4393] ring-1 ring-[#0A4393]'
+                        : isChecked
+                        ? 'bg-emerald-50/70 border-emerald-300 hover:bg-emerald-100/50'
+                        : 'bg-white border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleToggleVillageFrom21List(v, isChecked, matchingKmz);
+                        }}
+                        className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                        title={`Tích chọn để hiển thị lớp bản đồ ${v.name}`}
+                      />
+                      <div
+                        onClick={() => handleSelectVillageFrom21List(v, matchingKmz)}
+                        className="truncate cursor-pointer flex-1 min-w-0 flex items-center gap-1"
+                        title={`Nhấp để xem thông tin ${v.name}`}
+                      >
+                        <span className={`font-bold truncate text-[11px] ${isChecked ? 'text-slate-900' : 'text-slate-600'}`}>
+                          {v.name}
+                        </span>
+                        <span className="text-[9px] px-1 py-0.2 rounded font-mono font-semibold bg-slate-100 text-slate-700 shrink-0">
+                          +{v.elevation}m
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 ml-1">
+                      {/* Nút tải file bản đồ lên cho thôn/buôn này */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTargetUploadVillage(v.name);
+                          villageSpecificFileInputRef.current?.click();
+                        }}
+                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/30 transition-colors cursor-pointer"
+                        title={`Tải file KML/GeoJSON cho ${v.name}`}
+                      >
+                        <Upload className="w-3 h-3" />
+                      </button>
+
+                      {/* Nút tâm ngắm phóng tới */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectVillageFrom21List(v, matchingKmz);
+                        }}
+                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors cursor-pointer"
+                        title={`Phóng tới vị trí ${v.name}`}
+                      >
+                        <Crosshair className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Thông báo trạng thái định vị GPS */}
         {locateMessage && (
           <div className="absolute top-3 left-3 z-[500] bg-[#0A4393] text-white px-3 py-1.5 rounded-lg shadow-lg border border-white/40 text-xs font-mono flex items-center gap-2">
@@ -3575,15 +4199,16 @@ export const WebGISMap: React.FC = () => {
               </div>
             </div>
 
-            {/* Thanh điều hướng 3 Tab: Hệ Thống | Lũ Kiểm Chứng | Thôn/Buôn (1 tab hiện, 2 tab ẩn) */}
-            <div className="flex border-b border-[#0A4393]/20 bg-[#F0F6FF] text-[11px] font-bold shrink-0">
+            {/* Thanh điều hướng 3 Tab: Hệ Thống (Xanh dương) | Lũ Kiểm Chứng (Tím nhạt) | Thôn/Buôn (Xanh lá) */}
+            <div className="flex border-b border-slate-200 text-[11px] font-bold shrink-0">
+              {/* Tab 1: Hệ Thống (Tone Xanh dương) */}
               <button
                 type="button"
                 onClick={() => setActiveLayerTab('SYSTEM')}
-                className={`flex-1 py-1.5 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
+                className={`flex-1 py-2 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
                   activeLayerTab === 'SYSTEM'
-                    ? 'bg-white text-[#0A4393] border-[#0A4393] shadow-xs'
-                    : 'text-slate-600 hover:text-[#0A4393] border-transparent hover:bg-white/40'
+                    ? 'bg-[#EBF3FF] text-[#0A4393] border-[#0A4393] shadow-xs font-extrabold'
+                    : 'bg-[#F4F8FD] text-slate-600 hover:text-[#0A4393] border-transparent hover:bg-[#EBF3FF]/60'
                 }`}
               >
                 <span>Hệ Thống</span>
@@ -3591,49 +4216,51 @@ export const WebGISMap: React.FC = () => {
                   className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
                     activeLayerTab === 'SYSTEM'
                       ? 'bg-[#0A4393] text-white'
-                      : 'bg-slate-200 text-slate-700'
+                      : 'bg-blue-100 text-[#0A4393]'
                   }`}
                 >
                   {systemTabActiveCount}/{systemTabTotalCount}
                 </span>
               </button>
 
+              {/* Tab 2: Lũ Kiểm Chứng (Tone Tím nhạt) */}
               <button
                 type="button"
                 onClick={() => setActiveLayerTab('FLOOD')}
-                className={`flex-1 py-1.5 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
+                className={`flex-1 py-2 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
                   activeLayerTab === 'FLOOD'
-                    ? 'bg-white text-[#0A4393] border-[#0A4393] shadow-xs'
-                    : 'text-slate-600 hover:text-[#0A4393] border-transparent hover:bg-white/40'
+                    ? 'bg-[#F4EDFC] text-[#5B21B6] border-[#6D28D9] shadow-xs font-extrabold'
+                    : 'bg-[#FAF5FD] text-slate-600 hover:text-[#5B21B6] border-transparent hover:bg-[#F4EDFC]/60'
                 }`}
               >
                 <span>Lũ Kiểm Chứng</span>
                 <span
                   className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
                     activeLayerTab === 'FLOOD'
-                      ? 'bg-[#0A4393] text-white'
-                      : 'bg-slate-200 text-slate-700'
+                      ? 'bg-[#6D28D9] text-white'
+                      : 'bg-purple-100 text-purple-900'
                   }`}
                 >
                   {floodTabActiveCount}/{floodTabTotalCount}
                 </span>
               </button>
 
+              {/* Tab 3: Thôn / Buôn (Tone Xanh lá nhạt) */}
               <button
                 type="button"
                 onClick={() => setActiveLayerTab('VILLAGE')}
-                className={`flex-1 py-1.5 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
+                className={`flex-1 py-2 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
                   activeLayerTab === 'VILLAGE'
-                    ? 'bg-white text-[#0A4393] border-[#0A4393] shadow-xs'
-                    : 'text-slate-600 hover:text-[#0A4393] border-transparent hover:bg-white/40'
+                    ? 'bg-[#EBF7EE] text-[#065F46] border-[#059669] shadow-xs font-extrabold'
+                    : 'bg-[#F4FAF5] text-slate-600 hover:text-[#065F46] border-transparent hover:bg-[#EBF7EE]/60'
                 }`}
               >
                 <span>Thôn / Buôn</span>
                 <span
                   className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
                     activeLayerTab === 'VILLAGE'
-                      ? 'bg-[#0A4393] text-white'
-                      : 'bg-slate-200 text-slate-700'
+                      ? 'bg-[#059669] text-white'
+                      : 'bg-emerald-100 text-emerald-900'
                   }`}
                 >
                   {villageTabActiveCount}/{villageTabTotalCount}
@@ -4482,6 +5109,69 @@ export const WebGISMap: React.FC = () => {
               onChange={handleUploadCustomKml}
               className="hidden"
             />
+          </div>
+        )}
+
+        {/* THÔNG TIN THÔN/BUÔN NẰM DƯỚI CÙNG KHUNG BẢN ĐỒ KHI NHẤP DẤU TÍCH HOẶC CHỌN TỪ 21 NÚT */}
+        {selectedVillageBottomInfo && (
+          <div className="absolute bottom-3 left-2 right-2 sm:left-4 sm:right-4 z-[520] bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-[#0A4393] p-2.5 sm:p-3 animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-200">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[12px] sm:text-xs font-black uppercase text-[#0A4393] tracking-wide truncate">
+                  📍 {selectedVillageBottomInfo.name}
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium hidden md:inline">
+                  (Hệ thống WebGIS giám sát địa bàn)
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedVillageBottomInfo.coordinates && leafletMapRef.current) {
+                      leafletMapRef.current.flyTo(selectedVillageBottomInfo.coordinates, 15, { duration: 1.2 });
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                  title="Tập trung khung nhìn bản đồ về tọa độ này"
+                >
+                  <Crosshair className="w-3 h-3" />
+                  <span className="hidden sm:inline">Tâm điểm</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedVillageBottomInfo(null)}
+                  className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Đóng bảng thông tin"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+              <div className="flex items-center gap-2 bg-blue-50/80 rounded-lg px-2.5 py-1.5 border border-blue-200/70">
+                <div className="text-[10px] text-blue-700 font-bold shrink-0">Độ cao:</div>
+                <div className="text-xs font-extrabold text-[#0A4393] font-mono">
+                  +{selectedVillageBottomInfo.elevation.toFixed(1)}m
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-amber-50/80 rounded-lg px-2.5 py-1.5 border border-amber-200/70">
+                <div className="text-[10px] text-amber-800 font-bold shrink-0">Số hộ ảnh hưởng:</div>
+                <div className="text-xs font-extrabold text-amber-900 font-mono">
+                  {selectedVillageBottomInfo.affectedHouseholds} hộ
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-emerald-50/80 rounded-lg px-2.5 py-1.5 border border-emerald-200/70 sm:col-span-1">
+                <div className="text-[10px] text-emerald-800 font-bold shrink-0">Điểm sơ tán gần nhất:</div>
+                <div className="text-[11px] font-bold text-emerald-950 truncate" title={selectedVillageBottomInfo.evacuationPoint}>
+                  {selectedVillageBottomInfo.evacuationPoint}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
