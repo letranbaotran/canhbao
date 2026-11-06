@@ -300,6 +300,8 @@ const getStoredLayerPreferences = () => {
       systemLayers: DEFAULT_SYSTEM_LAYERS,
       activeLayerTab: 'SYSTEM' as const,
       enabledKmzLayers: {} as Record<string, boolean>,
+      villageVisibility: {} as Record<string, boolean>,
+      villageSubTab: 'POINTS' as const,
     };
   }
   try {
@@ -320,6 +322,7 @@ const getStoredLayerPreferences = () => {
           : ('SYSTEM' as const),
         enabledKmzLayers: (parsed?.enabledKmzLayers && typeof parsed.enabledKmzLayers === 'object') ? parsed.enabledKmzLayers : {},
         villageVisibility: (parsed?.villageVisibility && typeof parsed.villageVisibility === 'object') ? parsed.villageVisibility : {} as Record<string, boolean>,
+        villageSubTab: parsed?.villageSubTab === 'BOUNDARIES' ? ('BOUNDARIES' as const) : ('POINTS' as const),
       };
     }
   } catch {}
@@ -328,6 +331,7 @@ const getStoredLayerPreferences = () => {
     activeLayerTab: 'SYSTEM' as const,
     enabledKmzLayers: {} as Record<string, boolean>,
     villageVisibility: {} as Record<string, boolean>,
+    villageSubTab: 'POINTS' as const,
   };
 };
 
@@ -436,6 +440,11 @@ export const WebGISMap: React.FC = () => {
     () => getStoredLayerPreferences().villageVisibility
   );
 
+  // 2 Tab lớn trong nhóm Thôn / Buôn: Điểm tập trung | Ranh thôn/buôn
+  const [villageSubTab, setVillageSubTab] = useState<'POINTS' | 'BOUNDARIES'>(
+    () => getStoredLayerPreferences().villageSubTab
+  );
+
   // Tự động ghi nhớ cấu hình lớp bản đồ và tab vào localStorage khi có thay đổi
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -444,13 +453,14 @@ export const WebGISMap: React.FC = () => {
         systemLayers,
         enabledKmzLayers,
         activeLayerTab,
+        villageSubTab,
         villageVisibility,
       };
       localStorage.setItem(LAYER_PREFERENCES_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (err) {
       console.error('Không thể lưu cấu hình lớp bản đồ:', err);
     }
-  }, [systemLayers, enabledKmzLayers, activeLayerTab, villageVisibility]);
+  }, [systemLayers, enabledKmzLayers, activeLayerTab, villageSubTab, villageVisibility]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
   const handleToggleFullscreen = useCallback(() => {
@@ -2434,6 +2444,10 @@ export const WebGISMap: React.FC = () => {
     const nextVal = !isCurrentlyVisible;
     setVillageVisibility((prev) => ({ ...prev, [villageName]: nextVal }));
 
+    if (nextVal && !systemLayers.villages) {
+      handleToggleSystemLayer('villages');
+    }
+
     const marker = villageMarkersMapRef.current[villageName];
     const group = villagesLayerRef.current;
     if (marker && group) {
@@ -2447,6 +2461,9 @@ export const WebGISMap: React.FC = () => {
 
   // Chọn hiển thị tất cả các điểm thôn buôn
   const handleSelectAllVillages = () => {
+    if (!systemLayers.villages) {
+      handleToggleSystemLayer('villages');
+    }
     const nextState: Record<string, boolean> = {};
     const group = villagesLayerRef.current;
     Object.values(VILLAGE_DISASTER_PROFILES).forEach((vil) => {
@@ -2911,6 +2928,39 @@ export const WebGISMap: React.FC = () => {
   const villageTabTotalCount = 1 + villageKmzItems.length;
   const isAllVillageTabActive =
     villageTabTotalCount > 0 && villageTabActiveCount === villageTabTotalCount;
+
+  // Thống kê riêng cho 2 sub-tab lớn trong Thôn/Buôn
+  const villageBoundariesActiveCount = villageKmzItems.filter(
+    (m) => !!enabledKmzLayers[m.id]
+  ).length;
+  const villageBoundariesTotalCount = villageKmzItems.length;
+  const isAllVillageBoundariesActive =
+    villageBoundariesTotalCount > 0 &&
+    villageBoundariesActiveCount === villageBoundariesTotalCount;
+
+  const totalVillagePointsCount = Object.keys(VILLAGE_DISASTER_PROFILES).length;
+  const activeVillagePointsCount = Object.values(VILLAGE_DISASTER_PROFILES).filter(
+    (v) => villageVisibility[v.name] !== false
+  ).length;
+
+  const handleToggleAllVillageBoundaries = () => {
+    const nextVal = !isAllVillageBoundariesActive;
+    if (villageKmzItems.length > 0) {
+      const copy = { ...enabledKmzLayers };
+      villageKmzItems.forEach((m) => {
+        copy[m.id] = nextVal;
+        persistKmlLayerUpdate(m.id, { enabled: nextVal });
+        if (nextVal) renderKmzLayerOnMap(m);
+        else {
+          const g = kmzLayerGroupsRef.current[m.id];
+          if (g && leafletMapRef.current?.hasLayer(g)) {
+            leafletMapRef.current.removeLayer(g);
+          }
+        }
+      });
+      setEnabledKmzLayers(copy);
+    }
+  };
 
   const handleToggleAllSystemTab = () => {
     const nextVal = !isAllSystemTabActive;
@@ -3589,55 +3639,101 @@ export const WebGISMap: React.FC = () => {
               </button>
             </div>
 
-            {/* Thanh tác vụ của Tab hiện tại: Nút tích chọn hết & Nút tải file Admin */}
-            <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-              <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={
-                    activeLayerTab === 'SYSTEM'
-                      ? isAllSystemTabActive
-                      : activeLayerTab === 'FLOOD'
-                      ? isAllFloodTabActive
-                      : isAllVillageTabActive
-                  }
-                  onChange={() => {
-                    if (activeLayerTab === 'SYSTEM') handleToggleAllSystemTab();
-                    else if (activeLayerTab === 'FLOOD') handleToggleAllFloodTab();
-                    else handleToggleAllVillageTab();
-                  }}
-                  className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
-                />
-                <span className="text-[11px] font-bold text-[#0A4393]">
-                  Chọn tất cả (
-                  {activeLayerTab === 'SYSTEM'
-                    ? `${systemTabActiveCount}/${systemTabTotalCount}`
-                    : activeLayerTab === 'FLOOD'
-                    ? `${floodTabActiveCount}/${floodTabTotalCount}`
-                    : `${villageTabActiveCount}/${villageTabTotalCount}`}
-                  )
-                </span>
-              </label>
+            {/* Thanh tác vụ của Tab Hệ Thống & Lũ Kiểm Chứng */}
+            {activeLayerTab !== 'VILLAGE' && (
+              <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      activeLayerTab === 'SYSTEM'
+                        ? isAllSystemTabActive
+                        : isAllFloodTabActive
+                    }
+                    onChange={() => {
+                      if (activeLayerTab === 'SYSTEM') handleToggleAllSystemTab();
+                      else if (activeLayerTab === 'FLOOD') handleToggleAllFloodTab();
+                    }}
+                    className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-bold text-[#0A4393]">
+                    Chọn tất cả (
+                    {activeLayerTab === 'SYSTEM'
+                      ? `${systemTabActiveCount}/${systemTabTotalCount}`
+                      : `${floodTabActiveCount}/${floodTabTotalCount}`}
+                    )
+                  </span>
+                </label>
 
-              {/* Quyền Admin / Map Editor nạp file KML / GeoJSON vào Tab này */}
-              {canEditMap && (
-                <button
-                  type="button"
-                  onClick={() => handleTriggerTabUpload(activeLayerTab)}
-                  className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                  title={`Tải file KML / GeoJSON vào tab ${
-                    activeLayerTab === 'SYSTEM'
-                      ? 'Hệ Thống'
-                      : activeLayerTab === 'FLOOD'
-                      ? 'Lũ Kiểm Chứng'
-                      : 'Thôn / Buôn'
-                  }`}
-                >
-                  <Upload className="w-3 h-3" />
-                  <span>+ Nạp KML/GeoJSON</span>
-                </button>
-              )}
-            </div>
+                {/* Quyền Admin / Map Editor nạp file KML / GeoJSON vào Tab này */}
+                {canEditMap && (
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerTabUpload(activeLayerTab)}
+                    className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                    title={`Tải file KML / GeoJSON vào tab ${
+                      activeLayerTab === 'SYSTEM'
+                        ? 'Hệ Thống'
+                        : 'Lũ Kiểm Chứng'
+                    }`}
+                  >
+                    <Upload className="w-3 h-3" />
+                    <span>+ Nạp KML/GeoJSON</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* 2 TAB LỚN TẠI TAB THÔN/BUÔN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN */}
+            {activeLayerTab === 'VILLAGE' && (
+              <div className="p-2 bg-slate-100/90 border-b border-slate-200 shrink-0">
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setVillageSubTab('POINTS')}
+                    className={`py-2 px-2 rounded-lg text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[11.5px] ${
+                      villageSubTab === 'POINTS'
+                        ? 'bg-[#0A4393] text-white shadow-sm ring-1 ring-[#0A4393]'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Điểm tập trung</span>
+                    <span
+                      className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
+                        villageSubTab === 'POINTS'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-white text-slate-700'
+                      }`}
+                    >
+                      {activeVillagePointsCount}/{totalVillagePointsCount}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setVillageSubTab('BOUNDARIES')}
+                    className={`py-2 px-2 rounded-lg text-center transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold text-[11.5px] ${
+                      villageSubTab === 'BOUNDARIES'
+                        ? 'bg-[#0A4393] text-white shadow-sm ring-1 ring-[#0A4393]'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Ranh thôn/buôn</span>
+                    <span
+                      className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
+                        villageSubTab === 'BOUNDARIES'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-white text-slate-700'
+                      }`}
+                    >
+                      {villageBoundariesActiveCount}/{villageKmzItems.length}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Danh sách các lớp bản đồ của Tab đang chọn (Cuộn dọc gọn gàng) */}
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
@@ -3963,363 +4059,415 @@ export const WebGISMap: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: NHÓM LỚP THÔN/BUÔN */}
+              {/* TAB 3: NHÓM LỚP THÔN/BUÔN - TÁCH THÀNH 2 TAB LỚN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN */}
               {activeLayerTab === 'VILLAGE' && (
                 <div className="space-y-1.5">
-                  {/* 1. Điểm tập trung 20 thôn/buôn */}
-                  <div className="p-1.5 rounded-lg bg-emerald-50/70 hover:bg-emerald-50 border border-emerald-200 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={systemLayers.villages}
-                          onChange={() => handleToggleSystemLayer('villages')}
-                          className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                        />
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block shrink-0" />
-                        <span className="text-[11px] font-bold text-emerald-950 truncate">
-                          Điểm tập trung 20 thôn/buôn
-                        </span>
-                      </label>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleFlyToSystemLayer('villages')}
-                          className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                          title="Phóng bản đồ bao quát 20 thôn buôn xã Ea Súp"
-                        >
-                          <Crosshair className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Danh sách 20 Thôn Buôn chi tiết để kiểm tra & cập nhật tọa độ vị trí */}
-                    {systemLayers.villages && (
-                      <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-60 overflow-y-auto space-y-1 pr-0.5">
-                        {/* Thanh công cụ phụ: Chọn tất cả / Bỏ chọn tất cả từng điểm thôn buôn */}
-                        <div className="flex items-center justify-between px-1.5 py-1 bg-emerald-100/70 rounded text-[9.5px] text-emerald-950 font-semibold mb-1 border border-emerald-200">
-                          <span>
-                            📍 Hiển thị: <strong>{Object.values(VILLAGE_DISASTER_PROFILES).filter((v) => villageVisibility[v.name] !== false).length}/{Object.keys(VILLAGE_DISASTER_PROFILES).length}</strong> điểm
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={handleSelectAllVillages}
-                              className="px-1.5 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold transition-colors cursor-pointer"
-                              title="Tích chọn hiển thị tất cả các điểm thôn/buôn trên bản đồ"
-                            >
-                              Tất cả
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleDeselectAllVillages}
-                              className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 font-medium transition-colors cursor-pointer"
-                              title="Bỏ chọn tất cả các điểm thôn/buôn trên bản đồ"
-                            >
-                              Bỏ chọn
-                            </button>
-                          </div>
-                        </div>
-
-                        {Object.values(VILLAGE_DISASTER_PROFILES).map((vil) => {
-                          const isBuon = vil.groupLabel === '03 Buôn đồng bào';
-                          const isThonTen = vil.groupLabel === '04 Thôn tên';
-                          const tagBg = isBuon
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isThonTen
-                            ? 'bg-sky-100 text-sky-800'
-                            : 'bg-blue-100 text-[#0A4393]';
-                          const isEditingThisVillage =
-                            canEditMap && editingVillageName === vil.name;
-                          const isCustomized = !!customVillageCoords[vil.name];
-                          const isVilVisible = villageVisibility[vil.name] !== false;
-
-                          return (
-                            <div key={vil.name} className="flex flex-col">
-                              <div
-                                className={`flex items-center justify-between p-1 rounded border transition-colors ${
-                                  isEditingThisVillage
-                                    ? 'bg-[#E6F0FA] border-[#0A4393]'
-                                    : isVilVisible
-                                    ? 'bg-white hover:bg-emerald-100/50 border-slate-200'
-                                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 opacity-60'
-                                } text-[10.5px]`}
-                              >
-                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                  {/* Dấu tích chọn từng điểm phía trước mỗi điểm */}
-                                  <input
-                                    type="checkbox"
-                                    checked={isVilVisible}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleToggleVillageVisibility(vil.name);
-                                    }}
-                                    className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
-                                    title={`Tích chọn để hiển thị hoặc ẩn điểm ${vil.name} trên bản đồ`}
-                                  />
-                                  <div
-                                    onClick={() => handleFlyToVillage(vil.name)}
-                                    className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
-                                    title={`Nhấn để phóng tới ${vil.name}`}
-                                  >
-                                    <span
-                                      className={`font-semibold truncate ${
-                                        isVilVisible ? 'text-slate-800' : 'text-slate-500'
-                                      }`}
-                                    >
-                                      {vil.name}
-                                    </span>
-                                    <span
-                                      className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
-                                    >
-                                      +{vil.avgElevationM}m
-                                    </span>
-                                    <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
-                                      ({vil.totalHouseholds} hộ)
-                                    </span>
-                                    {isCustomized && (
-                                      <span
-                                        className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold shrink-0"
-                                        title="Tọa độ đã được Admin tinh chỉnh vị trí"
-                                      >
-                                        Đã sửa vị trí
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0 ml-1">
-                                  {canEditMap && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleStartEditVillageCoords(vil.name)}
-                                      className={`p-0.5 rounded border transition-colors ${
-                                        isEditingThisVillage
-                                          ? 'bg-[#0A4393] text-white border-[#0A4393]'
-                                          : 'bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border-slate-300'
-                                      }`}
-                                      title="Admin: Nhập tọa độ vị trí (X, Y) cập nhật trực tiếp cho thôn này"
-                                    >
-                                      <Pencil className="w-3 h-3" />
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleFlyToVillage(vil.name)}
-                                    className="p-0.5 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors"
-                                    title={`Phóng tới ${vil.name} trên bản đồ`}
-                                  >
-                                    <Crosshair className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Form Admin nhập tọa độ X, Y trực tiếp cho từng thôn */}
-                              {isEditingThisVillage && (
-                                <div className="p-2 bg-[#F0F6FF] rounded-lg border border-[#0A4393]/35 mt-1 mb-1 space-y-1.5 shadow-xs">
-                                  <div className="flex items-center justify-between text-[10px] font-bold text-[#0A4393] flex-wrap gap-1">
-                                    <span>📍 NHẬP TỌA ĐỘ VỊ TRÍ: {vil.name}</span>
-                                    <div className="flex items-center gap-1">
-                                      {pinnedCoord && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setEditLatInput(pinnedCoord.lat.toFixed(6));
-                                            setEditLngInput(pinnedCoord.lng.toFixed(6));
-                                          }}
-                                          className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                          title={`Điền tọa độ điểm vừa ghim: ${pinnedCoord.lat.toFixed(6)}, ${pinnedCoord.lng.toFixed(6)}`}
-                                        >
-                                          <MapPin className="w-2.5 h-2.5 text-red-600" />
-                                          <span>Lấy điểm ghim ({pinnedCoord.lat.toFixed(4)}, {pinnedCoord.lng.toFixed(4)})</span>
-                                        </button>
-                                      )}
-                                      <button
-                                        type="button"
-                                        onClick={handleGetMapCenterForVillage}
-                                        className="text-[9px] px-1.5 py-0.5 rounded bg-white text-[#0A4393] hover:bg-blue-100 border border-[#0A4393]/30 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                                        title="Lấy tọa độ tâm bản đồ Leaflet đang hiển thị"
-                                      >
-                                        <MapPin className="w-2.5 h-2.5" />
-                                        <span>Lấy tâm bản đồ</span>
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-1.5">
-                                    <div>
-                                      <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
-                                        Tọa độ Y / Vĩ độ (Lat):
-                                      </label>
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={editLatInput}
-                                        onChange={(e) => setEditLatInput(e.target.value)}
-                                        placeholder="Ví dụ: 13.069298"
-                                        className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
-                                        Tọa độ X / Kinh độ (Lng):
-                                      </label>
-                                      <input
-                                        type="number"
-                                        step="any"
-                                        value={editLngInput}
-                                        onChange={(e) => setEditLngInput(e.target.value)}
-                                        placeholder="Ví dụ: 107.881527"
-                                        className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {coordSaveMessage && (
-                                    <div className="text-[9.5px] text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-200">
-                                      ✓ {coordSaveMessage}
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center justify-between gap-1 pt-0.5">
-                                    {isCustomized ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleResetVillageCoords(vil.name)}
-                                        className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[9px] font-semibold cursor-pointer"
-                                        title="Khôi phục lại tọa độ gốc ban đầu"
-                                      >
-                                        Đặt lại mặc định
-                                      </button>
-                                    ) : (
-                                      <div />
-                                    )}
-
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setEditingVillageName(null)}
-                                        className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-600 text-[9.5px] font-semibold border border-slate-300 cursor-pointer"
-                                      >
-                                        Hủy
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSaveVillageCoords(vil.name)}
-                                        className="px-2.5 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold shadow-xs flex items-center gap-1 transition-colors cursor-pointer"
-                                      >
-                                        <Save className="w-3 h-3" />
-                                        <span>Lưu tọa độ</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Các file KML/GeoJSON do người dùng tải lên thuộc Tab Thôn/Buôn */}
-                  {villageKmzItems.map((item) => {
-                    const isChecked = !!enabledKmzLayers[item.id];
-                    const isLoading = !!loadingKmzLayers[item.id];
-                    const isEditing = canEditMap && editingLayerId === item.id;
-                    const isCustom = isUserUploadLayer(item);
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
-                          isChecked
-                            ? 'bg-[#F0F6FF]/90 border-[#0A4393]/30'
-                            : 'bg-white border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {/* 1. TAB ĐIỂM TẬP TRUNG (Ảnh 2) */}
+                  {villageSubTab === 'POINTS' && (
+                    <div className="p-1.5 rounded-lg bg-emerald-50/70 hover:bg-emerald-50 border border-emerald-200 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
                           <input
                             type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleKmzLayer(item)}
+                            checked={systemLayers.villages}
+                            onChange={() => handleToggleSystemLayer('villages')}
                             className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
                           />
-                          <span
-                            className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
-                            style={{ backgroundColor: item.color }}
-                          />
-
-                          {isEditing ? (
-                            <div className="flex items-center gap-1 flex-1 min-w-0">
-                              <input
-                                type="text"
-                                value={editingLayerName}
-                                onChange={(e) => setEditingLayerName(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveLayerName(item.id);
-                                  if (e.key === 'Escape') setEditingLayerId(null);
-                                }}
-                                autoFocus
-                                className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-semibold text-[#0A4393] bg-white border border-[#0A4393] rounded focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
-                                placeholder="Nhập tên lớp bản đồ..."
-                              />
-                              <button
-                                onClick={() => handleSaveLayerName(item.id)}
-                                className="px-1.5 py-0.5 rounded bg-[#0A4393] text-white text-[10px] font-bold hover:bg-[#083576] shrink-0"
-                              >
-                                Lưu
-                              </button>
-                            </div>
-                          ) : (
-                            <div
-                              onClick={() => handleToggleKmzLayer(item)}
-                              className="truncate cursor-pointer flex-1 min-w-0"
-                            >
-                              <div className="text-[11px] font-bold text-slate-800 truncate">
-                                {item.label}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
-                          {isLoading && (
-                            <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
-                          )}
-                          {!isCustom && (
-                            <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              Hệ thống
-                            </span>
-                          )}
-                          {isCustom && canEditMap && !isEditing && (
-                            <button
-                              onClick={() => handleStartEditLayerName(item)}
-                              className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                              title="Chỉnh sửa tên lớp bản đồ"
-                            >
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                          )}
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block shrink-0" />
+                          <span className="text-[11px] font-bold text-emerald-950 truncate">
+                            Điểm tập trung 20 thôn/buôn
+                          </span>
+                        </label>
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => handleFlyToKmzLayer(item)}
+                            type="button"
+                            onClick={() => handleFlyToSystemLayer('villages')}
                             className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
-                            title={`Phóng bản đồ tới vị trí lớp ${item.label}`}
+                            title="Phóng bản đồ bao quát 20 thôn buôn xã Ea Súp"
                           >
                             <Crosshair className="w-3 h-3" />
                           </button>
-                          {isCustom && canEditMap && (
-                            <button
-                              onClick={() => handleDeleteKmzLayer(item)}
-                              className="p-1 rounded bg-white hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 transition-colors"
-                              title="Xóa lớp bản đồ này khỏi hệ thống"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Danh sách 20 Thôn Buôn chi tiết để kiểm tra & cập nhật tọa độ vị trí */}
+                      {systemLayers.villages && (
+                        <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-[380px] overflow-y-auto space-y-1 pr-0.5">
+                          {/* Thanh công cụ phụ: Chọn tất cả / Bỏ chọn tất cả từng điểm thôn buôn */}
+                          <div className="flex items-center justify-between px-1.5 py-1 bg-emerald-100/70 rounded text-[9.5px] text-emerald-950 font-semibold mb-1 border border-emerald-200">
+                            <span>
+                              📍 Hiển thị: <strong>{activeVillagePointsCount}/{totalVillagePointsCount}</strong> điểm
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={handleSelectAllVillages}
+                                className="px-1.5 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold transition-colors cursor-pointer"
+                                title="Tích chọn hiển thị tất cả các điểm thôn/buôn trên bản đồ"
+                              >
+                                Tất cả
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleDeselectAllVillages}
+                                className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 font-medium transition-colors cursor-pointer"
+                                title="Bỏ chọn tất cả các điểm thôn/buôn trên bản đồ"
+                              >
+                                Bỏ chọn
+                              </button>
+                            </div>
+                          </div>
+
+                          {Object.values(VILLAGE_DISASTER_PROFILES).map((vil) => {
+                            const isBuon = vil.groupLabel === '03 Buôn đồng bào';
+                            const isThonTen = vil.groupLabel === '04 Thôn tên';
+                            const tagBg = isBuon
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : isThonTen
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-blue-100 text-[#0A4393]';
+                            const isEditingThisVillage =
+                              canEditMap && editingVillageName === vil.name;
+                            const isCustomized = !!customVillageCoords[vil.name];
+                            const isVilVisible = villageVisibility[vil.name] !== false;
+
+                            return (
+                              <div key={vil.name} className="flex flex-col">
+                                <div
+                                  className={`flex items-center justify-between p-1 rounded border transition-colors ${
+                                    isEditingThisVillage
+                                      ? 'bg-[#E6F0FA] border-[#0A4393]'
+                                      : isVilVisible
+                                      ? 'bg-white hover:bg-emerald-100/50 border-slate-200'
+                                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 opacity-60'
+                                  } text-[10.5px]`}
+                                >
+                                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                    {/* Dấu tích chọn từng điểm phía trước mỗi điểm */}
+                                    <input
+                                      type="checkbox"
+                                      checked={isVilVisible}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleVillageVisibility(vil.name);
+                                      }}
+                                      className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                                      title={`Tích chọn để hiển thị hoặc ẩn điểm ${vil.name} trên bản đồ`}
+                                    />
+                                    <div
+                                      onClick={() => handleFlyToVillage(vil.name)}
+                                      className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
+                                      title={`Nhấn để phóng tới ${vil.name}`}
+                                    >
+                                      <span
+                                        className={`font-semibold truncate ${
+                                          isVilVisible ? 'text-slate-800' : 'text-slate-500'
+                                        }`}
+                                      >
+                                        {vil.name}
+                                      </span>
+                                      <span
+                                        className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
+                                      >
+                                        +{vil.avgElevationM}m
+                                      </span>
+                                      <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
+                                        ({vil.totalHouseholds} hộ)
+                                      </span>
+                                      {isCustomized && (
+                                        <span
+                                          className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold shrink-0"
+                                          title="Tọa độ đã được Admin tinh chỉnh vị trí"
+                                        >
+                                          Đã sửa vị trí
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0 ml-1">
+                                    {canEditMap && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleStartEditVillageCoords(vil.name)}
+                                        className={`p-0.5 rounded border transition-colors ${
+                                          isEditingThisVillage
+                                            ? 'bg-[#0A4393] text-white border-[#0A4393]'
+                                            : 'bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border-slate-300'
+                                        }`}
+                                        title="Admin: Nhập tọa độ vị trí (X, Y) cập nhật trực tiếp cho thôn này"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleFlyToVillage(vil.name)}
+                                      className="p-0.5 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-slate-300 transition-colors"
+                                      title={`Phóng tới ${vil.name} trên bản đồ`}
+                                    >
+                                      <Crosshair className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Form Admin nhập tọa độ X, Y trực tiếp cho từng thôn */}
+                                {isEditingThisVillage && (
+                                  <div className="p-2 bg-[#F0F6FF] rounded-lg border border-[#0A4393]/35 mt-1 mb-1 space-y-1.5 shadow-xs">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-[#0A4393] flex-wrap gap-1">
+                                      <span>📍 NHẬP TỌA ĐỘ VỊ TRÍ: {vil.name}</span>
+                                      <div className="flex items-center gap-1">
+                                        {pinnedCoord && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditLatInput(pinnedCoord.lat.toFixed(6));
+                                              setEditLngInput(pinnedCoord.lng.toFixed(6));
+                                            }}
+                                            className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                            title={`Điền tọa độ điểm vừa ghim: ${pinnedCoord.lat.toFixed(6)}, ${pinnedCoord.lng.toFixed(6)}`}
+                                          >
+                                            <MapPin className="w-2.5 h-2.5 text-red-600" />
+                                            <span>Lấy điểm ghim ({pinnedCoord.lat.toFixed(4)}, {pinnedCoord.lng.toFixed(4)})</span>
+                                          </button>
+                                        )}
+                                        <button
+                                          type="button"
+                                          onClick={handleGetMapCenterForVillage}
+                                          className="text-[9px] px-1.5 py-0.5 rounded bg-white text-[#0A4393] hover:bg-blue-100 border border-[#0A4393]/30 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                                          title="Lấy tọa độ tâm bản đồ Leaflet đang hiển thị"
+                                        >
+                                          <MapPin className="w-2.5 h-2.5" />
+                                          <span>Lấy tâm bản đồ</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                      <div>
+                                        <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
+                                          Tọa độ Y / Vĩ độ (Lat):
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editLatInput}
+                                          onChange={(e) => setEditLatInput(e.target.value)}
+                                          placeholder="Ví dụ: 13.069298"
+                                          className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[9px] font-bold text-slate-700 mb-0.5">
+                                          Tọa độ X / Kinh độ (Lng):
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="any"
+                                          value={editLngInput}
+                                          onChange={(e) => setEditLngInput(e.target.value)}
+                                          placeholder="Ví dụ: 107.881527"
+                                          className="w-full px-1.5 py-0.5 text-[11px] font-mono bg-white border border-[#0A4393]/40 rounded focus:border-[#0A4393] focus:ring-1 focus:ring-[#0A4393] focus:outline-none"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {coordSaveMessage && (
+                                      <div className="text-[9.5px] text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-200">
+                                        ✓ {coordSaveMessage}
+                                      </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between gap-1 pt-0.5">
+                                      {isCustomized ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleResetVillageCoords(vil.name)}
+                                          className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[9px] font-semibold cursor-pointer"
+                                          title="Khôi phục lại tọa độ gốc ban đầu"
+                                        >
+                                          Đặt lại mặc định
+                                        </button>
+                                      ) : (
+                                        <div />
+                                      )}
+
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingVillageName(null)}
+                                          className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 text-slate-600 text-[9.5px] font-semibold border border-slate-300 cursor-pointer"
+                                        >
+                                          Hủy
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSaveVillageCoords(vil.name)}
+                                          className="px-2.5 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold shadow-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                        >
+                                          <Save className="w-3 h-3" />
+                                          <span>Lưu tọa độ</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 2. TAB RANH THÔN/BUÔN (Ảnh 3) */}
+                  {villageSubTab === 'BOUNDARIES' && (
+                    <div className="space-y-1.5">
+                      {/* Thanh tác vụ của Tab Ranh thôn/buôn */}
+                      <div className="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200 mb-1">
+                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isAllVillageBoundariesActive}
+                            onChange={handleToggleAllVillageBoundaries}
+                            className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer"
+                          />
+                          <span className="text-[11px] font-bold text-[#0A4393]">
+                            Chọn tất cả ({villageBoundariesActiveCount}/{villageKmzItems.length})
+                          </span>
+                        </label>
+
+                        {canEditMap && (
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerTabUpload('VILLAGE')}
+                            className="px-2 py-0.5 rounded bg-[#0A4393] hover:bg-[#083576] text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                            title="Tải file KML / GeoJSON ranh giới thôn buôn"
+                          >
+                            <Upload className="w-3 h-3" />
+                            <span>+ Nạp KML/GeoJSON</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Các file KML/GeoJSON do người dùng tải lên thuộc Tab Thôn/Buôn */}
+                      {villageKmzItems.length === 0 ? (
+                        <div className="p-4 text-center text-slate-500 text-[11px] bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                          Chưa có file ranh giới KML/GeoJSON nào cho thôn/buôn.
+                          {canEditMap && (
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                onClick={() => handleTriggerTabUpload('VILLAGE')}
+                                className="px-2.5 py-1 rounded bg-[#0A4393] text-white text-[10px] font-bold inline-flex items-center gap-1"
+                              >
+                                <Upload className="w-3 h-3" />
+                                <span>+ Tải lên file KML/GeoJSON</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        villageKmzItems.map((item) => {
+                          const isChecked = !!enabledKmzLayers[item.id];
+                          const isLoading = !!loadingKmzLayers[item.id];
+                          const isEditing = canEditMap && editingLayerId === item.id;
+                          const isCustom = isUserUploadLayer(item);
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`flex items-center justify-between p-2 rounded-lg border transition-colors ${
+                                isChecked
+                                  ? 'bg-[#F0F6FF]/90 border-[#0A4393]/30'
+                                  : 'bg-white border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleKmzLayer(item)}
+                                  className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                                />
+                                <span
+                                  className="w-2.5 h-2.5 rounded-xs shrink-0 border border-slate-400"
+                                  style={{ backgroundColor: item.color }}
+                                />
+
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <input
+                                      type="text"
+                                      value={editingLayerName}
+                                      onChange={(e) => setEditingLayerName(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveLayerName(item.id);
+                                        if (e.key === 'Escape') setEditingLayerId(null);
+                                      }}
+                                      autoFocus
+                                      className="flex-1 min-w-0 px-1.5 py-0.5 text-[11px] font-semibold text-[#0A4393] bg-white border border-[#0A4393] rounded focus:outline-none focus:ring-1 focus:ring-[#0A4393]"
+                                      placeholder="Nhập tên lớp bản đồ..."
+                                    />
+                                    <button
+                                      onClick={() => handleSaveLayerName(item.id)}
+                                      className="px-1.5 py-0.5 rounded bg-[#0A4393] text-white text-[10px] font-bold hover:bg-[#083576] shrink-0"
+                                    >
+                                      Lưu
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div
+                                    onClick={() => handleToggleKmzLayer(item)}
+                                    className="truncate cursor-pointer flex-1 min-w-0"
+                                  >
+                                    <div className="text-[11px] font-bold text-slate-800 truncate">
+                                      {item.label}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                                {isLoading && (
+                                  <Loader2 className="w-3 h-3 animate-spin text-[#0A4393]" />
+                                )}
+                                {!isCustom && (
+                                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                    Hệ thống
+                                  </span>
+                                )}
+                                {isCustom && canEditMap && !isEditing && (
+                                  <button
+                                    onClick={() => handleStartEditLayerName(item)}
+                                    className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                                    title="Chỉnh sửa tên lớp bản đồ"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleFlyToKmzLayer(item)}
+                                  className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/25 transition-colors"
+                                  title={`Phóng bản đồ tới vị trí lớp ${item.label}`}
+                                >
+                                  <Crosshair className="w-3 h-3" />
+                                </button>
+                                {isCustom && canEditMap && (
+                                  <button
+                                    onClick={() => handleDeleteKmzLayer(item)}
+                                    className="p-1 rounded bg-white hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 transition-colors"
+                                    title="Xóa lớp bản đồ này khỏi hệ thống"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
