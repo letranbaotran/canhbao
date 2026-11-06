@@ -3333,7 +3333,7 @@ export const WebGISMap: React.FC = () => {
         className={`relative overflow-hidden transition-all duration-200 ${
           isFullscreen
             ? 'fixed inset-0 w-screen h-[100dvh] z-[9999] rounded-none m-0 p-0 shadow-none bg-slate-900'
-            : 'w-full h-[520px] sm:h-[560px]'
+            : 'w-full h-[350px] sm:h-[560px]'
         }`}
         style={
           isFullscreen
@@ -3538,7 +3538,9 @@ export const WebGISMap: React.FC = () => {
               !panelCoords
                 ? `top-12 ${layerPanelPosition === 'left' ? 'left-3' : 'right-3'}`
                 : ''
-            } z-[550] w-[330px] sm:w-[375px] max-h-[450px] bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans ${
+            } z-[550] w-[330px] sm:w-[375px] ${
+              isFullscreen ? 'max-h-[85vh]' : 'max-h-[290px] sm:max-h-[480px]'
+            } bg-white border-2 border-[#0A4393] rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs font-sans ${
               isDraggingPanel ? 'select-none shadow-3xl opacity-95 transition-none' : 'transition-all duration-150'
             }`}
           >
