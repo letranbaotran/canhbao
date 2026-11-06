@@ -2142,17 +2142,15 @@ export const WebGISMap: React.FC = () => {
 
       if (withFloodAudit) {
         marker.bindPopup(`
-          <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:270px; color:#0f172a;">
-            <div style="background:${audit.badgeColor}; color:#ffffff; padding:5px 8px; border-radius:6px; font-weight:800; font-size:12px; margin-bottom:6px;">
-              📍 KIỂM TRA NGẬP TẠI TỌA ĐỘ GPS CỦA BẠN
+          <div style="font-family:sans-serif; font-size:12px; padding:3px; max-width:260px; color:#0f172a;">
+            <div style="background:${audit.badgeColor}; color:#ffffff; padding:5px 8px; border-radius:6px; font-weight:800; font-size:11.5px; margin-bottom:6px; text-align:center;">
+              📍 KIỂM TRA NGẬP TẠI VỊ TRÍ CỦA BẠN
             </div>
-            <div style="font-size:11px; font-family:monospace; color:#334155; margin-bottom:5px;">
-              <div>• WGS84: <strong>${lat.toFixed(5)}°B, ${lng.toFixed(5)}°Đ</strong></div>
-              <div>• VN-2000: <strong>X=${audit.vn2000_x.toLocaleString('en-US')} | Y=${audit.vn2000_y.toLocaleString('en-US')}</strong></div>
-              <div>• Vết lũ 7/2023 gần nhất: <strong>${audit.nearestMark.code} (${audit.minDistKm} km)</strong></div>
+            <div style="font-size:11px; color:#475569; margin-bottom:5px;">
+              • Vết lũ 7/2023 gần nhất: <strong>${audit.nearestMark.code} (${audit.minDistKm} km)</strong>
             </div>
-            <div style="background:#f8fafc; border:1.5px solid ${audit.badgeColor}; color:${audit.badgeColor}; padding:5px 7px; border-radius:5px; font-weight:800; font-size:11px; margin-bottom:5px;">
-              🌊 Dự báo MIKE 21 FM: ${audit.riskLabel}
+            <div style="background:#f8fafc; border:1.5px solid ${audit.badgeColor}; color:${audit.badgeColor}; padding:5px 7px; border-radius:5px; font-weight:800; font-size:11.5px; margin-bottom:6px; text-align:center;">
+              ${audit.riskLabel}
             </div>
             <div style="font-size:11px; color:#1e293b; line-height:1.4;">
               <strong>Khuyến nghị:</strong> ${audit.recommendation}
@@ -4170,55 +4168,23 @@ export const WebGISMap: React.FC = () => {
               }
             }}
             disabled={isLocating}
-            className="w-[66px] h-[66px] sm:w-[70px] sm:h-[70px] rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0"
+            className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
             title="Kiểm tra vị trí của tôi và đánh giá nguy cơ ngập"
           >
-            {isLocating ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin mb-0.5 text-white shrink-0" />
-            ) : (
-              <Compass className="w-3.5 h-3.5 text-amber-200 mb-0.5 shrink-0" />
-            )}
-            <span className="text-[9px] sm:text-[9.5px] font-extrabold leading-[1.1] text-white">
+            <span
+              className={`text-[7.5px] sm:text-[8px] font-black leading-[1.05] tracking-tighter text-white block ${
+                isLocating ? 'animate-pulse' : ''
+              }`}
+            >
               Kiểm tra
               <br />
               vị trí của tôi
             </span>
           </button>
 
-          {/* Khối Chú giải & Kết quả GPS liên quan: Mặc định ẩn, chỉ hiện khi người dùng bấm nút GPS */}
+          {/* Khối Chú giải độ sâu ngập MIKE 21 FM (Đã bỏ bảng thông tin trùng lặp theo Ảnh 2) */}
           {showGpsFloodAssessment && (
-            <div className="absolute bottom-[72px] sm:bottom-[76px] left-0 z-[510] w-[275px] sm:w-[320px] flex flex-col gap-1.5 animate-fadeIn">
-              {/* Kết quả đối chiếu GPS nhanh nếu có */}
-              {gpsFloodRiskResult && (
-                <div className="bg-white/95 backdrop-blur-xs border-2 border-[#0A4393] rounded-lg p-2 shadow-xl text-[10px] font-mono text-slate-800 space-y-1">
-                  <div className="flex items-center justify-between font-bold text-[#0A4393]">
-                    <span>📍 Kết quả GPS ({gpsFloodRiskResult.scenarioCode})</span>
-                    <button
-                      type="button"
-                      onClick={() => setGpsFloodRiskResult(null)}
-                      className="text-slate-400 hover:text-rose-600 font-bold px-1"
-                      title="Đóng kết quả GPS"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="text-[9px] text-slate-600">
-                    VN-2000: X={gpsFloodRiskResult.vn2000_x.toLocaleString('en-US')} | Y=
-                    {gpsFloodRiskResult.vn2000_y.toLocaleString('en-US')}
-                  </div>
-                  <div
-                    className="px-1.5 py-0.5 rounded text-white font-bold text-[10px]"
-                    style={{ backgroundColor: gpsFloodRiskResult.badgeColor }}
-                  >
-                    {gpsFloodRiskResult.riskLabel}
-                  </div>
-                  <div className="text-[9px] text-slate-700 leading-snug font-sans">
-                    Gần {gpsFloodRiskResult.nearestMark.code} ({gpsFloodRiskResult.minDistKm}km):{' '}
-                    {gpsFloodRiskResult.recommendation}
-                  </div>
-                </div>
-              )}
-
+            <div className="absolute bottom-[54px] sm:bottom-[58px] left-0 z-[510] w-[275px] sm:w-[320px] flex flex-col gap-1.5 animate-fadeIn">
               {/* Thanh chú giải (Legend) 5 cấp độ sâu ngập chuẩn MIKE 21 FM */}
               <div className="bg-white/95 backdrop-blur-xs border border-[#0A4393]/40 rounded-lg shadow-lg overflow-hidden text-[10px] font-mono">
                 <div className="w-full px-2.5 py-1 bg-[#F0F6FF] text-[#0A4393] font-bold flex items-center justify-between gap-2 border-b border-[#0A4393]/15">
@@ -5240,7 +5206,7 @@ export const WebGISMap: React.FC = () => {
         {selectedVillageBottomInfo && (
           <div
             ref={villageBottomInfoRef}
-            className="absolute bottom-2.5 left-[76px] sm:left-[82px] right-14 sm:right-auto sm:max-w-md md:max-w-lg z-[505] bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-[#0A4393]/35 p-1.5 sm:p-2 animate-in fade-in slide-in-from-bottom-1 duration-150 select-none"
+            className="absolute bottom-2.5 left-[56px] sm:left-[60px] right-14 sm:right-auto sm:max-w-md md:max-w-lg z-[505] bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-[#0A4393]/35 p-1.5 sm:p-2 animate-in fade-in slide-in-from-bottom-1 duration-150 select-none"
           >
             {/* Tiêu đề thu gọn sát nhau */}
             <div className="flex items-center justify-between gap-1 pb-1 border-b border-slate-100">
