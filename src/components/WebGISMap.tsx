@@ -319,6 +319,7 @@ const getStoredLayerPreferences = () => {
           ? (parsed.activeLayerTab as 'SYSTEM' | 'FLOOD' | 'VILLAGE')
           : ('SYSTEM' as const),
         enabledKmzLayers: (parsed?.enabledKmzLayers && typeof parsed.enabledKmzLayers === 'object') ? parsed.enabledKmzLayers : {},
+        villageVisibility: (parsed?.villageVisibility && typeof parsed.villageVisibility === 'object') ? parsed.villageVisibility : {} as Record<string, boolean>,
       };
     }
   } catch {}
@@ -326,6 +327,7 @@ const getStoredLayerPreferences = () => {
     systemLayers: DEFAULT_SYSTEM_LAYERS,
     activeLayerTab: 'SYSTEM' as const,
     enabledKmzLayers: {} as Record<string, boolean>,
+    villageVisibility: {} as Record<string, boolean>,
   };
 };
 
@@ -429,6 +431,11 @@ export const WebGISMap: React.FC = () => {
     villages: boolean;
   }>(() => getStoredLayerPreferences().systemLayers);
 
+  // Quản lý trạng thái hiển thị của từng thôn buôn (bật/tắt riêng lẻ)
+  const [villageVisibility, setVillageVisibility] = useState<Record<string, boolean>>(
+    () => getStoredLayerPreferences().villageVisibility
+  );
+
   // Tự động ghi nhớ cấu hình lớp bản đồ và tab vào localStorage khi có thay đổi
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -437,12 +444,13 @@ export const WebGISMap: React.FC = () => {
         systemLayers,
         enabledKmzLayers,
         activeLayerTab,
+        villageVisibility,
       };
       localStorage.setItem(LAYER_PREFERENCES_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (err) {
       console.error('Không thể lưu cấu hình lớp bản đồ:', err);
     }
-  }, [systemLayers, enabledKmzLayers, activeLayerTab]);
+  }, [systemLayers, enabledKmzLayers, activeLayerTab, villageVisibility]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
   const handleToggleFullscreen = useCallback(() => {
@@ -1504,8 +1512,12 @@ export const WebGISMap: React.FC = () => {
                 <div style="margin-top:3px; font-size:10px; color:#3b82f6;"><strong>Chỉ huy:</strong> ${vil.leaderUnit}</div>
               </div>
             </div>
-          `)
-          .addTo(villagesGroup);
+          `);
+
+        const isVilVisible = initialLayerPrefs.villageVisibility?.[vil.name] !== false;
+        if (isVilVisible) {
+          m.addTo(villagesGroup);
+        }
 
         villageMarkersMapRef.current[vil.name] = m;
       });
@@ -2416,11 +2428,65 @@ export const WebGISMap: React.FC = () => {
     pinLocationRef.current = handlePinMapLocation;
   }, [handlePinMapLocation]);
 
+  // Bật/tắt hiển thị từng thôn/buôn riêng lẻ
+  const handleToggleVillageVisibility = (villageName: string) => {
+    const isCurrentlyVisible = villageVisibility[villageName] !== false;
+    const nextVal = !isCurrentlyVisible;
+    setVillageVisibility((prev) => ({ ...prev, [villageName]: nextVal }));
+
+    const marker = villageMarkersMapRef.current[villageName];
+    const group = villagesLayerRef.current;
+    if (marker && group) {
+      if (nextVal) {
+        if (!group.hasLayer(marker)) group.addLayer(marker);
+      } else {
+        if (group.hasLayer(marker)) group.removeLayer(marker);
+      }
+    }
+  };
+
+  // Chọn hiển thị tất cả các điểm thôn buôn
+  const handleSelectAllVillages = () => {
+    const nextState: Record<string, boolean> = {};
+    const group = villagesLayerRef.current;
+    Object.values(VILLAGE_DISASTER_PROFILES).forEach((vil) => {
+      nextState[vil.name] = true;
+      const marker = villageMarkersMapRef.current[vil.name];
+      if (marker && group && !group.hasLayer(marker)) {
+        group.addLayer(marker);
+      }
+    });
+    setVillageVisibility(nextState);
+  };
+
+  // Bỏ chọn tất cả các điểm thôn buôn
+  const handleDeselectAllVillages = () => {
+    const nextState: Record<string, boolean> = {};
+    const group = villagesLayerRef.current;
+    Object.values(VILLAGE_DISASTER_PROFILES).forEach((vil) => {
+      nextState[vil.name] = false;
+      const marker = villageMarkersMapRef.current[vil.name];
+      if (marker && group && group.hasLayer(marker)) {
+        group.removeLayer(marker);
+      }
+    });
+    setVillageVisibility(nextState);
+  };
+
   const handleFlyToVillage = (villageName: string) => {
     const map = leafletMapRef.current;
     if (!map) return;
     if (!systemLayers.villages) {
       handleToggleSystemLayer('villages');
+    }
+    // Nếu điểm này đang bị ẩn, tự động tích chọn lại để hiển thị
+    if (villageVisibility[villageName] === false) {
+      setVillageVisibility((prev) => ({ ...prev, [villageName]: true }));
+      const marker = villageMarkersMapRef.current[villageName];
+      const group = villagesLayerRef.current;
+      if (marker && group && !group.hasLayer(marker)) {
+        group.addLayer(marker);
+      }
     }
     const coords =
       customVillageCoords[villageName] ||
@@ -3929,7 +3995,32 @@ export const WebGISMap: React.FC = () => {
 
                     {/* Danh sách 20 Thôn Buôn chi tiết để kiểm tra & cập nhật tọa độ vị trí */}
                     {systemLayers.villages && (
-                      <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-56 overflow-y-auto space-y-1 pr-0.5">
+                      <div className="mt-2 pt-2 border-t border-emerald-200/60 max-h-60 overflow-y-auto space-y-1 pr-0.5">
+                        {/* Thanh công cụ phụ: Chọn tất cả / Bỏ chọn tất cả từng điểm thôn buôn */}
+                        <div className="flex items-center justify-between px-1.5 py-1 bg-emerald-100/70 rounded text-[9.5px] text-emerald-950 font-semibold mb-1 border border-emerald-200">
+                          <span>
+                            📍 Hiển thị: <strong>{Object.values(VILLAGE_DISASTER_PROFILES).filter((v) => villageVisibility[v.name] !== false).length}/{Object.keys(VILLAGE_DISASTER_PROFILES).length}</strong> điểm
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={handleSelectAllVillages}
+                              className="px-1.5 py-0.5 rounded bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold transition-colors cursor-pointer"
+                              title="Tích chọn hiển thị tất cả các điểm thôn/buôn trên bản đồ"
+                            >
+                              Tất cả
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDeselectAllVillages}
+                              className="px-1.5 py-0.5 rounded bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 font-medium transition-colors cursor-pointer"
+                              title="Bỏ chọn tất cả các điểm thôn/buôn trên bản đồ"
+                            >
+                              Bỏ chọn
+                            </button>
+                          </div>
+                        </div>
+
                         {Object.values(VILLAGE_DISASTER_PROFILES).map((vil) => {
                           const isBuon = vil.groupLabel === '03 Buôn đồng bào';
                           const isThonTen = vil.groupLabel === '04 Thôn tên';
@@ -3941,6 +4032,7 @@ export const WebGISMap: React.FC = () => {
                           const isEditingThisVillage =
                             canEditMap && editingVillageName === vil.name;
                           const isCustomized = !!customVillageCoords[vil.name];
+                          const isVilVisible = villageVisibility[vil.name] !== false;
 
                           return (
                             <div key={vil.name} className="flex flex-col">
@@ -3948,33 +4040,52 @@ export const WebGISMap: React.FC = () => {
                                 className={`flex items-center justify-between p-1 rounded border transition-colors ${
                                   isEditingThisVillage
                                     ? 'bg-[#E6F0FA] border-[#0A4393]'
-                                    : 'bg-white hover:bg-emerald-100/50 border-slate-200'
+                                    : isVilVisible
+                                    ? 'bg-white hover:bg-emerald-100/50 border-slate-200'
+                                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 opacity-60'
                                 } text-[10.5px]`}
                               >
-                                <div
-                                  onClick={() => handleFlyToVillage(vil.name)}
-                                  className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
-                                  title={`Nhấn để phóng tới ${vil.name}`}
-                                >
-                                  <span className="font-semibold text-slate-800 truncate">
-                                    {vil.name}
-                                  </span>
-                                  <span
-                                    className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
+                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                  {/* Dấu tích chọn từng điểm phía trước mỗi điểm */}
+                                  <input
+                                    type="checkbox"
+                                    checked={isVilVisible}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleVillageVisibility(vil.name);
+                                    }}
+                                    className="rounded accent-[#0A4393] w-3.5 h-3.5 cursor-pointer shrink-0"
+                                    title={`Tích chọn để hiển thị hoặc ẩn điểm ${vil.name} trên bản đồ`}
+                                  />
+                                  <div
+                                    onClick={() => handleFlyToVillage(vil.name)}
+                                    className="flex items-center gap-1.5 truncate cursor-pointer flex-1 min-w-0"
+                                    title={`Nhấn để phóng tới ${vil.name}`}
                                   >
-                                    +{vil.avgElevationM}m
-                                  </span>
-                                  <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
-                                    ({vil.totalHouseholds} hộ)
-                                  </span>
-                                  {isCustomized && (
                                     <span
-                                      className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold shrink-0"
-                                      title="Tọa độ đã được Admin tinh chỉnh vị trí"
+                                      className={`font-semibold truncate ${
+                                        isVilVisible ? 'text-slate-800' : 'text-slate-500'
+                                      }`}
                                     >
-                                      Đã sửa vị trí
+                                      {vil.name}
                                     </span>
-                                  )}
+                                    <span
+                                      className={`text-[8.5px] px-1 py-0.2 rounded font-mono font-bold ${tagBg} shrink-0`}
+                                    >
+                                      +{vil.avgElevationM}m
+                                    </span>
+                                    <span className="text-[8.5px] text-slate-500 font-mono shrink-0">
+                                      ({vil.totalHouseholds} hộ)
+                                    </span>
+                                    {isCustomized && (
+                                      <span
+                                        className="text-[8px] bg-amber-100 text-amber-800 px-1 py-0.2 rounded font-mono font-bold shrink-0"
+                                        title="Tọa độ đã được Admin tinh chỉnh vị trí"
+                                      >
+                                        Đã sửa vị trí
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0 ml-1">
                                   {canEditMap && (
