@@ -64,6 +64,8 @@ import {
   Loader2,
   Crosshair,
   GripHorizontal,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 
 export interface KmzLayerManifestItem {
@@ -330,6 +332,8 @@ const getStoredLayerPreferences = () => {
 export const WebGISMap: React.FC = () => {
   const { iotData, scenarioId, hydraulicModel } = useTelemetryStore();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapWrapperRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const leafletMapRef = useRef<any>(null);
   const hoThuongMarkerRef = useRef<any>(null);
   const mikeFloodOverlayRef = useRef<any>(null);
@@ -439,6 +443,105 @@ export const WebGISMap: React.FC = () => {
       console.error('Không thể lưu cấu hình lớp bản đồ:', err);
     }
   }, [systemLayers, enabledKmzLayers, activeLayerTab]);
+
+  // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
+  const handleToggleFullscreen = useCallback(() => {
+    const elem = mapWrapperRef.current;
+    if (!elem) return;
+
+    if (!isFullscreen) {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if ((elem as any).webkitRequestFullscreen) {
+        (elem as any).webkitRequestFullscreen();
+      } else if ((elem as any).msRequestFullscreen) {
+        (elem as any).msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+      document.body.style.overflow = 'hidden';
+    } else {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      } else if ((document as any).webkitFullscreenElement) {
+        (document as any).webkitExitFullscreen();
+      } else if ((document as any).msFullscreenElement) {
+        (document as any).msExitFullscreen();
+      }
+      setIsFullscreen(false);
+      document.body.style.overflow = '';
+    }
+
+    setTimeout(() => {
+      leafletMapRef.current?.invalidateSize();
+    }, 100);
+    setTimeout(() => {
+      leafletMapRef.current?.invalidateSize();
+    }, 300);
+  }, [isFullscreen]);
+
+  // Đồng bộ kích thước khung nhìn bản đồ (invalidateSize) và lắng nghe sự kiện thoát Fullscreen
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isNativeFs = Boolean(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      if (!isNativeFs && isFullscreen) {
+        setIsFullscreen(false);
+        document.body.style.overflow = '';
+      }
+      setTimeout(() => {
+        leafletMapRef.current?.invalidateSize();
+      }, 100);
+      setTimeout(() => {
+        leafletMapRef.current?.invalidateSize();
+      }, 300);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitFullscreenElement) {
+          (document as any).webkitExitFullscreen();
+        }
+        setIsFullscreen(false);
+        document.body.style.overflow = '';
+        setTimeout(() => {
+          leafletMapRef.current?.invalidateSize();
+        }, 100);
+        setTimeout(() => {
+          leafletMapRef.current?.invalidateSize();
+        }, 300);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const timer1 = setTimeout(() => {
+      leafletMapRef.current?.invalidateSize();
+    }, 100);
+    const timer2 = setTimeout(() => {
+      leafletMapRef.current?.invalidateSize();
+    }, 300);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [isFullscreen]);
 
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
   useEffect(() => {
@@ -3108,8 +3211,27 @@ export const WebGISMap: React.FC = () => {
         </div>
       </div>
 
-      {/* Map Leaflet Container + Các nút nổi trên Bản Đồ (Chiều cao bản đồ cố định độc lập 540px, không bao giờ bị co hẹp hay che khuất) */}
-      <div className="w-full h-[520px] sm:h-[560px] relative overflow-hidden">
+      {/* Map Leaflet Container + Các nút nổi trên Bản Đồ (Hỗ trợ Fullscreen đa thiết bị chuẩn CSS Fallback) */}
+      <div
+        ref={mapWrapperRef}
+        className={`relative overflow-hidden transition-all duration-200 ${
+          isFullscreen
+            ? 'fixed inset-0 w-screen h-[100dvh] z-[9999] rounded-none m-0 p-0 shadow-none bg-slate-900'
+            : 'w-full h-[520px] sm:h-[560px]'
+        }`}
+        style={
+          isFullscreen
+            ? {
+                position: 'fixed',
+                inset: 0,
+                width: '100vw',
+                height: '100dvh',
+                zIndex: 9999,
+                borderRadius: 0,
+              }
+            : undefined
+        }
+      >
         <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Thông báo trạng thái định vị GPS */}
@@ -3143,6 +3265,21 @@ export const WebGISMap: React.FC = () => {
             <span>Lớp Bản Đồ ({activeLayerCount}/{totalLayerCount})</span>
           </button>
         </div>
+
+        {/* NÚT TOÀN MÀN HÌNH BẢN ĐỒ (NẰM NGAY TRÊN NÚT ĐỊNH VỊ GPS VÀ CỤM NÚT ZOOM) */}
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          className="absolute bottom-[132px] right-[10px] z-[500] w-[34px] h-[34px] rounded-md bg-white hover:bg-[#F0F6FF] active:bg-blue-100 text-[#0A4393] border-2 border-[#0A4393]/40 shadow-lg flex items-center justify-center transition-all cursor-pointer"
+          title={isFullscreen ? 'Thu nhỏ bản đồ' : 'Toàn màn hình bản đồ'}
+          aria-label="Toàn màn hình bản đồ"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="w-4 h-4 text-[#0A4393]" />
+          ) : (
+            <Maximize2 className="w-4 h-4 text-[#0A4393]" />
+          )}
+        </button>
 
         {/* Nút nổi góc dưới bên phải: ĐỊNH VỊ VỊ TRÍ ĐANG ĐỨNG */}
         <button
