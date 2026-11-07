@@ -312,58 +312,69 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     }
   };
 
+  // Hàm xử lý nút TẮT CẢNH BÁO (Ảnh 3): Đặt lại toàn bộ thông số và tắt hoàn toàn mọi âm thanh cảnh báo
+  const handleTurnOffAllAlertsAndReset = () => {
+    // 1. Tắt toàn bộ âm thanh báo động còi hú & phát thanh đọc thông báo AI
+    stopAllEmergencyAlerts();
+
+    // 2. Đặt lại kịch bản thủy lực về trạng thái an toàn
+    handleSelectMikeScenario('NONE');
+
+    // 3. Đặt lại toàn bộ dữ liệu cảm biến IoT về thông số bình thường an toàn
+    const safeData: IoTTelemetryData = {
+      ...DEFAULT_IOT_DATA,
+      hoThuong: {
+        ...DEFAULT_IOT_DATA.hoThuong,
+        elevation: 206.8,
+        riseRate: 2,
+        discharge: 45,
+      },
+      tk293: {
+        ...DEFAULT_IOT_DATA.tk293,
+        temperature: 32.4,
+        smokeCo: 8,
+      },
+      hoHa: {
+        ...DEFAULT_IOT_DATA.hoHa,
+        illegalCages: 0,
+        status: 'An toàn',
+      },
+      hoTrungChuyen: {
+        ...DEFAULT_IOT_DATA.hoTrungChuyen,
+        dissolvedOxygen: 6.8,
+        overflowRisk: 'Thấp',
+        dykeStatus: 'Ổn định',
+      },
+    };
+    setFormData(safeData);
+    setIotData(safeData, { broadcast: true, scenarioId: 'NONE', triggerDominoAudio: false });
+    setActiveStation('HO_THUONG');
+    setApiResult(null);
+  };
+
   return (
     <div className="w-full bg-white border border-[#0A4393]/25 rounded-xl shadow-lg overflow-hidden font-sans">
-      {/* 1. Header Tinh Gọn */}
-      <div
-        onClick={onToggle}
-        className="px-3.5 py-2.5 bg-[#0A4393] text-white flex items-center justify-between cursor-pointer hover:bg-[#083576] transition-colors select-none"
-      >
-        <div className="flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-white" />
-          <span className="text-xs font-bold text-white uppercase tracking-wider">
-            CẢM BIẾN IoT
-          </span>
-        </div>
-        {/* NÚT TẮT TOÀN BỘ CẢNH BÁO (Ảnh 3) */}
-        <button
-          type="button"
-          onClick={handleSilenceAllAlerts}
-          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs select-none ${
-            scenarioId !== 'NONE'
-              ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-300 ring-2 ring-rose-400 animate-pulse'
-              : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
-          }`}
-          title="Bấm để tắt toàn bộ cảnh báo (tắt cả âm thanh còi hú cảnh báo và âm thanh đọc thông báo)"
-          aria-label="Tắt toàn bộ cảnh báo"
-        >
-          <VolumeX className="w-3 h-3 shrink-0" />
-          <span>TẮT CẢNH BÁO</span>
-        </button>
-      </div>
+      {/* Ảnh 2: Đã bỏ thanh tiêu đề CẢM BIẾN IoT để giao diện gọn nhẹ */}
 
       {isOpen && (
         <div className="p-3 space-y-3">
-          {/* YÊU CẦU 2: BỘ CHỌN 'KỊCH BẢN THỦY LỰC MIKE FLOOD ĐÃ KIỂM ĐỊNH' */}
+          {/* YÊU CẦU 2 & Ảnh 3: BỘ CHỌN 'KỊCH BẢN ĐÃ KIỂM ĐỊNH' + NÚT 'TẮT CẢNH BÁO' TO ĐẬM */}
           <div className="p-2.5 rounded-xl bg-[#F0F6FF] border border-[#0A4393]/30 shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label
                 htmlFor="mike-flood-scenario-select"
                 className="text-[11px] font-bold text-[#0A4393] uppercase tracking-wide font-mono"
               >
-                Kịch bản Thủy lực MIKE FLOOD đã kiểm định:
+                KỊCH BẢN ĐÃ KIỂM ĐỊNH
               </label>
               <button
                 type="button"
-                onClick={() => {
-                  handleSelectMikeScenario('NONE');
-                  stopAllEmergencyAlerts();
-                }}
-                className="px-2 py-0.5 rounded bg-white hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-mono font-semibold transition-colors flex items-center gap-1"
-                title="Đặt lại kịch bản và đồng thời tắt toàn bộ cảnh báo"
+                onClick={handleTurnOffAllAlertsAndReset}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-mono font-black tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer ring-2 ring-rose-400 select-none animate-pulse hover:animate-none"
+                title="Bấm để đặt lại toàn bộ thông số và tắt hoàn toàn âm thanh còi hú, phát thanh AI"
               >
-                <RotateCcw className="w-2.5 h-2.5" />
-                Đặt lại
+                <VolumeX className="w-4 h-4 shrink-0" />
+                <span>TẮT CẢNH BÁO</span>
               </button>
             </div>
 

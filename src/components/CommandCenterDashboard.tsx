@@ -577,33 +577,13 @@ export const CommandCenterDashboard: React.FC = () => {
             </button>
           </div>
 
-          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN */}
+          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN (Ảnh 1: Đã bỏ thanh tiêu đề cho gọn nhẹ) */}
           {telemetryTab === 'LIVE' && (
             <section
               aria-label="Chuỗi số liệu quan trắc trực chiến"
               className="bg-white border border-[#0A4393]/25 rounded-xl overflow-hidden shadow-lg flex-1 flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-[#0A4393] text-white">
-                  <h3 className="text-[11px] sm:text-xs font-bold text-white uppercase tracking-wider font-mono truncate">
-                    SỐ LIỆU TỪ VỆ TINH NASA
-                  </h3>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowScientificModal(true)}
-                      className="text-[10px] text-white bg-white/15 hover:bg-white hover:text-[#0A4393] border border-white/40 px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 transition-all"
-                      title="Xem Nguồn dữ liệu & Kiểm định khoa học"
-                    >
-                      <ShieldCheck className="w-3 h-3 shrink-0" />
-                      <span>Nguồn & Kiểm định</span>
-                    </button>
-                    <span className="text-[10px] text-[#0A4393] bg-white px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 animate-pulse">
-                      ● LIVE
-                    </span>
-                  </div>
-                </div>
-
                 <div className="p-3.5 space-y-2.5 text-xs font-mono">
                   {/* Trạm Lâm Nghiệp TK-293 */}
                   <div
