@@ -284,6 +284,12 @@ const GIBS_META: Record<
     status: 'AN TOÀN LŨ',
     statusColor: 'text-[#0A4393] bg-[#F0F6FF] border-[#0A4393]/40',
   },
+  LAND_COVER: {
+    title: 'Mặt Phủ Đất & Rừng',
+    liveMetric: 'Ảnh vệ tinh hồng ngoại SWIR phân định thảm rừng và đất sản xuất',
+    status: 'MẶT PHỦ ỔN ĐỊNH',
+    statusColor: 'text-emerald-800 bg-emerald-50 border-emerald-500',
+  },
 };
 
 const LAYER_PREFERENCES_STORAGE_KEY = 'easup_webgis_layer_preferences_v2';
@@ -1262,7 +1268,7 @@ export const WebGISMap: React.FC = () => {
   // Cập nhật ref cho drawing mode
   isDrawingModeRef.current = isDrawingMode;
 
-  // Hàm cập nhật lớp ảnh vệ tinh NASA GIBS mặc định
+  // Hàm cập nhật lớp ảnh vệ tinh NASA GIBS mặc định với 6 chế độ & đồng bộ độ phủ (Ảnh 1 & 2)
   const updateGibsOverlay = (layerKey: string, opacity: number) => {
     const map = leafletMapRef.current;
     if (!map) return;
@@ -1280,33 +1286,42 @@ export const WebGISMap: React.FC = () => {
       const featureGroup = L.featureGroup().addTo(map);
       gibsFeatureGroupRef.current = featureGroup;
 
-      const dateStr = '2024-05-15';
       let wmtsUrl = '';
+      let maxNativeZoom = 8;
+
       if (layerKey === 'TRUE_COLOR') {
-        wmtsUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/default/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg';
+        maxNativeZoom = 9;
       } else if (layerKey === 'THERMAL_ANOMALIES') {
-        wmtsUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/${dateStr}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`;
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png';
+        maxNativeZoom = 8;
       } else if (layerKey === 'NDVI_VEGETATION') {
-        wmtsUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_8Day/default/${dateStr}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`;
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_8Day/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png';
+        maxNativeZoom = 8;
       } else if (layerKey === 'SOIL_MOISTURE') {
-        wmtsUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/SMAP_L4_Analyzed_Root_Zone_Soil_Moisture/default/${dateStr}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`;
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/SMAP_L4_Analyzed_Root_Zone_Soil_Moisture/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png';
+        maxNativeZoom = 8;
       } else if (layerKey === 'FLOOD_SURFACE') {
-        wmtsUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_Flood_250m/default/${dateStr}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`;
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_Flood_250m/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png';
+        maxNativeZoom = 8;
+      } else if (layerKey === 'LAND_COVER') {
+        wmtsUrl = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_Bands721/default/default/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpeg';
+        maxNativeZoom = 9;
       }
 
       if (wmtsUrl) {
         const gibsTile = L.tileLayer(wmtsUrl, {
-          attribution: 'NASA Earthdata GIBS &copy; EOSDIS',
+          attribution: 'NASA GIBS &copy; EOSDIS',
           opacity: opacity,
-          maxZoom: 18,
+          maxZoom: 19,
+          maxNativeZoom: maxNativeZoom,
+          zIndex: 25,
         }).addTo(map);
 
-        if (currentBaseTileRef.current) {
-          currentBaseTileRef.current.bringToBack();
-        }
         gibsTileLayerRef.current = gibsTile;
       }
 
+      // Đối với lớp Điểm ảnh nhiệt: Kèm 2 điểm nhiệt NASA FIRMS trực chiến tại Tiểu khu 293
       if (layerKey === 'THERMAL_ANOMALIES') {
         const fireCoords: [number, number, number, string][] = [
           [12.9865, 107.8821, 8.6, 'Điểm Cháy Rừng Rẫy (Tiểu khu 293)'],
@@ -1318,7 +1333,7 @@ export const WebGISMap: React.FC = () => {
             radius: 800,
             color: '#dc2626',
             fillColor: '#ef4444',
-            fillOpacity: 0.35,
+            fillOpacity: Math.min(0.8, opacity * 0.5),
             weight: 2,
             dashArray: '4, 4',
           }).addTo(featureGroup);
@@ -1326,7 +1341,7 @@ export const WebGISMap: React.FC = () => {
           const fireMarker = L.divIcon({
             className: 'custom-map-marker',
             html: `
-              <div style="display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:16px; background:#991b1b; color:#fff; border:1.5px solid #f87171; font-size:10px; font-weight:bold; font-family:monospace; box-shadow:0 0 14px rgba(239,68,68,0.9); animation:pulse 1.5s infinite;">
+              <div style="display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:16px; background:#991b1b; color:#fff; border:1.5px solid #f87171; font-size:10px; font-weight:bold; font-family:monospace; box-shadow:0 0 14px rgba(239,68,68,0.9); animation:pulse 1.5s infinite; opacity:${Math.max(0.4, opacity)};">
                 <span>🔥</span>
                 <span>VIIRS: ${frp} MW</span>
               </div>
@@ -2007,6 +2022,7 @@ export const WebGISMap: React.FC = () => {
 
       leafletMapRef.current = map;
       setMapLoaded(true);
+      updateGibsOverlay(selectedGibsLayer, gibsOpacity);
     });
 
     return () => {
@@ -2169,11 +2185,13 @@ export const WebGISMap: React.FC = () => {
     renderComparisonLayer(compareMode === 'DELTA' ? 'DELTA' : selectedYear, 'TK_293', null);
   };
 
-  // Điều chỉnh độ mờ (Opacity)
+  // Điều chỉnh độ mờ (Opacity) và đồng bộ trực tiếp với lớp vệ tinh NASA (Ảnh 2)
   const handleOpacityChange = (newOpacity: number) => {
     setGibsOpacity(newOpacity);
     if (gibsTileLayerRef.current) {
       gibsTileLayerRef.current.setOpacity(newOpacity);
+    } else {
+      updateGibsOverlay(selectedGibsLayer, newOpacity);
     }
   };
 
@@ -3814,10 +3832,10 @@ export const WebGISMap: React.FC = () => {
           </div>
         </div>
 
-        {/* Nhóm Nút & Slider bên phải trên cùng 1 dòng */}
+        {/* Nhóm Nút & Slider bên phải trên cùng 1 dòng (Ảnh 2: Đồng bộ độ phủ trực tiếp) */}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
           {/* Slider độ phủ vệ tinh */}
-          <div className="hidden md:flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
             <span>Độ phủ:</span>
             <input
               type="range"
@@ -3826,15 +3844,15 @@ export const WebGISMap: React.FC = () => {
               step="0.05"
               value={gibsOpacity}
               onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
-              className="w-16 h-1 bg-[#E6F0FA] rounded-lg appearance-none cursor-pointer accent-[#0A4393]"
+              className="w-14 sm:w-16 h-1 bg-[#E6F0FA] rounded-lg appearance-none cursor-pointer accent-[#0A4393]"
               title="Độ phủ lớp vệ tinh"
             />
-            <span className="text-[#0A4393] font-bold w-7 text-right">{Math.round(gibsOpacity * 100)}%</span>
+            <span className="text-[#0A4393] font-bold w-6 sm:w-7 text-right">{Math.round(gibsOpacity * 100)}%</span>
           </div>
 
           {/* Nút / Badge Trạng thái */}
           <span
-            className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border whitespace-nowrap shadow-sm ${activeMeta.statusColor}`}
+            className={`hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-bold rounded border whitespace-nowrap shadow-sm ${activeMeta.statusColor}`}
           >
             {activeMeta.status}
           </span>

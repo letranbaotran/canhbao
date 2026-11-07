@@ -14,7 +14,7 @@ export interface GibsLayerDefinition {
 }
 
 /**
- * Danh sách 5 lớp bản đồ NASA GIBS OGC WMTS chính thức
+ * Danh sách 6 lớp bản đồ NASA GIBS OGC WMTS chính thức phục vụ giám sát Ea Súp
  */
 export const NASA_GIBS_LAYERS: Record<string, GibsLayerDefinition> = {
   THERMAL_ANOMALIES: {
@@ -66,6 +66,16 @@ export const NASA_GIBS_LAYERS: Record<string, GibsLayerDefinition> = {
     wmtsTemplate:
       'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Combined_Flood_250m/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.png',
     description: 'Mặt nước dâng ngập vùng hạ du và các vùng trũng ven sông',
+  },
+  LAND_COVER: {
+    id: 'MODIS_Terra_CorrectedReflectance_Bands721',
+    name: 'Mặt phủ đất & Rừng',
+    layerTag: 'MODIS_Terra_CorrectedReflectance_Bands721',
+    format: 'image/jpeg',
+    timeRange: '2000-nay',
+    wmtsTemplate:
+      'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_Bands721/default/{Time}/{TileMatrixSet}/{TileMatrix}/{TileRow}/{TileCol}.jpeg',
+    description: 'Ảnh viễn thám hồng ngoại sóng ngắn SWIR phân biệt thảm rừng, đất sản xuất và mặt nước',
   },
 };
 

@@ -560,7 +560,7 @@ export const CommandCenterDashboard: React.FC = () => {
               }`}
             >
               <Activity className="w-3 h-3 shrink-0" />
-              <span className="truncate">SỐ LIỆU TRỰC CHIẾN</span>
+              <span className="truncate">SỐ LIỆU TỪ VỆ TINH NASA</span>
               <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
             </button>
 
@@ -586,7 +586,7 @@ export const CommandCenterDashboard: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between gap-2 px-3 py-2.5 bg-[#0A4393] text-white">
                   <h3 className="text-[11px] sm:text-xs font-bold text-white uppercase tracking-wider font-mono truncate">
-                    CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN
+                    SỐ LIỆU TỪ VỆ TINH NASA
                   </h3>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
