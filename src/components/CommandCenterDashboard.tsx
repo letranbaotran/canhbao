@@ -286,18 +286,22 @@ export const CommandCenterDashboard: React.FC = () => {
     };
   }, []);
 
-  // Lắng nghe sự kiện mở modal Báo tin thiên tai từ nút Báo tin trên bản đồ WebGIS (Ảnh 3)
+  // Lắng nghe sự kiện mở modal Báo tin thiên tai từ nút Báo tin trên bản đồ WebGIS (Ảnh 1)
   useEffect(() => {
     const handleOpenCommunityReport = () => {
+      if (!currentUser.email || currentUser.role !== 'GUEST') {
+        alert('Chức năng Báo tin hiện trường chỉ dành cho người dùng đăng nhập tài khoản Khách để gửi thông tin cho Cán bộ & Admin.');
+        return;
+      }
       setReportVillage(selectedVillage);
-      setReportSender(`Tổ xung kích PCTT ${selectedVillage}`);
+      setReportSender(`Khách (${currentUser.fullName || currentUser.email})`);
       setShowCommunityReportModal(true);
     };
     window.addEventListener('open-community-report', handleOpenCommunityReport);
     return () => {
       window.removeEventListener('open-community-report', handleOpenCommunityReport);
     };
-  }, [selectedVillage]);
+  }, [selectedVillage, currentUser]);
 
   return (
     <div
@@ -428,30 +432,34 @@ export const CommandCenterDashboard: React.FC = () => {
           <div id="gis-map-section">
             <WebGISMap
               onOpenCommunityReport={() => {
+                if (!currentUser.email || currentUser.role !== 'GUEST') {
+                  alert('Chức năng Báo tin hiện trường chỉ dành cho người dùng đăng nhập tài khoản Khách để gửi thông tin cho Cán bộ & Admin.');
+                  return;
+                }
                 setReportVillage(selectedVillage);
-                setReportSender(`Tổ xung kích PCTT ${selectedVillage}`);
+                setReportSender(`Khách (${currentUser.fullName || currentUser.email})`);
                 setShowCommunityReportModal(true);
               }}
             />
           </div>
 
-          {/* AI Voice Article Audio Player (Đồng bộ 100% với Global Store) */}
+          {/* Cụm Loa Truyền Thanh Số Tinh Gọn (Ảnh 2 & Ảnh 3 được gộp lại trên cùng 1 khung, loại bỏ phần trực chiến cồng kềnh) */}
           <section
             id="audio-alert-section"
             aria-label="Loa truyền thanh thông minh"
-            className="bg-white border border-[#0A4393]/25 rounded-xl p-3 shadow-md"
+            className="bg-white border border-[#0A4393]/25 rounded-xl px-3 py-2 shadow-sm"
           >
-            <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
-              <h2 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider flex items-center gap-1.5">
-                <Radio className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
-                Cụm Loa Truyền Thanh Số
-              </h2>
-              <div className="flex items-center gap-1.5">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 shrink-0">
+                <h2 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider flex items-center gap-1.5 shrink-0">
+                  <Radio className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
+                  <span>Cụm Loa Truyền Thanh Số</span>
+                </h2>
                 {isAnyAlertActive && (
                   <button
                     type="button"
                     onClick={handleTurnOffAlert}
-                    className="px-2.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono font-bold text-[10px] uppercase flex items-center gap-1 shadow-xs cursor-pointer select-none"
+                    className="px-2.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono font-bold text-[10px] uppercase flex items-center gap-1 shadow-xs cursor-pointer select-none shrink-0"
                     title={
                       isUserManagerOrAdmin(currentUser.role)
                         ? 'Bấm để tắt toàn bộ cảnh báo trên TOÀN HỆ THỐNG'
@@ -462,20 +470,21 @@ export const CommandCenterDashboard: React.FC = () => {
                     <span>Tắt cảnh báo</span>
                   </button>
                 )}
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#F0F6FF] text-[#0A4393] border border-[#0A4393]/30">
-                  ⚡ Đồng bộ trực chiến: Hồ Thượng {iotData.hoThuong.elevation}m
-                </span>
-                <span className="text-[11px] font-mono text-slate-600 hidden sm:inline">Tự động phát thanh đa kênh</span>
+              </div>
+
+              {/* Toàn bộ cụm âm thanh ở Ảnh 3 được đưa lên đây, đã bỏ khu vực trực chiến ở Ảnh 2 */}
+              <div className="flex-1 min-w-0">
+                <ArticleAudioPlayer
+                  bulletinId={bulletin.id}
+                  title={bulletin.title}
+                  audioUrl={bulletin.audioUrl}
+                  voiceLabel={bulletin.voiceLabel}
+                  content={bulletin.content}
+                  autoPlayTrigger={dominoAutoPlayTs}
+                  compact={true}
+                />
               </div>
             </div>
-            <ArticleAudioPlayer
-              bulletinId={bulletin.id}
-              title={bulletin.title}
-              audioUrl={bulletin.audioUrl}
-              voiceLabel={bulletin.voiceLabel}
-              content={bulletin.content}
-              autoPlayTrigger={dominoAutoPlayTs}
-            />
           </section>
 
           {/* 20 Thôn Buôn Matrix Quick Overview + Card Chi Tiết Thôn/Buôn + Báo Tin Thiên Tai Cộng Đồng - CHỈ ADMIN MỚI ĐƯỢC XEM (Ảnh 2) */}
@@ -1065,10 +1074,10 @@ export const CommandCenterDashboard: React.FC = () => {
                     id="community-report-modal-title"
                     className="text-xs sm:text-sm font-bold uppercase tracking-wide font-mono"
                   >
-                    Báo Tin Thiên Tai Cộng Đồng (Gửi Ảnh & GPS)
+                    Báo Tin Hiện Trường Gửi Cán Bộ & Admin (Gửi Ảnh & GPS)
                   </h3>
                   <p className="text-[10px] text-rose-100 font-mono">
-                    Kênh kết nối trực tiếp Người dân & Tổ xung kích PCTT 20 thôn buôn về Trung tâm điều hành
+                    Kênh gửi thông tin hiện trường từ tài khoản Khách trực tiếp đến Cán bộ quản lý & Admin xã Ea Súp
                   </p>
                 </div>
               </div>
@@ -1227,7 +1236,7 @@ export const CommandCenterDashboard: React.FC = () => {
                   className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Gửi ngay về Trung tâm điều hành & Phát loa</span>
+                  <span>Gửi báo cáo hiện trường cho Cán bộ & Admin</span>
                 </button>
               </div>
             </form>

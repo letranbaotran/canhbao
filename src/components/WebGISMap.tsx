@@ -691,6 +691,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingLayerName, setEditingLayerName] = useState<string>('');
   const [userRole, setUserRole] = useState<MapUserRole>('GUEST');
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   // Chỉ tài khoản Toàn quyền (Admin) mới được quyền sửa/xóa/nạp file KML, KMZ, GeoJSON
   const canEditMap = userRole === 'ADMIN';
 
@@ -1073,15 +1074,17 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const initialRole = getCurrentSessionUser().role;
-    setUserRole(initialRole);
-    if (initialRole !== 'ADMIN') {
+    const initialSession = getCurrentSessionUser();
+    setUserRole(initialSession.role);
+    setCurrentUserEmail(initialSession.email || '');
+    if (initialSession.role !== 'ADMIN') {
       setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
     }
     const handleAuthChange = () => {
-      const role = getCurrentSessionUser().role;
-      setUserRole(role);
-      if (role !== 'ADMIN') {
+      const session = getCurrentSessionUser();
+      setUserRole(session.role);
+      setCurrentUserEmail(session.email || '');
+      if (session.role !== 'ADMIN') {
         setEditingLayerId(null);
         setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
       }
@@ -4545,25 +4548,27 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
               </span>
             </button>
 
-            {/* Nút 2: Báo Tin thiên tai cộng đồng (Hình tròn màu xanh lá cây, nằm sát nút Kiểm tra vị trí của tôi) */}
-            <button
-              type="button"
-              onClick={() => {
-                if (onOpenCommunityReport) {
-                  onOpenCommunityReport();
-                } else {
-                  window.dispatchEvent(new CustomEvent('open-community-report'));
-                }
-              }}
-              className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
-              title="Báo tin thiên tai cộng đồng (Gửi ảnh & GPS)"
-              aria-label="Báo Tin"
-            >
-              <Camera className="w-4 h-4 text-white mb-0.5 shrink-0" />
-              <span className="text-[7.5px] sm:text-[8px] font-black leading-none tracking-tighter text-white block">
-                Báo tin
-              </span>
-            </button>
+            {/* Nút 2: Báo Tin hiện trường - CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VỚI TÀI KHOẢN KHÁCH (ẢNH 1) */}
+            {Boolean(currentUserEmail && userRole === 'GUEST') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenCommunityReport) {
+                    onOpenCommunityReport();
+                  } else {
+                    window.dispatchEvent(new CustomEvent('open-community-report'));
+                  }
+                }}
+                className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
+                title="Gửi thông tin hiện trường cho Cán bộ & Admin (Gửi ảnh & GPS)"
+                aria-label="Báo Tin"
+              >
+                <Camera className="w-4 h-4 text-white mb-0.5 shrink-0" />
+                <span className="text-[7.5px] sm:text-[8px] font-black leading-none tracking-tighter text-white block">
+                  Báo tin
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Khối Chú giải độ sâu ngập MIKE 21 FM (Tự ẩn khi nhấp chuột ra ngoài) */}

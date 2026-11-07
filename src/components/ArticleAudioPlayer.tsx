@@ -10,6 +10,7 @@ export interface ArticleAudioPlayerProps {
   voiceLabel?: string;
   content?: string;
   autoPlayTrigger?: number;
+  compact?: boolean;
 }
 
 export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
@@ -19,6 +20,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   voiceLabel = 'Nữ (1.4X)',
   content,
   autoPlayTrigger = 0,
+  compact = true,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -279,14 +281,18 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
   return (
     <div
-      className="px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm"
+      className={
+        compact
+          ? 'flex flex-row items-center gap-2 sm:gap-3 bg-[#F0F6FF] px-2.5 py-1 sm:py-1.5 rounded-lg border border-[#0A4393]/25 text-[#0A4393]'
+          : 'px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm'
+      }
       role="region"
       aria-label="Trình máy đọc giọng nữ tiếng Việt"
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
       {/* Main player controls: Nằm gọn trên 1 dòng cả trên điện thoại */}
-      <div className="flex flex-row items-center gap-2 sm:gap-3">
+      <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
         <button
           onClick={togglePlay}
           className="shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0A4393] text-white transition-all transform active:scale-95 shadow-sm"
