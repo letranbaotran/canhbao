@@ -22,6 +22,13 @@ import {
   KeyRound,
   Satellite,
   Waves,
+  Bell,
+  Inbox,
+  AlertCircle,
+  CheckCircle2,
+  Image as ImageIcon,
+  ExternalLink,
+  Clock,
 } from 'lucide-react';
 import {
   AuthUserAccount,
@@ -35,20 +42,35 @@ import {
   getCurrentSessionUser,
   getRoleLabel,
   getStoredUsers,
+  isUserManagerOrAdmin,
   loginWithEmail,
   logoutSession,
   registerWithEmail,
   syncUsersFromServer,
 } from '@/services/authRoleService';
+import {
+  CommunityDisasterReport,
+  getStoredCommunityReports,
+  updateReportStatus,
+  deleteCommunityReport,
+  markAllReportsAsRead,
+  markReportAsRead,
+  COMMUNITY_REPORTS_CHANGED_EVENT,
+} from '@/services/communityReportService';
 
 export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
   const [activeModal, setActiveModal] = useState<
-    'guide' | 'contact' | 'stats' | 'auth' | 'role_management' | 'account_info' | null
+    'guide' | 'contact' | 'stats' | 'auth' | 'role_management' | 'account_info' | 'report_management' | null
   >(null);
   const [authTab, setAuthTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState<boolean>(false);
+  const [isReportMenuOpen, setIsReportMenuOpen] = useState<boolean>(false);
+  const [reportsList, setReportsList] = useState<CommunityDisasterReport[]>([]);
+  const [selectedReportDetail, setSelectedReportDetail] = useState<CommunityDisasterReport | null>(null);
+  const [reportFilter, setReportFilter] = useState<'ALL' | 'PENDING' | 'INVESTIGATING' | 'RESOLVED'>('ALL');
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const [bannerSrc, setBannerSrc] = useState<string>('/images/banner_easup_nature.jpg');
   const [logoSrc, setLogoSrc] = useState<string>('/images/logo_easup.png');
@@ -96,6 +118,7 @@ export const SovereigntyBanner: React.FC = () => {
 
       setUsersList(getStoredUsers());
       setCurrentUser(getCurrentSessionUser());
+      setReportsList(getStoredCommunityReports());
 
       syncUsersFromServer().then((serverUsers) => {
         setUsersList(serverUsers);
@@ -107,11 +130,64 @@ export const SovereigntyBanner: React.FC = () => {
         setUsersList(getStoredUsers());
       };
       window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChanged);
+
+      const handleReportsChanged = (e: any) => {
+        if (e?.detail && Array.isArray(e.detail)) {
+          setReportsList(e.detail);
+        } else {
+          setReportsList(getStoredCommunityReports());
+        }
+      };
+      window.addEventListener(COMMUNITY_REPORTS_CHANGED_EVENT, handleReportsChanged);
+
+      let bc: BroadcastChannel | null = null;
+      try {
+        if ('BroadcastChannel' in window) {
+          bc = new BroadcastChannel('easup_community_reports_channel');
+          bc.onmessage = () => {
+            setReportsList(getStoredCommunityReports());
+          };
+        }
+      } catch {}
+
       return () => {
         window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChanged);
+        window.removeEventListener(COMMUNITY_REPORTS_CHANGED_EVENT, handleReportsChanged);
+        if (bc) bc.close();
       };
     }
   }, []);
+
+  const openReportManagementModal = (report?: CommunityDisasterReport) => {
+    setIsUserMenuOpen(false);
+    setIsReportMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    if (report) {
+      setSelectedReportDetail(report);
+      markReportAsRead(report.id);
+      setReportsList(getStoredCommunityReports());
+    }
+    setActiveModal('report_management');
+  };
+
+  const handleUpdateReportStatus = (
+    id: string,
+    status: 'PENDING' | 'INVESTIGATING' | 'RESOLVED'
+  ) => {
+    const updated = updateReportStatus(id, status);
+    setReportsList(updated);
+    if (selectedReportDetail && selectedReportDetail.id === id) {
+      setSelectedReportDetail({ ...selectedReportDetail, status });
+    }
+  };
+
+  const handleDeleteReport = (id: string) => {
+    const updated = deleteCommunityReport(id);
+    setReportsList(updated);
+    if (selectedReportDetail && selectedReportDetail.id === id) {
+      setSelectedReportDetail(null);
+    }
+  };
 
   const openAuthModal = (tab: 'LOGIN' | 'REGISTER') => {
     setAuthTab(tab);
@@ -336,6 +412,22 @@ export const SovereigntyBanner: React.FC = () => {
                 </>
               ) : null}
 
+              {currentUser.email && isUserManagerOrAdmin(currentUser.role) && (
+                <button
+                  type="button"
+                  onClick={() => openReportManagementModal()}
+                  className="relative p-1.5 px-2 rounded-lg bg-white/15 border border-white/30 text-white hover:bg-white/25 transition-all shadow-sm flex items-center justify-center cursor-pointer"
+                  title="Tin báo hiện trường từ người dân gửi về"
+                >
+                  <Bell className={`w-4 h-4 text-white ${reportsList.some((r) => !r.isRead) ? 'animate-bounce text-amber-300' : ''}`} />
+                  {reportsList.filter((r) => r.status === 'PENDING').length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 px-0.5 items-center justify-center rounded-full bg-rose-600 text-[8px] font-black text-white ring-1 ring-[#0A4393]">
+                      {reportsList.filter((r) => r.status === 'PENDING').length}
+                    </span>
+                  )}
+                </button>
+              )}
+
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/15 border border-white/30 text-white hover:bg-white/25 focus:outline-none transition-all shadow-sm"
@@ -442,101 +534,257 @@ export const SovereigntyBanner: React.FC = () => {
                   </button>
                 </>
               ) : (
-                /* Ảnh 1: Khi đăng nhập, gom toàn bộ 3 nút lại vào 1 nút 3 dấu gạch ngang */
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                    className="p-1.5 px-2.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 text-white border border-white/40 shadow-sm transition-all flex items-center justify-center cursor-pointer focus:outline-none"
-                    title="Menu quản trị & tài khoản"
-                    aria-label="Menu tài khoản"
-                  >
-                    <Menu className="w-5 h-5 text-white" />
-                  </button>
-
-                  {isUserMenuOpen && (
-                    <>
-                      {/* Lớp nền trong suốt click ra ngoài để đóng menu */}
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setIsUserMenuOpen(false)}
-                      />
-
-                      {/* Dropdown Menu nổi */}
-                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-2xl border border-[#0A4393]/30 z-50 py-2 animate-fadeIn font-sans text-slate-800">
-                        {/* 1. Header thông tin tài khoản */}
-                        <div className="px-3.5 py-2 border-b border-slate-100 flex flex-col gap-0.5">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                            Tài khoản đang đăng nhập
+                <>
+                  {/* ẢNH 1: NÚT CHUÔNG THÔNG BÁO BÁO TIN HIỆN TRƯỜNG TRÊN THANH TIÊU ĐỀ (CHO CÁN BỘ & ADMIN) */}
+                  {isUserManagerOrAdmin(currentUser.role) && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsReportMenuOpen(!isReportMenuOpen);
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="p-1.5 px-2.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 text-white border border-white/40 shadow-sm transition-all flex items-center justify-center cursor-pointer focus:outline-none relative"
+                        title="Tin báo hiện trường từ người dân gửi về"
+                        aria-label="Thông báo tin báo"
+                      >
+                        <Bell
+                          className={`w-5 h-5 text-white ${
+                            reportsList.some((r) => !r.isRead) ? 'animate-bounce text-amber-300' : ''
+                          }`}
+                        />
+                        {reportsList.filter((r) => r.status === 'PENDING').length > 0 && (
+                          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-rose-600 text-[9px] font-black text-white ring-2 ring-[#0A4393] animate-pulse">
+                            {reportsList.filter((r) => r.status === 'PENDING').length}
                           </span>
-                          <span
-                            className="text-xs font-extrabold text-[#0A4393] truncate"
-                            title={currentUser.email}
-                          >
-                            {currentUser.email}
-                          </span>
-                          <div className="mt-1">
-                            <span
-                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                                currentUser.role === 'ADMIN'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                  : currentUser.role === 'MANAGER' ||
-                                    currentUser.role === 'MAP_EDITOR'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              }`}
-                            >
-                              {getRoleLabel(currentUser.role)}
-                            </span>
+                        )}
+                      </button>
+
+                      {/* Popover danh sách tin báo nhanh khi click nút Chuông */}
+                      {isReportMenuOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-40"
+                            onClick={() => setIsReportMenuOpen(false)}
+                          />
+
+                          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-[#0A4393]/30 z-50 overflow-hidden animate-fadeIn font-sans text-slate-800">
+                            <div className="p-3 bg-[#0A4393] text-white flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Bell className="w-4 h-4 text-amber-300" />
+                                <span className="font-extrabold text-xs uppercase tracking-wide">
+                                  Tin Báo Hiện Trường SOS ({reportsList.length})
+                                </span>
+                              </div>
+                              {reportsList.some((r) => !r.isRead) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    markAllReportsAsRead();
+                                    setReportsList(getStoredCommunityReports());
+                                  }}
+                                  className="text-[10px] text-blue-200 hover:text-white underline cursor-pointer"
+                                >
+                                  Đánh dấu đã đọc
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                              {reportsList.length === 0 ? (
+                                <div className="p-6 text-center text-xs text-slate-500">
+                                  Chưa có tin báo hiện trường nào gửi về.
+                                </div>
+                              ) : (
+                                reportsList.map((rep) => (
+                                  <div
+                                    key={rep.id}
+                                    onClick={() => openReportManagementModal(rep)}
+                                    className={`p-3 transition-colors hover:bg-blue-50/70 cursor-pointer ${
+                                      !rep.isRead ? 'bg-amber-50/60' : 'bg-white'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <span className="font-bold text-xs text-[#0A4393] truncate">
+                                        {rep.villageName}
+                                      </span>
+                                      <span
+                                        className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                          rep.status === 'PENDING'
+                                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                            : rep.status === 'INVESTIGATING'
+                                            ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                        }`}
+                                      >
+                                        {rep.status === 'PENDING'
+                                          ? 'Chờ xử lý'
+                                          : rep.status === 'INVESTIGATING'
+                                          ? 'Đang xác minh'
+                                          : 'Đã xử lý'}
+                                      </span>
+                                    </div>
+
+                                    <div className="text-[11px] font-semibold text-slate-700 flex items-center gap-1 mb-1">
+                                      <span>{rep.incidentLabel}</span>
+                                      <span className="text-slate-400">•</span>
+                                      <span className="text-[10px] text-slate-500 font-normal">
+                                        {rep.timestamp}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-sans mb-1.5">
+                                      {rep.description}
+                                    </p>
+
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                                      <span className="truncate">Người gửi: {rep.senderName}</span>
+                                      <span className="text-[#0A4393] font-semibold flex items-center gap-0.5">
+                                        Xem chi tiết &rarr;
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+
+                            <div className="p-2.5 bg-slate-50 border-t border-slate-200 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openReportManagementModal()}
+                                className="w-full py-1.5 px-3 rounded-lg bg-[#0A4393] hover:bg-[#083576] text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Inbox className="w-3.5 h-3.5" />
+                                <span>Mở trang Quản lý tin báo chi tiết &rarr;</span>
+                              </button>
+                            </div>
                           </div>
-                        </div>
+                        </>
+                      )}
+                    </div>
+                  )}
 
-                        {/* 2. Danh mục chức năng đã gom lại */}
-                        <div className="p-1.5 space-y-1">
-                          {currentUser.role === 'ADMIN' && (
+                  {/* Nút 3 dấu gạch ngang (Menu quản trị & tài khoản) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(!isUserMenuOpen);
+                        setIsReportMenuOpen(false);
+                      }}
+                      className="p-1.5 px-2.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 text-white border border-white/40 shadow-sm transition-all flex items-center justify-center cursor-pointer focus:outline-none"
+                      title="Menu quản trị & tài khoản"
+                      aria-label="Menu tài khoản"
+                    >
+                      <Menu className="w-5 h-5 text-white" />
+                    </button>
+
+                    {isUserMenuOpen && (
+                      <>
+                        {/* Lớp nền trong suốt click ra ngoài để đóng menu */}
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        />
+
+                        {/* Dropdown Menu nổi */}
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-2xl border border-[#0A4393]/30 z-50 py-2 animate-fadeIn font-sans text-slate-800">
+                          {/* 1. Header thông tin tài khoản */}
+                          <div className="px-3.5 py-2 border-b border-slate-100 flex flex-col gap-0.5">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                              Tài khoản đang đăng nhập
+                            </span>
+                            <span
+                              className="text-xs font-extrabold text-[#0A4393] truncate"
+                              title={currentUser.email}
+                            >
+                              {currentUser.email}
+                            </span>
+                            <div className="mt-1">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  currentUser.role === 'ADMIN'
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                    : currentUser.role === 'MANAGER' ||
+                                      currentUser.role === 'MAP_EDITOR'
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                }`}
+                              >
+                                {getRoleLabel(currentUser.role)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 2. Danh mục chức năng đã gom lại (ẢNH 2) */}
+                          <div className="p-1.5 space-y-1">
+                            {currentUser.role === 'ADMIN' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsUserMenuOpen(false);
+                                  openRoleManagementModal();
+                                }}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 transition-colors text-left cursor-pointer border border-amber-200"
+                              >
+                                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span>🛡️ Quản lý phân quyền</span>
+                              </button>
+                            )}
+
+                            {/* ẢNH 2: NÚT "QUẢN LÝ TIN BÁO" DÀNH CHO CÁN BỘ & ADMIN */}
+                            {isUserManagerOrAdmin(currentUser.role) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsUserMenuOpen(false);
+                                  openReportManagementModal();
+                                }}
+                                className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 transition-colors text-left cursor-pointer border border-blue-200"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Inbox className="w-4 h-4 text-[#0A4393] shrink-0" />
+                                  <span>Quản lý tin báo</span>
+                                </div>
+                                {reportsList.filter((r) => r.status === 'PENDING').length > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-600 text-white">
+                                    {reportsList.filter((r) => r.status === 'PENDING').length} mới
+                                  </span>
+                                )}
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => {
                                 setIsUserMenuOpen(false);
-                                openRoleManagementModal();
+                                openAccountInfoModal();
                               }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 transition-colors text-left cursor-pointer border border-amber-200"
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-[#F0F6FF] transition-colors text-left cursor-pointer"
                             >
-                              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span>🛡️ Quản lý phân quyền</span>
+                              <ShieldCheck className="w-4 h-4 text-[#0A4393] shrink-0" />
+                              <span>Thông tin tài khoản</span>
                             </button>
-                          )}
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              openAccountInfoModal();
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-[#F0F6FF] transition-colors text-left cursor-pointer"
-                          >
-                            <ShieldCheck className="w-4 h-4 text-[#0A4393] shrink-0" />
-                            <span>Thông tin tài khoản</span>
-                          </button>
+                            <div className="border-t border-slate-100 my-1" />
 
-                          <div className="border-t border-slate-100 my-1" />
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsUserMenuOpen(false);
-                              handleLogout();
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
-                          >
-                            <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>Thoát</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                handleLogout();
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
+                            >
+                              <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Thoát</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                      </>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -565,6 +813,27 @@ export const SovereigntyBanner: React.FC = () => {
                 >
                   <ShieldCheck className="w-4 h-4 shrink-0 text-amber-300" />
                   <span>Thông tin tài khoản &amp; Đổi mật khẩu</span>
+                </button>
+              )}
+
+              {/* Nút Quản lý tin báo trên Menu Điện thoại */}
+              {currentUser.email && isUserManagerOrAdmin(currentUser.role) && (
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openReportManagementModal();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold bg-amber-400 text-[#0A4393] hover:bg-amber-300 text-left shadow-xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Inbox className="w-4 h-4 shrink-0 text-[#0A4393]" />
+                    <span>Quản lý tin báo hiện trường</span>
+                  </div>
+                  {reportsList.filter((r) => r.status === 'PENDING').length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-600 text-white">
+                      {reportsList.filter((r) => r.status === 'PENDING').length} mới
+                    </span>
+                  )}
                 </button>
               )}
 
@@ -1463,6 +1732,249 @@ export const SovereigntyBanner: React.FC = () => {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL QUẢN LÝ TIN BÁO HIỆN TRƯỜNG DÀNH CHO CÁN BỘ & ADMIN (ẢNH 1 & ẢNH 2) */}
+      {activeModal === 'report_management' && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-[#0A4393]/70 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border-2 border-[#0A4393] p-4 sm:p-5 max-h-[92vh] overflow-y-auto text-slate-800"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Nút đóng modal */}
+            <button
+              onClick={() => setActiveModal(null)}
+              className="absolute top-3.5 right-3.5 p-1.5 rounded-full bg-[#F0F6FF] text-[#0A4393] hover:bg-[#0A4393] hover:text-white transition-colors cursor-pointer"
+              title="Đóng cửa sổ"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Tiêu đề Modal */}
+            <div className="flex items-center gap-2.5 mb-3.5 pb-2.5 border-b border-[#0A4393]/20">
+              <div className="p-2 rounded-xl bg-[#0A4393] text-white shrink-0">
+                <Inbox className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-extrabold text-[#0A4393] uppercase tracking-wide truncate">
+                  Quản Lý Tin Báo Hiện Trường &amp; SOS Cộng Đồng
+                </h3>
+                <p className="text-[11px] text-slate-600 font-medium">
+                  Tiếp nhận phản ánh từ người dân, các tài khoản khách và tổ xung kích PCTT 20 thôn/buôn
+                </p>
+              </div>
+            </div>
+
+            {/* THANH BỘ LỌC TRẠNG THÁI */}
+            <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setReportFilter('ALL')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  reportFilter === 'ALL'
+                    ? 'bg-[#0A4393] text-white shadow-xs font-bold'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Tất cả ({reportsList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportFilter('PENDING')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  reportFilter === 'PENDING'
+                    ? 'bg-amber-500 text-white shadow-xs font-bold'
+                    : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <span>Chờ xử lý</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white text-amber-800 font-bold">
+                  {reportsList.filter((r) => r.status === 'PENDING').length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportFilter('INVESTIGATING')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  reportFilter === 'INVESTIGATING'
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200'
+                }`}
+              >
+                <span>Đang xác minh</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white text-blue-800 font-bold">
+                  {reportsList.filter((r) => r.status === 'INVESTIGATING').length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportFilter('RESOLVED')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                  reportFilter === 'RESOLVED'
+                    ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                }`}
+              >
+                <span>Đã xử lý</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white text-emerald-800 font-bold">
+                  {reportsList.filter((r) => r.status === 'RESOLVED').length}
+                </span>
+              </button>
+            </div>
+
+            {/* DANH SÁCH CÁC TIN BÁO */}
+            <div className="space-y-2.5 max-h-[58vh] overflow-y-auto pr-1">
+              {reportsList.filter((r) => reportFilter === 'ALL' || r.status === reportFilter).length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-xs">
+                  Không có tin báo nào trong danh mục này.
+                </div>
+              ) : (
+                reportsList
+                  .filter((r) => reportFilter === 'ALL' || r.status === reportFilter)
+                  .map((rep) => (
+                    <div
+                      key={rep.id}
+                      className={`p-3.5 rounded-xl border transition-all ${
+                        rep.status === 'PENDING'
+                          ? 'bg-amber-50/40 border-amber-300'
+                          : rep.status === 'INVESTIGATING'
+                          ? 'bg-blue-50/40 border-blue-300'
+                          : 'bg-white border-slate-200'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/80">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-[#0A4393]">
+                            {rep.villageName}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-white text-slate-800 border border-slate-200 shadow-xs">
+                            {rep.incidentLabel}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono">
+                            [{rep.timestamp}]
+                          </span>
+                        </div>
+
+                        {/* Dropdown thay đổi trạng thái xử lý */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <select
+                            value={rep.status}
+                            onChange={(e) =>
+                              handleUpdateReportStatus(
+                                rep.id,
+                                e.target.value as 'PENDING' | 'INVESTIGATING' | 'RESOLVED'
+                              )
+                            }
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
+                              rep.status === 'PENDING'
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : rep.status === 'INVESTIGATING'
+                                ? 'bg-blue-100 text-blue-900 border-blue-300'
+                                : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            }`}
+                          >
+                            <option value="PENDING">🟡 Chờ xử lý</option>
+                            <option value="INVESTIGATING">🔵 Đang xác minh</option>
+                            <option value="RESOLVED">🟢 Đã xử lý xong</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReport(rep.id)}
+                            className="p-1 rounded-lg text-rose-500 hover:bg-rose-100 transition-colors cursor-pointer"
+                            title="Xóa tin báo"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Nội dung mô tả */}
+                      <p className="mt-2 text-xs text-slate-700 leading-relaxed font-sans">
+                        {rep.description}
+                      </p>
+
+                      {/* Ảnh hiện trường nếu có */}
+                      {rep.imageUrl && (
+                        <div className="mt-2.5">
+                          <span className="text-[11px] font-semibold text-slate-600 block mb-1">
+                            Ảnh chụp hiện trường đính kèm:
+                          </span>
+                          <div
+                            onClick={() => setZoomedImage(rep.imageUrl || null)}
+                            className="inline-block relative rounded-lg overflow-hidden border border-slate-300 cursor-pointer group shadow-xs max-w-xs"
+                          >
+                            <img
+                              src={rep.imageUrl}
+                              alt="Ảnh hiện trường"
+                              className="h-28 w-auto object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Phóng to</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Thông tin tọa độ GPS & Người gửi */}
+                      <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#0A4393]" />
+                          <span>
+                            GPS: <strong>{rep.lat.toFixed(5)}, {rep.lng.toFixed(5)}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>
+                            Người gửi: <strong>{rep.senderName}</strong>
+                          </span>
+                          {rep.senderEmail && (
+                            <span className="text-slate-400">({rep.senderEmail})</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+
+            {/* Chân Modal */}
+            <div className="pt-3 mt-3 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 italic">
+                * Tin báo gửi về được lưu trữ và đồng bộ thời gian thực đến toàn bộ ban chỉ huy.
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="px-4 py-1.5 rounded-lg bg-[#0A4393] hover:bg-[#083576] text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PHÓNG TO ẢNH HIỆN TRƯỜNG */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-2 right-2 p-2 rounded-full bg-black/60 text-white hover:bg-black/90 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img src={zoomedImage} alt="Hiện trường phóng to" className="max-h-[85vh] w-auto rounded-xl object-contain shadow-2xl" />
           </div>
         </div>
       )}

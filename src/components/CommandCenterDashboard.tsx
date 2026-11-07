@@ -9,8 +9,13 @@ import { EASUP_VILLAGES } from '@/data/administrative_boundaries';
 import {
   VILLAGE_DISASTER_PROFILES,
   getVillageScenarioImpact,
-  CommunityDisasterReport,
 } from '@/data/village_disaster_profiles';
+import {
+  CommunityDisasterReport,
+  addCommunityReport,
+  getStoredCommunityReports,
+  COMMUNITY_REPORTS_CHANGED_EVENT,
+} from '@/services/communityReportService';
 import { alarmSystem } from '@/utils/alarmSound';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import {
@@ -107,20 +112,34 @@ export const CommandCenterDashboard: React.FC = () => {
   const [reportImagePreview, setReportImagePreview] = useState<string | null>(null);
   const [isGettingReportGps, setIsGettingReportGps] = useState<boolean>(false);
   const [reportSuccessMsg, setReportSuccessMsg] = useState<string | null>(null);
-  const [communityReports, setCommunityReports] = useState<CommunityDisasterReport[]>([
-    {
-      id: 'SOS-EASUP-01',
-      villageName: 'Thôn Đoàn Kết',
-      incidentType: 'FLOOD',
-      incidentLabel: 'Ngập lụt / Nước dâng',
-      description:
-        'Tổ xung kích PCTT Thôn Đoàn Kết báo cáo: Mực nước khu vực trũng ven Hồ Trung Chuyển có dấu hiệu dâng nhanh, đã cử lực lượng cắm biển cảnh báo.',
-      senderName: 'Tổ xung kích PCTT Thôn Đoàn Kết',
-      lat: 13.069298,
-      lng: 107.881527,
-      timestamp: 'Trực chiến hôm nay',
-    },
-  ]);
+  const [communityReports, setCommunityReports] = useState<CommunityDisasterReport[]>([]);
+
+  useEffect(() => {
+    setCommunityReports(getStoredCommunityReports());
+    const handleRepChanged = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setCommunityReports(e.detail);
+      } else {
+        setCommunityReports(getStoredCommunityReports());
+      }
+    };
+    window.addEventListener(COMMUNITY_REPORTS_CHANGED_EVENT, handleRepChanged);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ('BroadcastChannel' in window) {
+        bc = new BroadcastChannel('easup_community_reports_channel');
+        bc.onmessage = () => {
+          setCommunityReports(getStoredCommunityReports());
+        };
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener(COMMUNITY_REPORTS_CHANGED_EVENT, handleRepChanged);
+      if (bc) bc.close();
+    };
+  }, []);
 
   // Luồng dữ liệu động thời gian thực từ Vệ tinh NASA & Cảm biến IoT (Real-time Telemetry Stream)
   const [liveJitter, setLiveJitter] = useState({
@@ -267,8 +286,7 @@ export const CommandCenterDashboard: React.FC = () => {
       FOREST_FIRE: '🔥 Khói cháy rừng',
       CAGE_VIOLATION: '⛔ Lồng bè xâm phạm Hồ Hạ',
     };
-    const newReport: CommunityDisasterReport = {
-      id: `SOS-${Date.now().toString().slice(-5)}`,
+    const newReport = addCommunityReport({
       villageName: reportVillage,
       incidentType: reportType,
       incidentLabel: typeLabels[reportType],
@@ -276,13 +294,14 @@ export const CommandCenterDashboard: React.FC = () => {
         reportDesc.trim() ||
         `Báo cáo nhanh hiện trường ${typeLabels[reportType]} tại ${reportVillage} gửi về Trung tâm điều hành xã Ea Súp.`,
       senderName: reportSender.trim() || `Tổ xung kích PCTT ${reportVillage}`,
+      senderEmail: currentUser.email || undefined,
       lat: reportLat,
       lng: reportLng,
       imageUrl: reportImagePreview || undefined,
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    };
+    });
 
-    setCommunityReports((prev) => [newReport, ...prev]);
+    setCommunityReports(getStoredCommunityReports());
     setSelectedVillage(reportVillage);
     triggerVillageBroadcast(
       reportVillage,
