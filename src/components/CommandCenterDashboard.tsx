@@ -21,6 +21,7 @@ import {
 import {
   getCurrentSessionUser,
   isUserManagerOrAdmin,
+  getRoleLabel,
   AUTH_CHANGED_EVENT,
   type CurrentSessionUser,
 } from '@/services/authRoleService';
@@ -289,12 +290,13 @@ export const CommandCenterDashboard: React.FC = () => {
   // Lắng nghe sự kiện mở modal Báo tin thiên tai từ nút Báo tin trên bản đồ WebGIS (Ảnh 1)
   useEffect(() => {
     const handleOpenCommunityReport = () => {
-      if (!currentUser.email || currentUser.role !== 'GUEST') {
-        alert('Chức năng Báo tin hiện trường chỉ dành cho người dùng đăng nhập tài khoản Khách để gửi thông tin cho Cán bộ & Admin.');
+      if (!currentUser.email) {
+        alert('Vui lòng đăng nhập để gửi thông tin báo cáo hiện trường.');
         return;
       }
       setReportVillage(selectedVillage);
-      setReportSender(`Khách (${currentUser.fullName || currentUser.email})`);
+      const roleLabel = getRoleLabel(currentUser.role);
+      setReportSender(`${currentUser.fullName || currentUser.email.split('@')[0]} (${roleLabel})`);
       setShowCommunityReportModal(true);
     };
     window.addEventListener('open-community-report', handleOpenCommunityReport);
@@ -432,12 +434,13 @@ export const CommandCenterDashboard: React.FC = () => {
           <div id="gis-map-section">
             <WebGISMap
               onOpenCommunityReport={() => {
-                if (!currentUser.email || currentUser.role !== 'GUEST') {
-                  alert('Chức năng Báo tin hiện trường chỉ dành cho người dùng đăng nhập tài khoản Khách để gửi thông tin cho Cán bộ & Admin.');
+                if (!currentUser.email) {
+                  alert('Vui lòng đăng nhập để gửi thông tin báo cáo hiện trường.');
                   return;
                 }
                 setReportVillage(selectedVillage);
-                setReportSender(`Khách (${currentUser.fullName || currentUser.email})`);
+                const roleLabel = getRoleLabel(currentUser.role);
+                setReportSender(`${currentUser.fullName || currentUser.email.split('@')[0]} (${roleLabel})`);
                 setShowCommunityReportModal(true);
               }}
             />

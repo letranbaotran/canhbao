@@ -619,8 +619,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const autoPlayTimerRef = useRef<any>(null);
 
   const [activeBasemap, setActiveBasemap] = useState<keyof typeof BASEMAP_TILES>('SATELLITE');
-  const [selectedGibsLayer, setSelectedGibsLayer] = useState<string>('THERMAL_ANOMALIES');
-  const [gibsOpacity, setGibsOpacity] = useState<number>(0.75);
+  const [selectedGibsLayer, setSelectedGibsLayer] = useState<string>('TRUE_COLOR');
+  const [gibsOpacity, setGibsOpacity] = useState<number>(0.2);
   const [swipeDateLeft, setSwipeDateLeft] = useState<string>('2001-03-15');
   const [swipeDateRight, setSwipeDateRight] = useState<string>('2026-03-15');
   const [showSwipeTool, setShowSwipeTool] = useState<boolean>(false);
@@ -1493,7 +1493,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     const snapshot = preAlertLayersSnapshotRef.current;
 
     // 1. Phục hồi Lớp Vệ Tinh NASA về lớp trước cảnh báo (mặc định 'THERMAL_ANOMALIES')
-    const targetGibs = snapshot?.selectedGibsLayer || 'THERMAL_ANOMALIES';
+    const targetGibs = snapshot?.selectedGibsLayer || 'TRUE_COLOR';
     setSelectedGibsLayer(targetGibs);
     updateGibsOverlay(targetGibs, gibsOpacity);
 
@@ -4556,8 +4556,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
               </span>
             </button>
 
-            {/* Nút 2: Báo Tin hiện trường - CHỈ HIỂN THỊ KHI ĐĂNG NHẬP VỚI TÀI KHOẢN KHÁCH (ẢNH 1) */}
-            {Boolean(currentUserEmail && userRole === 'GUEST') && (
+            {/* Nút 2: Báo Tin / Gửi Tin hiện trường - BẤT KỲ TÀI KHOẢN NÀO ĐĂNG NHẬP ĐỀU HIỆN (ẢNH 1) */}
+            {Boolean(currentUserEmail) && (
               <button
                 type="button"
                 onClick={() => {
@@ -4568,7 +4568,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
                   }
                 }}
                 className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
-                title="Gửi thông tin hiện trường cho Cán bộ & Admin (Gửi ảnh & GPS)"
+                title="Báo tin / Gửi tin hiện trường (Kèm ảnh & GPS)"
                 aria-label="Báo Tin"
               >
                 <Camera className="w-4 h-4 text-white mb-0.5 shrink-0" />
