@@ -933,31 +933,18 @@ export const WebGISMap: React.FC = () => {
     }
   }, [scenarioId, mapLoaded, villageKmzItems]);
 
-  // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
+  // Bật/tắt chế độ toàn màn hình bản đồ thuần CSS Viewport (Ảnh 2: Loại bỏ hoàn toàn browser toast hướng dẫn trên mobile)
   const handleToggleFullscreen = useCallback(() => {
-    const elem = mapWrapperRef.current;
-    if (!elem) return;
+    const nextFullscreen = !isFullscreen;
+    setIsFullscreen(nextFullscreen);
 
-    if (!isFullscreen) {
-      if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(() => {});
-      } else if ((elem as any).webkitRequestFullscreen) {
-        (elem as any).webkitRequestFullscreen();
-      } else if ((elem as any).msRequestFullscreen) {
-        (elem as any).msRequestFullscreen();
-      }
-      setIsFullscreen(true);
+    if (nextFullscreen) {
       document.body.style.overflow = 'hidden';
     } else {
+      document.body.style.overflow = '';
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
-      } else if ((document as any).webkitFullscreenElement) {
-        (document as any).webkitExitFullscreen();
-      } else if ((document as any).msFullscreenElement) {
-        (document as any).msExitFullscreen();
       }
-      setIsFullscreen(false);
-      document.body.style.overflow = '';
     }
 
     setTimeout(() => {
@@ -1436,7 +1423,7 @@ export const WebGISMap: React.FC = () => {
     });
   };
 
-  // HÀM VẼ LỚP SO SÁNH VÀ ĐỐI CHIẾU CHO KHU VỰC ĐƯỢC CHỌN (ĐỒNG BỘ NĂM VÀ THỰC ĐỊA)
+  // HÀM ĐỒNG BỘ ẢNH VỆ TINH TOÀN DIỆN CHO NĂM ĐƯỢC CHỌN (Ảnh 1: Đã bỏ toàn bộ các lớp vẽ đa giác rừng / nương rẫy đè lên bản đồ)
   const renderComparisonLayer = (
     mode: '2001' | '2026' | 'DELTA' | number,
     areaKey = selectedAreaKey,
@@ -1447,135 +1434,23 @@ export const WebGISMap: React.FC = () => {
     const map = leafletMapRef.current;
     if (!map) return;
 
-    // 1. Cập nhật thay đổi TOÀN BỘ ẢNH VỆ TINH của cả bản đồ
+    // 1. Cập nhật thay đổi TOÀN BỘ ẢNH VỆ TINH của cả bản đồ theo năm
     updateTemporalFullMap(mode, customDate);
 
-    // 2. Xác định khu vực so sánh
-    const area: AreaDefinition =
-      areaKey === 'CUSTOM' && (customObj || customArea)
-        ? (customObj || customArea)!
-        : COMPARISON_AREAS[areaKey] || COMPARISON_AREAS.TK_293;
+    // 2. Xóa sạch lớp phủ đa giác rừng cũ nếu có (Ảnh 1: Tuyệt đối không vẽ đa giác rừng đè lên bản đồ vệ tinh)
+    if (compareFeatureGroupRef.current) {
+      map.removeLayer(compareFeatureGroupRef.current);
+      compareFeatureGroupRef.current = null;
+    }
 
-    import('leaflet').then((L) => {
-      if (compareFeatureGroupRef.current) {
-        map.removeLayer(compareFeatureGroupRef.current);
-        compareFeatureGroupRef.current = null;
-      }
-
-      const group = L.featureGroup().addTo(map);
-      compareFeatureGroupRef.current = group;
-
-      // Đa giác ranh giới khu vực được chọn / người dùng vẽ
-      const boundaryPoly = L.polygon(area.coords, {
-        color: '#f59e0b',
-        weight: 2.5,
-        dashArray: '6, 6',
-        fillOpacity: 0.05,
-      }).addTo(group).bindTooltip(`${area.name} (${area.areaHa} ha)`);
-
-      // NGUYÊN TẮC BẤT DI BẤT DỊCH: TUYỆT ĐỐI KHÔNG ZOOM HOẶC THAY ĐỔI TỌA ĐỘ TÂM KHI KÉO NĂM
-      if (shouldFlyTo) {
-        map.flyTo(area.center, area.zoom, { duration: 0.8 });
-      }
-
-      const deltaNdvi = Number((area.ndvi2026 - area.ndvi2001).toFixed(2));
-      const deltaHa = Number(((area.areaHa * (area.cover2001 - area.cover2026)) / 100).toFixed(1));
-
-      // Xử lý chế độ theo NĂM hoặc MỐC 2001 / 2026
-      if (typeof mode === 'number' || mode === '2001' || mode === '2026') {
-        const year = typeof mode === 'number' ? mode : mode === '2001' ? 2001 : 2026;
-        const progress = Math.max(0, Math.min(1, (year - 2001) / 25));
-        const cover = Math.round(area.cover2001 + (area.cover2026 - area.cover2001) * progress);
-        const lostHa = Number(((area.areaHa * (area.cover2001 - cover)) / 100).toFixed(1));
-
-        // Màu sắc thảm phủ chuyển đổi mượt mà theo năm từ xanh rừng nguyên sinh -> vàng/nâu hiện trạng
-        const strokeColor = progress < 0.25 ? '#16a34a' : progress < 0.65 ? '#84cc16' : '#d97706';
-        const fillColor = progress < 0.25 ? '#15803d' : progress < 0.65 ? '#65a30d' : '#b45309';
-        const fillOpacity = Math.max(0.35, 0.65 - 0.25 * progress);
-
-        L.polygon(area.coords, {
-          color: strokeColor,
-          fillColor: fillColor,
-          fillOpacity: fillOpacity,
-          weight: 2,
-        }).addTo(group).bindPopup(`
-          <div style="font-size:12px; font-family:sans-serif; padding:4px;">
-            <h4 style="font-weight:bold; color:${strokeColor}; margin:0 0 4px 0;">HIỆN TRẠNG NĂM ${year}: ${area.name.toUpperCase()}</h4>
-            <p style="margin:0 0 3px 0;">- Tỷ lệ che phủ: <strong>${cover}% (${Math.round((area.areaHa * cover) / 100)} ha)</strong></p>
-            <p style="margin:0 0 3px 0;">- Biến động so với 2001: <strong style="color:${lostHa > 0 ? '#b91c1c' : '#15803d'}">${lostHa > 0 ? `-${lostHa} ha` : 'Nguyên trạng'}</strong></p>
-            <p style="margin:0 0 3px 0;">- Đặc điểm: ${area.note}</p>
-            <div style="background:#f8fafc; color:#0f172a; padding:4px 6px; border-radius:4px; font-weight:bold; margin-top:4px; border:1px solid #cbd5e1;">
-              Hiện trạng thực địa: ${progress < 0.2 ? 'Rừng nguyên sinh dày đặc' : progress < 0.6 ? 'Xuất hiện nương rẫy rải rác' : 'Nông nghiệp phân hóa mạnh'}
-            </div>
-          </div>
-        `);
-
-        // Vẽ vùng suy giảm phân hóa nương rẫy mở rộng dần theo tiến độ năm
-        const c = area.coords;
-        if (c.length >= 4 && progress > 0.04) {
-          const t = Math.min(1, progress * 1.05);
-          const subAreaCoords: [number, number][] = [
-            [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2],
-            [c[1][0], c[1][1]],
-            [(c[1][0] + c[2][0]) / 2, (c[1][1] + c[2][1]) / 2],
-            [
-              area.center[0] + (c[1][0] - area.center[0]) * (1 - t * 0.75),
-              area.center[1] + (c[1][1] - area.center[1]) * (1 - t * 0.75),
-            ],
-          ];
-
-          L.polygon(subAreaCoords, {
-            color: '#ef4444',
-            fillColor: '#dc2626',
-            fillOpacity: Math.min(0.8, 0.35 + 0.45 * progress),
-            weight: 2,
-            dashArray: progress < 0.4 ? '4, 4' : undefined,
-          }).addTo(group).bindPopup(`
-            <div style="font-size:12px; font-family:sans-serif; padding:4px;">
-              <h4 style="font-weight:bold; color:#dc2626; margin:0 0 4px 0;">VÙNG NƯƠNG RẪY / BIẾN ĐỘNG NĂM ${year}</h4>
-              <p style="margin:0 0 3px 0;">- Khu vực: ${area.name}</p>
-              <p style="margin:0 0 3px 0;">- Diện tích chuyển đổi: <strong style="color:#dc2626;">-${lostHa} ha</strong></p>
-              <p style="margin:0 0 3px 0;">- Tỷ lệ che phủ còn lại: <strong>${cover}%</strong></p>
-              <div style="background:#fee2e2; color:#991b1b; padding:3px 6px; border-radius:4px; font-weight:bold; margin-top:4px;">
-                Cảnh báo thực địa: Đất lâm nghiệp chuyển dịch dần sang sản xuất
-              </div>
-            </div>
-          `);
-        }
-      } else if (mode === 'DELTA') {
-        L.polygon(area.coords, {
-          color: '#15803d',
-          fillColor: '#22c55e',
-          fillOpacity: 0.35,
-          weight: 1.5,
-        }).addTo(group);
-
-        const c = area.coords;
-        if (c.length >= 4) {
-          const subAreaCoords: [number, number][] = [
-            [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2],
-            [c[1][0], c[1][1]],
-            [(c[1][0] + c[2][0]) / 2, (c[1][1] + c[2][1]) / 2],
-            [area.center[0], area.center[1]],
-          ];
-          L.polygon(subAreaCoords, {
-            color: '#e11d48',
-            fillColor: '#be123c',
-            fillOpacity: 0.7,
-            weight: 2.5,
-            dashArray: '4, 4',
-          }).addTo(group).bindPopup(`
-            <div style="font-size:12px; font-family:sans-serif; padding:4px;">
-              <h4 style="font-weight:bold; color:#be123c; margin:0 0 4px 0;">ĐỐI CHIẾU BIẾN ĐỘNG 25 NĂM (${area.name})</h4>
-              <p style="margin:0 0 3px 0;">- Độ che phủ: <strong>${area.cover2001}% ➔ ${area.cover2026}%</strong> (${deltaHa > 0 ? `-${deltaHa} ha` : '0 ha'})</p>
-              <div style="background:#ffe4e6; color:#9f1239; padding:4px 6px; border-radius:4px; font-weight:bold; margin-top:4px;">
-                ${Math.abs(deltaNdvi) >= 0.1 ? 'Xếp loại: Biến động diện tích đáng kể' : 'Xếp loại: Ổn định bình thường'}
-              </div>
-            </div>
-          `);
-        }
-      }
-    });
+    // 3. Phóng tới tâm khu vực nếu có yêu cầu điều hướng
+    if (shouldFlyTo) {
+      const area: AreaDefinition =
+        areaKey === 'CUSTOM' && (customObj || customArea)
+          ? (customObj || customArea)!
+          : COMPARISON_AREAS[areaKey] || COMPARISON_AREAS.TK_293;
+      map.flyTo(area.center, area.zoom, { duration: 0.8 });
+    }
   };
 
   // Khởi tạo bản đồ Leaflet
@@ -3998,7 +3873,7 @@ export const WebGISMap: React.FC = () => {
           className="hidden"
         />
 
-        {/* NÚT KÍCH HOẠT THANH TRƯỢT THỜI GIAN NĂM (2001 - 2026) (Ảnh 1) */}
+        {/* NÚT KÍCH HOẠT THANH TRƯỢT THỜI GIAN NĂM (Ảnh 4: Tinh gọn chỉ để ký hiệu >) */}
         {!isTimelineSliderOpen && (
           <button
             id="timeline-slider-trigger"
@@ -4008,12 +3883,11 @@ export const WebGISMap: React.FC = () => {
               setIsVillageSidebarOpen(false);
               setIsFloodScenarioSidebarOpen(false);
             }}
-            className="absolute top-2 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2.5 py-1.5 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none"
-            title="Mở thanh trượt thời gian (2001 - 2026)"
+            className="absolute top-2 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white w-7 h-7 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center justify-center transition-all cursor-pointer group hover:w-8 select-none"
+            title={`Mở thanh trượt thời gian (Năm: ${selectedYear})`}
+            aria-label="Mở thanh trượt thời gian"
           >
-            <Calendar className="w-3.5 h-3.5 text-amber-300 shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="text-[10.5px] font-bold tracking-tight">Năm: {selectedYear}</span>
-            <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 text-amber-300 group-hover:translate-x-0.5 transition-transform" />
           </button>
         )}
 

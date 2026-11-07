@@ -322,7 +322,7 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
         <div className="flex items-center gap-2">
           <Cpu className="w-4 h-4 text-white" />
           <span className="text-xs font-bold text-white uppercase tracking-wider">
-            MÔ PHỎNG THỦY LỰC & CẢM BIẾN IoT
+            CẢM BIẾN IoT
           </span>
         </div>
         {/* NÚT TẮT TOÀN BỘ CẢNH BÁO (Ảnh 3) */}

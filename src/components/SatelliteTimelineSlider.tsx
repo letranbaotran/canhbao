@@ -67,13 +67,10 @@ export const SatelliteTimelineSlider: React.FC<SatelliteTimelineSliderProps> = (
     <div
       className={`rounded-md bg-white border border-[#0A4393]/25 px-2.5 py-1.5 select-none transition-all flex flex-wrap items-center gap-2 ${className}`}
     >
-      {/* Bên trái: Tiêu đề gọn */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      {/* Bên trái: Icon gọn (Ảnh 3: Đã tinh gọn, bỏ text Thanh trượt năm) */}
+      <div className="flex items-center shrink-0">
         <span className="text-xs" role="img" aria-label="Lịch">
           📅
-        </span>
-        <span className="text-[#0A4393] font-mono font-bold text-[11px]">
-          Thanh trượt năm ({minYear}-{maxYear}):
         </span>
       </div>
 

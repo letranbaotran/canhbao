@@ -573,7 +573,7 @@ export const CommandCenterDashboard: React.FC = () => {
               }`}
             >
               <Cpu className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate font-bold">MÔ PHỎNG</span>
+              <span className="truncate font-bold">CẢM BIẾN IoT</span>
             </button>
           </div>
 
