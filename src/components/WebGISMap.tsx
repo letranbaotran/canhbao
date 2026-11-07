@@ -79,6 +79,7 @@ import {
   ChevronRight,
   ChevronLeft,
   Waves,
+  Camera,
 } from 'lucide-react';
 
 export interface KmzLayerManifestItem {
@@ -595,7 +596,11 @@ const getStoredLayerPreferences = () => {
   };
 };
 
-export const WebGISMap: React.FC = () => {
+interface WebGISMapProps {
+  onOpenCommunityReport?: () => void;
+}
+
+export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) => {
   const { iotData, scenarioId, hydraulicModel } = useTelemetryStore();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -653,6 +658,8 @@ export const WebGISMap: React.FC = () => {
   const layerManagerPanelRef = useRef<HTMLDivElement | null>(null);
   const layerManagerBtnTopRef = useRef<HTMLButtonElement | null>(null);
   const layerManagerBtnFloatRef = useRef<HTMLButtonElement | null>(null);
+  const legendBoxRef = useRef<HTMLDivElement | null>(null);
+  const checkLocationBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Quản lý ghim định vị vị trí (khi bấm đè chuột trái / chạm giữ trên bản đồ)
   const pinnedMarkerRef = useRef<any>(null);
@@ -1199,6 +1206,29 @@ export const WebGISMap: React.FC = () => {
     };
     setIsDraggingPanel(true);
   };
+
+  // Tự động ẩn bảng Chú giải độ sâu ngập MIKE 21 FM khi nhấp chuột hoặc chạm ra ngoài
+  useEffect(() => {
+    if (!showGpsFloodAssessment) return;
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (
+        legendBoxRef.current &&
+        !legendBoxRef.current.contains(target) &&
+        checkLocationBtnRef.current &&
+        !checkLocationBtnRef.current.contains(target)
+      ) {
+        setShowGpsFloodAssessment(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showGpsFloodAssessment]);
 
   // Đồng bộ popup Hồ Thượng & Hiệu ứng Domino tự động kích hoạt Bản đồ vùng ngập MIKE FLOOD
   useEffect(() => {
@@ -3731,16 +3761,6 @@ export const WebGISMap: React.FC = () => {
     syncToggleVillage(v.name, true);
   };
 
-  const totalLayerCount = 6 + kmzManifest.length;
-  const activeLayerCount =
-    (systemLayers.markers ? 1 : 0) +
-    (systemLayers.buffer ? 1 : 0) +
-    (systemLayers.floodMarks2023 ? 1 : 0) +
-    (systemLayers.vulnerableFacilities ? 1 : 0) +
-    (systemLayers.mikeKmlFile ? 1 : 0) +
-    (systemLayers.villages ? 1 : 0) +
-    kmzManifest.filter((m) => enabledKmzLayers[m.id]).length;
-
   const handleTriggerTabUpload = (tab: 'SYSTEM' | 'FLOOD' | 'VILLAGE') => {
     setUploadTargetTab(tab);
     fileInputRef.current?.click();
@@ -3785,6 +3805,17 @@ export const WebGISMap: React.FC = () => {
   const villageTabTotalCount = 1 + villageKmzItems.length;
   const isAllVillageTabActive =
     villageTabTotalCount > 0 && villageTabActiveCount === villageTabTotalCount;
+
+  // Tính tổng số lớp và số lớp active khớp 100% với các Tab hiển thị theo phân quyền người dùng
+  const totalLayerCount =
+    userRole === 'ADMIN'
+      ? systemTabTotalCount + floodTabTotalCount + villageTabTotalCount
+      : systemTabTotalCount + floodTabTotalCount;
+
+  const activeLayerCount =
+    userRole === 'ADMIN'
+      ? systemTabActiveCount + floodTabActiveCount + villageTabActiveCount
+      : systemTabActiveCount + floodTabActiveCount;
 
   // Thống kê riêng cho 2 sub-tab lớn trong Thôn/Buôn
   const villageBoundariesActiveCount = villageKmzItems.filter(
@@ -4484,37 +4515,63 @@ export const WebGISMap: React.FC = () => {
           )}
         </button>
 
-        {/* GÓC DƯỚI BÊN TRÁI: NÚT TRÒN ĐỎ "KIỂM TRA VỊ TRÍ CỦA TÔI" + POPUP CHÚ GIẢI (ẢNH 2) */}
+        {/* GÓC DƯỚI BÊN TRÁI: CỤM NÚT "KIỂM TRA VỊ TRÍ CỦA TÔI" (ĐỎ) VÀ "BÁO TIN" (XANH LÁ) + POPUP CHÚ GIẢI (ẢNH 2 & ẢNH 3) */}
         <div className="absolute bottom-2.5 left-2.5 z-[500] flex flex-col gap-1.5 font-sans items-start">
-          {/* Nút tròn nhỏ vừa, nền màu đỏ, chữ viết 2 dòng (Ảnh 2) */}
-          <button
-            type="button"
-            onClick={() => {
-              if (showGpsFloodAssessment && !isLocating) {
-                setShowGpsFloodAssessment(false);
-              } else {
-                setShowGpsFloodAssessment(true);
-                handleCheckGpsFloodRisk();
-              }
-            }}
-            disabled={isLocating}
-            className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
-            title="Kiểm tra vị trí của tôi và đánh giá nguy cơ ngập"
-          >
-            <span
-              className={`text-[7.5px] sm:text-[8px] font-black leading-[1.05] tracking-tighter text-white block ${
-                isLocating ? 'animate-pulse' : ''
-              }`}
+          <div className="flex items-center gap-2">
+            {/* Nút 1: Kiểm tra vị trí của tôi (Hình tròn màu đỏ) */}
+            <button
+              ref={checkLocationBtnRef}
+              type="button"
+              onClick={() => {
+                if (showGpsFloodAssessment && !isLocating) {
+                  setShowGpsFloodAssessment(false);
+                } else {
+                  setShowGpsFloodAssessment(true);
+                  handleCheckGpsFloodRisk();
+                }
+              }}
+              disabled={isLocating}
+              className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
+              title="Kiểm tra vị trí của tôi và đánh giá nguy cơ ngập"
             >
-              Kiểm tra
-              <br />
-              vị trí của tôi
-            </span>
-          </button>
+              <span
+                className={`text-[7.5px] sm:text-[8px] font-black leading-[1.05] tracking-tighter text-white block ${
+                  isLocating ? 'animate-pulse' : ''
+                }`}
+              >
+                Kiểm tra
+                <br />
+                vị trí của tôi
+              </span>
+            </button>
 
-          {/* Khối Chú giải độ sâu ngập MIKE 21 FM (Đã bỏ bảng thông tin trùng lặp theo Ảnh 2) */}
+            {/* Nút 2: Báo Tin thiên tai cộng đồng (Hình tròn màu xanh lá cây, nằm sát nút Kiểm tra vị trí của tôi) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenCommunityReport) {
+                  onOpenCommunityReport();
+                } else {
+                  window.dispatchEvent(new CustomEvent('open-community-report'));
+                }
+              }}
+              className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
+              title="Báo tin thiên tai cộng đồng (Gửi ảnh & GPS)"
+              aria-label="Báo Tin"
+            >
+              <Camera className="w-4 h-4 text-white mb-0.5 shrink-0" />
+              <span className="text-[7.5px] sm:text-[8px] font-black leading-none tracking-tighter text-white block">
+                Báo tin
+              </span>
+            </button>
+          </div>
+
+          {/* Khối Chú giải độ sâu ngập MIKE 21 FM (Tự ẩn khi nhấp chuột ra ngoài) */}
           {showGpsFloodAssessment && (
-            <div className="absolute bottom-[54px] sm:bottom-[58px] left-0 z-[510] w-[275px] sm:w-[320px] flex flex-col gap-1.5 animate-fadeIn">
+            <div
+              ref={legendBoxRef}
+              className="absolute bottom-[54px] sm:bottom-[58px] left-0 z-[510] w-[275px] sm:w-[320px] flex flex-col gap-1.5 animate-fadeIn"
+            >
               {/* Thanh chú giải (Legend) 5 cấp độ sâu ngập chuẩn MIKE 21 FM */}
               <div className="bg-white/95 backdrop-blur-xs border border-[#0A4393]/40 rounded-lg shadow-lg overflow-hidden text-[10px] font-mono">
                 <div className="w-full px-2.5 py-1 bg-[#F0F6FF] text-[#0A4393] font-bold flex items-center justify-between gap-2 border-b border-[#0A4393]/15">
