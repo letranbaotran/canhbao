@@ -272,8 +272,25 @@ export const CommandCenterDashboard: React.FC = () => {
     };
   }, [isAnyRedAlert]);
 
+  // Lắng nghe sự kiện đồng bộ tắt còi từ storage trên iOS Safari
+  useEffect(() => {
+    const handleStorageStop = (e: StorageEvent) => {
+      if (e.key === 'EASUP_LAST_STOP_ALERTS') {
+        alarmSystem.stop();
+      }
+    };
+    window.addEventListener('storage', handleStorageStop);
+    return () => {
+      window.removeEventListener('storage', handleStorageStop);
+    };
+  }, []);
+
   return (
-    <div className="min-h-screen bg-[#F0F5FC] text-slate-900 flex flex-col font-sans overflow-x-clip selection:bg-[#0A4393] selection:text-white">
+    <div
+      onTouchStartCapture={() => alarmSystem.unlockAudio()}
+      onClickCapture={() => alarmSystem.unlockAudio()}
+      className="min-h-screen bg-[#F0F5FC] text-slate-900 flex flex-col font-sans overflow-x-clip selection:bg-[#0A4393] selection:text-white"
+    >
       {/* 1. Mốc Khẳng định Chủ quyền Quốc gia & Hoàng Sa, Trường Sa */}
       <SovereigntyBanner />
 

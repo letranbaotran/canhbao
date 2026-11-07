@@ -125,16 +125,27 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlayTrigger]);
 
-  // Dọn dẹp khi unmount & Lắng nghe lệnh tắt khẩn cấp toàn hệ thống
+  // Dọn dẹp khi unmount & Lắng nghe lệnh tắt khẩn cấp toàn hệ thống (Hỗ trợ cả iOS Safari)
   useEffect(() => {
     const handleSilence = () => {
       stopAllAudio();
     };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'EASUP_LAST_STOP_ALERTS') {
+        stopAllAudio();
+      }
+    };
+
     window.addEventListener('MUTE_OR_STOP_ALL_ALERTS', handleSilence);
+    window.addEventListener('storage', handleStorage);
+
     return () => {
       window.removeEventListener('MUTE_OR_STOP_ALL_ALERTS', handleSilence);
+      window.removeEventListener('storage', handleStorage);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+        try {
+          window.speechSynthesis.cancel();
+        } catch {}
       }
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -142,10 +153,17 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
   const stopAllAudio = () => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.pause();
+        window.speechSynthesis.cancel();
+      } catch {}
     }
     if (audioRef.current) {
-      audioRef.current.pause();
+      try {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      } catch {}
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -158,7 +176,12 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     if (typeof window === 'undefined') return;
 
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.paused) {
+          window.speechSynthesis.resume();
+        }
+      } catch {}
 
       const utterance = new SpeechSynthesisUtterance(textToRead);
       utterance.lang = 'vi-VN';

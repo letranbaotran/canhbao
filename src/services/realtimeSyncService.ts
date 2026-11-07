@@ -30,7 +30,59 @@ class RealtimeSyncManager {
     if (typeof window !== 'undefined') {
       this.myClientId = 'easup_' + Math.random().toString(36).substring(2, 10);
       this.initBroadcastChannel();
+      this.initStorageFallback();
       this.initMqtt();
+      this.initMobileLifecycleListeners();
+    }
+  }
+
+  private initMobileLifecycleListeners() {
+    if (typeof window === 'undefined') return;
+
+    // Hồi sinh kết nối MQTT khi người dùng mở lại Safari trên iOS hoặc bật màn hình
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.checkAndReconnectMqtt();
+      }
+    });
+
+    window.addEventListener('pageshow', () => {
+      this.checkAndReconnectMqtt();
+    });
+
+    window.addEventListener('focus', () => {
+      this.checkAndReconnectMqtt();
+    });
+  }
+
+  private initStorageFallback() {
+    if (typeof window === 'undefined') return;
+    try {
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'easup_sync_fallback' && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed && parsed.senderId !== this.myClientId && parsed.data) {
+              this.notifySync(parsed.data);
+            }
+          } catch {}
+        }
+      });
+    } catch {}
+  }
+
+  public checkAndReconnectMqtt() {
+    if (!this.client || !this.client.connected) {
+      this.updateStatus('connecting');
+      try {
+        if (this.client) {
+          this.client.reconnect();
+        } else {
+          this.initMqtt();
+        }
+      } catch {
+        this.initMqtt();
+      }
     }
   }
 
@@ -58,8 +110,9 @@ class RealtimeSyncManager {
       this.client = mqtt.connect(BROKER_URL, {
         clientId: this.myClientId,
         clean: true,
-        connectTimeout: 7000,
-        reconnectPeriod: 4000,
+        connectTimeout: 8000,
+        reconnectPeriod: 3000,
+        keepalive: 20,
       });
 
       this.client.on('connect', () => {
@@ -158,9 +211,21 @@ class RealtimeSyncManager {
       triggerSource,
     };
 
-    // 1. Đồng bộ tức thì tới các tab trên cùng máy qua BroadcastChannel
+    // 1. Đồng bộ tức thì tới các tab trên cùng máy qua BroadcastChannel & localStorage Fallback (iOS Safari)
     try {
       this.broadcastChannel?.postMessage(message);
+    } catch {
+      // Ignored
+    }
+    try {
+      localStorage.setItem(
+        'easup_sync_fallback',
+        JSON.stringify({
+          senderId: this.myClientId,
+          timestamp: Date.now(),
+          data: message,
+        })
+      );
     } catch {
       // Ignored
     }
