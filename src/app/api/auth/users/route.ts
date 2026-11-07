@@ -377,6 +377,101 @@ export async function POST(request: Request) {
       });
     }
 
+    if (action === 'changePassword') {
+      const email = String(body?.email || '').trim().toLowerCase();
+      const oldPassword = String(body?.oldPassword || '').trim();
+      const newPassword = String(body?.newPassword || '').trim();
+      const confirmPassword = String(body?.confirmPassword || '').trim();
+
+      if (!email || !email.includes('@')) {
+        return NextResponse.json(
+          { ok: false, error: 'Email không hợp lệ!' },
+          { status: 400 }
+        );
+      }
+      if (!oldPassword) {
+        return NextResponse.json(
+          { ok: false, error: 'Vui lòng nhập mật khẩu cũ!' },
+          { status: 400 }
+        );
+      }
+      if (!newPassword || !confirmPassword) {
+        return NextResponse.json(
+          { ok: false, error: 'Vui lòng nhập mật khẩu mới đủ 2 lần!' },
+          { status: 400 }
+        );
+      }
+      if (newPassword !== confirmPassword) {
+        return NextResponse.json(
+          { ok: false, error: 'Mật khẩu mới nhập 2 lần không khớp!' },
+          { status: 400 }
+        );
+      }
+      if (newPassword.length < 6) {
+        return NextResponse.json(
+          { ok: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự!' },
+          { status: 400 }
+        );
+      }
+
+      const oldInputHash = hashPassword(oldPassword);
+      const newHash = hashPassword(newPassword);
+
+      if (email === adminEmail) {
+        const isMatch =
+          oldInputHash === adminPasswordHash ||
+          oldInputHash === DEFAULT_ADMIN_PASSWORD_HASH ||
+          (rawAdminPassword && oldPassword === rawAdminPassword);
+
+        if (!isMatch) {
+          return NextResponse.json(
+            { ok: false, error: 'Mật khẩu cũ không chính xác!' },
+            { status: 401 }
+          );
+        }
+
+        const masterIdx = users.findIndex((u) => u.email.toLowerCase() === adminEmail);
+        if (masterIdx >= 0) {
+          users[masterIdx].passwordHash = newHash;
+        }
+        updateEnvKeys({
+          ADMIN_PASSWORD: newPassword,
+          ADMIN_PASSWORD_HASH: newHash,
+          AUTH_USERS_ENV_JSON: JSON.stringify(users),
+        });
+        return NextResponse.json({
+          ok: true,
+          message: 'Đã đổi mật khẩu Admin thành công và lưu vào hệ thống bảo mật!',
+          users: stripPasswords(users),
+        });
+      }
+
+      const userIdx = users.findIndex((u) => u.email.toLowerCase() === email);
+      if (userIdx === -1) {
+        return NextResponse.json(
+          { ok: false, error: 'Tài khoản không tồn tại!' },
+          { status: 404 }
+        );
+      }
+
+      const targetUser = users[userIdx];
+      if (targetUser.passwordHash && targetUser.passwordHash !== oldInputHash) {
+        return NextResponse.json(
+          { ok: false, error: 'Mật khẩu cũ không chính xác!' },
+          { status: 401 }
+        );
+      }
+
+      targetUser.passwordHash = newHash;
+      updateEnvKeys({ AUTH_USERS_ENV_JSON: JSON.stringify(users) });
+
+      return NextResponse.json({
+        ok: true,
+        message: 'Đã đổi mật khẩu thành công và lưu vào hệ thống bảo mật!',
+        users: stripPasswords(users),
+      });
+    }
+
     if (action === 'setRole') {
       const targetEmail = String(body?.email || '').trim().toLowerCase();
       const role = (body?.role || 'MAP_EDITOR') as MapUserRole;

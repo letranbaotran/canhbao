@@ -300,6 +300,81 @@ export async function registerWithEmail(
   }
 }
 
+/**
+ * Đổi mật khẩu tài khoản đang đăng nhập - Lưu bảo mật vào file trên Server
+ */
+export async function changeUserPassword(
+  emailInput: string,
+  oldPasswordInput: string,
+  newPasswordInput: string,
+  confirmPasswordInput: string
+): Promise<{ ok: boolean; message?: string; error?: string }> {
+  const cleanEmail = (emailInput || '').trim().toLowerCase();
+  const oldPass = (oldPasswordInput || '').trim();
+  const newPass = (newPasswordInput || '').trim();
+  const confirmPass = (confirmPasswordInput || '').trim();
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { ok: false, error: 'Email không hợp lệ!' };
+  }
+  if (!oldPass) {
+    return { ok: false, error: 'Vui lòng nhập mật khẩu cũ!' };
+  }
+  if (!newPass || !confirmPass) {
+    return { ok: false, error: 'Vui lòng nhập mật khẩu mới đủ 2 lần!' };
+  }
+  if (newPass !== confirmPass) {
+    return { ok: false, error: 'Mật khẩu mới nhập 2 lần không khớp!' };
+  }
+  if (newPass.length < 6) {
+    return { ok: false, error: 'Mật khẩu mới phải có tối thiểu 6 ký tự!' };
+  }
+
+  try {
+    const res = await fetch('/api/auth/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'changePassword',
+        email: cleanEmail,
+        oldPassword: oldPass,
+        newPassword: newPass,
+        confirmPassword: confirmPass,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.ok) {
+      return { ok: false, error: data?.error || 'Đổi mật khẩu thất bại!' };
+    }
+    if (Array.isArray(data.users)) {
+      cacheUsersLocally(data.users);
+    }
+    return {
+      ok: true,
+      message: data?.message || 'Đã đổi mật khẩu thành công và lưu vào hệ thống bảo mật!',
+    };
+  } catch {
+    // Fallback static
+    const users = getStoredUsers();
+    const oldHash = await sha256Client(oldPass);
+    const newHash = await sha256Client(newPass);
+
+    const target = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!target) {
+      return { ok: false, error: 'Tài khoản không tồn tại!' };
+    }
+    if (target.passwordHash && target.passwordHash !== oldHash) {
+      return { ok: false, error: 'Mật khẩu cũ không chính xác!' };
+    }
+    target.passwordHash = newHash;
+    cacheUsersLocally(users);
+    return {
+      ok: true,
+      message: 'Đã đổi mật khẩu thành công và lưu vào bộ nhớ an toàn!',
+    };
+  }
+}
+
 export async function adminSetUserRole(
   emailInput: string,
   role: MapUserRole,

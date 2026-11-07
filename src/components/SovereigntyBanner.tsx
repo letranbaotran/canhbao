@@ -18,6 +18,8 @@ import {
   Eye,
   EyeOff,
   Mail,
+  Lock,
+  KeyRound,
   Satellite,
   Waves,
 } from 'lucide-react';
@@ -29,6 +31,7 @@ import {
   AUTH_CHANGED_EVENT,
   adminDeleteUser,
   adminSetUserRole,
+  changeUserPassword,
   getCurrentSessionUser,
   getRoleLabel,
   getStoredUsers,
@@ -41,7 +44,7 @@ import {
 export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
   const [activeModal, setActiveModal] = useState<
-    'guide' | 'contact' | 'stats' | 'auth' | 'role_management' | null
+    'guide' | 'contact' | 'stats' | 'auth' | 'role_management' | 'account_info' | null
   >(null);
   const [authTab, setAuthTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -63,6 +66,17 @@ export const SovereigntyBanner: React.FC = () => {
   const [showPass2, setShowPass2] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Đổi mật khẩu tài khoản
+  const [oldPasswordInput, setOldPasswordInput] = useState<string>('');
+  const [newPasswordInput, setNewPasswordInput] = useState<string>('');
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState<string>('');
+  const [showOldPass, setShowOldPass] = useState<boolean>(false);
+  const [showNewPass, setShowNewPass] = useState<boolean>(false);
+  const [showConfirmNewPass, setShowConfirmNewPass] = useState<boolean>(false);
+  const [changePassError, setChangePassError] = useState<string | null>(null);
+  const [changePassSuccess, setChangePassSuccess] = useState<string | null>(null);
+  const [isChangingPass, setIsChangingPass] = useState<boolean>(false);
 
   // Thêm/phân quyền dành cho Admin
   const [newEmail, setNewEmail] = useState<string>('');
@@ -116,6 +130,69 @@ export const SovereigntyBanner: React.FC = () => {
     setNewRole('MANAGER');
     setIsMobileMenuOpen(false);
     setActiveModal('role_management');
+  };
+
+  const openAccountInfoModal = () => {
+    setOldPasswordInput('');
+    setNewPasswordInput('');
+    setConfirmNewPasswordInput('');
+    setShowOldPass(false);
+    setShowNewPass(false);
+    setShowConfirmNewPass(false);
+    setChangePassError(null);
+    setChangePassSuccess(null);
+    setIsUserMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    setActiveModal('account_info');
+  };
+
+  const handleChangePasswordSubmit = async () => {
+    if (isChangingPass) return;
+    setChangePassError(null);
+    setChangePassSuccess(null);
+
+    const oldP = oldPasswordInput.trim();
+    const newP = newPasswordInput.trim();
+    const confirmP = confirmNewPasswordInput.trim();
+
+    if (!oldP) {
+      setChangePassError('Vui lòng nhập mật khẩu cũ!');
+      return;
+    }
+    if (!newP || !confirmP) {
+      setChangePassError('Vui lòng nhập mật khẩu mới đủ 2 lần!');
+      return;
+    }
+    if (newP !== confirmP) {
+      setChangePassError('Mật khẩu mới nhập 2 lần không khớp!');
+      return;
+    }
+    if (newP.length < 6) {
+      setChangePassError('Mật khẩu mới phải có tối thiểu 6 ký tự!');
+      return;
+    }
+
+    setIsChangingPass(true);
+    try {
+      const res = await changeUserPassword(
+        currentUser.email,
+        oldP,
+        newP,
+        confirmP
+      );
+      if (res.ok) {
+        setChangePassSuccess(res.message || 'Đổi mật khẩu thành công và đã lưu an toàn!');
+        setOldPasswordInput('');
+        setNewPasswordInput('');
+        setConfirmNewPasswordInput('');
+      } else {
+        setChangePassError(res.error || 'Đổi mật khẩu thất bại!');
+      }
+    } catch {
+      setChangePassError('Lỗi kết nối máy chủ!');
+    } finally {
+      setIsChangingPass(false);
+    }
   };
 
   const handleNavClick = (menuKey: string, targetId?: string) => {
@@ -434,7 +511,7 @@ export const SovereigntyBanner: React.FC = () => {
                             type="button"
                             onClick={() => {
                               setIsUserMenuOpen(false);
-                              openAuthModal('LOGIN');
+                              openAccountInfoModal();
                             }}
                             className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-[#F0F6FF] transition-colors text-left cursor-pointer"
                           >
@@ -476,6 +553,19 @@ export const SovereigntyBanner: React.FC = () => {
                     </span>
                   </div>
                 </div>
+              )}
+
+              {currentUser.email && (
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openAccountInfoModal();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white/10 text-white hover:bg-white/20 text-left cursor-pointer"
+                >
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-amber-300" />
+                  <span>Thông tin tài khoản &amp; Đổi mật khẩu</span>
+                </button>
               )}
 
               {currentUser.role === 'ADMIN' && (
@@ -792,8 +882,8 @@ export const SovereigntyBanner: React.FC = () => {
         </div>
       )}
 
-      {/* 6. MODAL ĐĂNG NHẬP / ĐĂNG KÝ / PHÂN QUYỀN GỌN NHẸ (KHÔNG HƯỚNG DẪN, KHÔNG GỢI Ý) */}
-      {activeModal === 'auth' && (
+      {/* 6. MODAL ĐĂNG NHẬP / ĐĂNG KÝ / THÔNG TIN TÀI KHOẢN & ĐỔI MẬT KHẨU */}
+      {(activeModal === 'auth' || activeModal === 'account_info') && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-[#0A4393]/65 backdrop-blur-sm animate-fadeIn"
           onClick={() => setActiveModal(null)}
@@ -936,121 +1026,216 @@ export const SovereigntyBanner: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="space-y-3 pt-1">
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 mr-6">
-                  <div className="text-xs text-emerald-900 truncate">
-                    <strong>{currentUser.email}</strong> ({getRoleLabel(currentUser.role)})
+              /* MODAL THÔNG TIN TÀI KHOẢN & ĐỔI MẬT KHẨU BẢO MẬT (ĐÁP ỨNG ẢNH 1 & ẢNH 2) */
+              <div className="space-y-3.5 pt-1">
+                {/* 1. Header Thông tin tài khoản & Vai trò người dùng */}
+                <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#0A4393]/20">
+                  <div className="p-2 rounded-xl bg-[#0A4393] text-white shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 shrink-0 cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Thoát</span>
-                  </button>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-extrabold text-[#0A4393] uppercase tracking-wide">
+                      Thông Tin Tài Khoản
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium truncate">
+                      Hệ thống cảnh báo sớm thiên tai xã Ea Súp
+                    </p>
+                  </div>
                 </div>
 
-                {/* BẢNG PHÂN QUYỀN GỌN DÀNH CHO ADMIN */}
-                {currentUser.role === 'ADMIN' && (
-                  <div className="space-y-2.5 pt-2 border-t border-[#0A4393]/20">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-[#0A4393] flex items-center gap-1.5">
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Phân quyền tài khoản</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActiveModal('role_management')}
-                        className="text-[11px] font-bold text-[#0A4393] hover:underline flex items-center gap-1"
-                      >
-                        <span>Mở trang chi tiết →</span>
-                      </button>
-                    </div>
+                {/* 2. Chi tiết người dùng & Quyền hạn */}
+                <div className="p-3 rounded-xl bg-[#F0F6FF] border border-[#0A4393]/20 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-slate-600">Email đăng nhập:</span>
+                    <span className="text-xs font-bold text-[#0A4393] truncate max-w-[220px]" title={currentUser.email}>
+                      {currentUser.email}
+                    </span>
+                  </div>
 
-                    {adminMessage && (
-                      <div className="p-2 rounded-lg bg-blue-50 border border-blue-200 text-[#0A4393] text-xs font-semibold">
-                        {adminMessage}
-                      </div>
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#0A4393]/15">
+                    <span className="text-[11px] font-semibold text-slate-600">Phân quyền sử dụng:</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                        currentUser.role === 'ADMIN'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : currentUser.role === 'MANAGER' || currentUser.role === 'MAP_EDITOR'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      }`}
+                    >
+                      {getRoleLabel(currentUser.role)} ({currentUser.role})
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-200 leading-relaxed font-sans">
+                    {currentUser.role === 'ADMIN' && (
+                      <span>
+                        • <strong>Toàn quyền cao nhất</strong>: Thêm, sửa, xóa, nạp tải dữ liệu bản đồ .kml/.geojson; phân quyền và quản trị hệ thống.
+                      </span>
                     )}
+                    {(currentUser.role === 'MANAGER' || currentUser.role === 'MAP_EDITOR') && (
+                      <span>
+                        • <strong>Cán bộ quản lý</strong>: Điều chỉnh cảm biến IoT, gửi/tắt cảnh báo khẩn cấp, kích hoạt loa số AI và tiếp nhận tin báo người dân.
+                      </span>
+                    )}
+                    {currentUser.role === 'GUEST' && (
+                      <span>
+                        • <strong>Khách</strong>: Thao tác giao diện bản đồ, nhận cảnh báo âm thanh và gửi tin phản ánh SOS hiện trường đến cán bộ.
+                      </span>
+                    )}
+                  </div>
 
-                    <div className="flex flex-col sm:flex-row gap-1.5">
+                  {currentUser.role === 'ADMIN' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveModal('role_management');
+                      }}
+                      className="w-full mt-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-bold text-[#0A4393] bg-white hover:bg-blue-50 border border-[#0A4393]/30 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-[#0A4393]" />
+                      <span>Mở trang Quản lý phân quyền hệ thống →</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* 3. KHU VỰC ĐỔI MẬT KHẨU (ẢNH 2: NHẬP MẬT KHẨU CŨ, 2 LẦN MẬT KHẨU MỚI & LƯU BẢO MẬT) */}
+                <div className="p-3 rounded-xl border border-[#0A4393]/25 bg-white space-y-2.5 shadow-xs">
+                  <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
+                    <KeyRound className="w-4 h-4 text-[#0A4393]" />
+                    <span className="text-xs font-bold text-[#0A4393] uppercase tracking-wide">
+                      Đổi Mật Khẩu Đăng Nhập
+                    </span>
+                  </div>
+
+                  {changePassSuccess && (
+                    <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold animate-fadeIn">
+                      ✓ {changePassSuccess}
+                    </div>
+                  )}
+
+                  {changePassError && (
+                    <div className="p-2 rounded-lg bg-rose-50 border border-rose-300 text-rose-700 text-xs font-semibold animate-fadeIn">
+                      ⚠ {changePassError}
+                    </div>
+                  )}
+
+                  {/* 3.1. Mật khẩu cũ */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Mật khẩu cũ (hiện tại) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
-                        type="text"
-                        inputMode="email"
-                        autoComplete="off"
+                        type={showOldPass ? 'text' : 'password'}
+                        autoComplete="current-password"
                         data-lpignore="true"
-                        value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                        placeholder="Email"
-                        className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs"
+                        value={oldPasswordInput}
+                        onChange={(e) => setOldPasswordInput(e.target.value)}
+                        placeholder="Nhập mật khẩu hiện tại"
+                        className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
                       />
-                      <select
-                        value={newRole}
-                        onChange={(e) => setNewRole(e.target.value as MapUserRole)}
-                        className="px-2 py-1.5 rounded-lg border border-[#0A4393]/40 text-xs font-semibold text-[#0A4393] bg-white cursor-pointer"
-                      >
-                        <option value="ADMIN">🔴 Toàn quyền</option>
-                        <option value="MANAGER">🟡 Cán bộ quản lý</option>
-                        <option value="GUEST">🟢 Khách</option>
-                      </select>
                       <button
                         type="button"
-                        onClick={handleCreateOrAssignUser}
-                        className="px-3 py-1.5 rounded-lg bg-[#0A4393] text-white text-xs font-bold hover:bg-[#083576] cursor-pointer shrink-0"
+                        onClick={() => setShowOldPass(!showOldPass)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#0A4393] p-0.5"
                       >
-                        Lưu
+                        {showOldPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
-                    </div>
-
-                    <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
-                      {usersList
-                        .filter((acc) => acc && typeof acc.email === 'string' && acc.email)
-                        .map((acc) => {
-                          const isMaster =
-                            (acc.email || '').toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
-                          return (
-                            <div
-                              key={acc.email}
-                              className="p-2 bg-white flex items-center justify-between gap-2 text-xs"
-                            >
-                              <span className="font-semibold text-slate-800 truncate">
-                                {acc.email}
-                              </span>
-
-                              <div className="flex items-center gap-1 shrink-0">
-                                <select
-                                  value={acc.role === 'MAP_EDITOR' ? 'MANAGER' : acc.role}
-                                  disabled={isMaster}
-                                  onChange={(e) =>
-                                    handleChangeUserRole(
-                                      acc.email,
-                                      e.target.value as MapUserRole
-                                    )
-                                  }
-                                  className="px-2 py-1 rounded border border-[#0A4393]/30 text-[11px] font-bold text-[#0A4393] bg-[#F0F6FF] disabled:opacity-60 cursor-pointer"
-                                >
-                                  <option value="ADMIN">🔴 Toàn quyền</option>
-                                  <option value="MANAGER">🟡 Cán bộ quản lý</option>
-                                  <option value="GUEST">🟢 Khách</option>
-                                </select>
-
-                                {!isMaster && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteUser(acc.email)}
-                                    className="p-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white transition-colors cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
                     </div>
                   </div>
-                )}
+
+                  {/* 3.2. Mật khẩu mới */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Mật khẩu mới (tối thiểu 6 ký tự) <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type={showNewPass ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        value={newPasswordInput}
+                        onChange={(e) => setNewPasswordInput(e.target.value)}
+                        placeholder="Nhập mật khẩu mới"
+                        className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPass(!showNewPass)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#0A4393] p-0.5"
+                      >
+                        {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3.3. Nhập lại mật khẩu mới */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Xác nhận mật khẩu mới <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type={showConfirmNewPass ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        data-lpignore="true"
+                        value={confirmNewPasswordInput}
+                        onChange={(e) => setConfirmNewPasswordInput(e.target.value)}
+                        placeholder="Nhập lại mật khẩu mới"
+                        className="w-full pl-8 pr-8 py-1.5 rounded-lg border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmNewPass(!showConfirmNewPass)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-[#0A4393] p-0.5"
+                      >
+                        {showConfirmNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Nút thực hiện đổi mật khẩu */}
+                  <button
+                    type="button"
+                    onClick={handleChangePasswordSubmit}
+                    disabled={isChangingPass}
+                    className="w-full py-2 rounded-lg bg-[#0A4393] text-white font-bold text-xs hover:bg-[#083576] shadow-sm transition-all cursor-pointer disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>{isChangingPass ? 'Đang lưu trữ bảo mật...' : 'Lưu mật khẩu mới'}</span>
+                  </button>
+
+                  <div className="text-[10px] text-slate-500 italic text-center">
+                    Mật khẩu được băm mã hóa SHA-256 an toàn và lưu trữ trong file cấu hình máy chủ.
+                  </div>
+                </div>
+
+                {/* 4. Chân Modal: Nút Thoát và Đóng */}
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleLogout();
+                      setActiveModal(null);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-300 text-xs font-bold hover:bg-rose-100 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Thoát tài khoản</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition-colors cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                </div>
               </div>
             )}
           </div>
