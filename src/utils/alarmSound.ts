@@ -119,3 +119,36 @@ class EmergencyAlarmSystem {
 }
 
 export const alarmSystem = new EmergencyAlarmSystem();
+
+/**
+ * Tắt toàn bộ cảnh báo trên hệ thống:
+ * 1. Tắt còi hú Web Audio
+ * 2. Tắt âm thanh giọng đọc thông báo AI (SpeechSynthesis)
+ * 3. Tạm dừng tất cả thẻ <audio> đang phát
+ * 4. Phát sự kiện toàn cục MUTE_OR_STOP_ALL_ALERTS
+ */
+export function stopAllEmergencyAlerts() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // 1. Tắt còi hú
+    alarmSystem.stop();
+    alarmSystem.setMuted(true);
+
+    // 2. Dừng giọng đọc phát thanh AI
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
+    // 3. Tắt tất cả thẻ audio
+    document.querySelectorAll('audio').forEach((audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+    });
+
+    // 4. Phát sự kiện toàn cục
+    window.dispatchEvent(new CustomEvent('MUTE_OR_STOP_ALL_ALERTS'));
+  } catch (err) {
+    console.warn('stopAllEmergencyAlerts error:', err);
+  }
+}

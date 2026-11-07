@@ -8,9 +8,12 @@ import {
   AlertTriangle,
   BarChart3,
   MapPin,
+  VolumeX,
+  BellOff,
 } from 'lucide-react';
 import CryptoJS from 'crypto-js';
 import { realtimeSync } from '@/services/realtimeSyncService';
+import { stopAllEmergencyAlerts } from '@/utils/alarmSound';
 import {
   useTelemetryStore,
   MIKE_FLOOD_SCENARIOS,
@@ -301,6 +304,14 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     { label: '> 3m', ha: dist.over3m, color: 'bg-rose-600', textColor: 'text-rose-700' },
   ];
 
+  const handleSilenceAllAlerts = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    stopAllEmergencyAlerts();
+    if (scenarioId !== 'NONE') {
+      handleSelectMikeScenario('NONE');
+    }
+  };
+
   return (
     <div className="w-full bg-white border border-[#0A4393]/25 rounded-xl shadow-lg overflow-hidden font-sans">
       {/* 1. Header Tinh Gọn */}
@@ -314,9 +325,21 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
             MÔ PHỎNG THỦY LỰC & CẢM BIẾN IoT
           </span>
         </div>
-        <span className="text-[10px] font-mono bg-white/20 px-2 py-0.5 rounded font-bold">
-          {hydraulicModel.code}
-        </span>
+        {/* NÚT TẮT TOÀN BỘ CẢNH BÁO TẠI VỊ TRÍ CHỮ TRỰC CHIẾN */}
+        <button
+          type="button"
+          onClick={handleSilenceAllAlerts}
+          className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs select-none ${
+            scenarioId !== 'NONE'
+              ? 'bg-rose-600 hover:bg-rose-700 text-white border border-rose-300 ring-2 ring-rose-400 animate-pulse'
+              : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
+          }`}
+          title="Bấm để tắt toàn bộ cảnh báo (tắt cả âm thanh còi hú cảnh báo và âm thanh đọc thông báo)"
+          aria-label="Tắt toàn bộ cảnh báo"
+        >
+          <VolumeX className="w-3 h-3 shrink-0" />
+          <span>{hydraulicModel.code === 'TRỰC CHIẾN' ? 'TRỰC CHIẾN (TẮT CẢNH BÁO)' : `${hydraulicModel.code} (TẮT CẢNH BÁO)`}</span>
+        </button>
       </div>
 
       {isOpen && (

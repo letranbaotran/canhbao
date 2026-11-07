@@ -236,3 +236,27 @@ select:disabled {
 .iot-news-ticker-track:active {
   animation-play-state: paused;
 }
+
+/* Hiệu ứng nhấp nháy đường ranh thôn và vùng ngập cảnh báo PCTT */
+@keyframes flood-boundary-pulse {
+  0%, 100% {
+    stroke: #e11d48 !important;
+    stroke-width: 4.5px !important;
+    stroke-opacity: 1 !important;
+    fill: #f43f5e !important;
+    fill-opacity: 0.55 !important;
+    filter: drop-shadow(0 0 8px rgba(225, 29, 72, 0.9));
+  }
+  50% {
+    stroke: #fbbf24 !important;
+    stroke-width: 2.5px !important;
+    stroke-opacity: 0.65 !important;
+    fill: #f59e0b !important;
+    fill-opacity: 0.2 !important;
+    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.4));
+  }
+}
+
+.flood-warning-pulsing-path {
+  animation: flood-boundary-pulse 1s infinite ease-in-out !important;
+}

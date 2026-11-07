@@ -125,9 +125,14 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlayTrigger]);
 
-  // Dọn dẹp khi unmount
+  // Dọn dẹp khi unmount & Lắng nghe lệnh tắt khẩn cấp toàn hệ thống
   useEffect(() => {
+    const handleSilence = () => {
+      stopAllAudio();
+    };
+    window.addEventListener('MUTE_OR_STOP_ALL_ALERTS', handleSilence);
     return () => {
+      window.removeEventListener('MUTE_OR_STOP_ALL_ALERTS', handleSilence);
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }

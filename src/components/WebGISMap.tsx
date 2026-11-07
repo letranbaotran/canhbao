@@ -21,7 +21,12 @@ import {
   getCurrentSessionUser,
   MapUserRole,
 } from '@/services/authRoleService';
-import { useTelemetryStore } from '@/services/telemetryStore';
+import {
+  useTelemetryStore,
+  applyMikeFloodScenario,
+  MIKE_FLOOD_SCENARIOS,
+  type MikeFloodScenarioId,
+} from '@/services/telemetryStore';
 import {
   VERIFIED_FLOOD_MARKS_2023,
   VULNERABLE_FACILITIES_EASUP,
@@ -69,6 +74,7 @@ import {
   Minimize2,
   ChevronRight,
   ChevronLeft,
+  Waves,
 } from 'lucide-react';
 
 export interface KmzLayerManifestItem {
@@ -706,6 +712,18 @@ export const WebGISMap: React.FC = () => {
     }
   }, [systemLayers, enabledKmzLayers, activeLayerTab, villageSubTab, villageVisibility]);
 
+  // Phân loại danh sách lớp ranh thôn buôn KML/GeoJSON
+  const villageKmzItems = kmzManifest.filter(
+    (m) =>
+      m.id !== 'KMZ_BAN_VE_MAT_CAT' &&
+      !m.label.toLowerCase().includes('ngập lụt') &&
+      m.category !== 'Nhóm lớp hệ thống' &&
+      m.category !== 'SYSTEM' &&
+      m.category !== 'LỚP BẢN ĐỒ LŨ ĐÃ KIỂM CHỨNG' &&
+      m.category !== 'FLOOD' &&
+      !m.id.includes('MIKE_FLOOD')
+  );
+
   // Thanh 21 Thôn / Buôn & TK 249 trượt bên trái bản đồ
   const [isVillageSidebarOpen, setIsVillageSidebarOpen] = useState<boolean>(false);
   const villageSidebarRef = useRef<HTMLDivElement | null>(null);
@@ -764,6 +782,131 @@ export const WebGISMap: React.FC = () => {
       document.removeEventListener('touchstart', handleOutsideClick);
     };
   }, [isVillageSidebarOpen]);
+
+  // Thanh 5 Kịch bản lũ MIKE FLOOD trượt bên trái bản đồ
+  const [isFloodScenarioSidebarOpen, setIsFloodScenarioSidebarOpen] = useState<boolean>(false);
+  const floodScenarioSidebarRef = useRef<HTMLDivElement | null>(null);
+
+  // Lưu trữ các vector ranh thôn (Polygon/Polyline) để phục vụ kích hoạt hiệu ứng nhấp nháy theo kịch bản lũ
+  const villageBoundaryPathsRef = useRef<
+    Record<string, Array<{ path: any; originalStyle: any }>>
+  >({});
+
+  useEffect(() => {
+    if (!isFloodScenarioSidebarOpen) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        floodScenarioSidebarRef.current &&
+        !floodScenarioSidebarRef.current.contains(target) &&
+        !target.closest('#flood-scenario-sidebar-trigger')
+      ) {
+        setIsFloodScenarioSidebarOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isFloodScenarioSidebarOpen]);
+
+  // Kích hoạt kịch bản lũ MIKE FLOOD từ bảng trượt trên bản đồ
+  const handleTriggerScenarioFromMap = (
+    key: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE'
+  ) => {
+    applyMikeFloodScenario(key);
+  };
+
+  // Đồng bộ 2 chiều: Khi kịch bản lũ thay đổi -> Bật và nhấp nháy ranh thôn nằm trong vùng lũ
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!mapLoaded) return;
+
+    if (!scenarioId || scenarioId === 'NONE' || scenarioId === 'CUSTOM_SLIDER') {
+      // 1. Tắt nhấp nháy cho toàn bộ các ranh thôn
+      Object.values(villageBoundaryPathsRef.current).forEach((items) => {
+        items.forEach(({ path, originalStyle }) => {
+          try {
+            path.setStyle(originalStyle);
+            if ((path as any)._path) {
+              (path as any)._path.classList.remove('flood-warning-pulsing-path');
+            }
+          } catch {}
+        });
+      });
+      return;
+    }
+
+    const scenarioMeta = MIKE_FLOOD_SCENARIOS[scenarioId];
+    if (!scenarioMeta) return;
+
+    const affectedVillages = scenarioMeta.affectedVillages || [];
+
+    // 2. Kích hoạt đồng bộ 2 chiều: Tự động bật các thôn bị ngập lũ
+    affectedVillages.forEach((vilName) => {
+      // Bật marker điểm tập trung
+      if (villagesLayerRef.current) {
+        if (map && !map.hasLayer(villagesLayerRef.current)) {
+          villagesLayerRef.current.addTo(map);
+        }
+        const marker = villageMarkersMapRef.current[vilName];
+        if (marker && !villagesLayerRef.current.hasLayer(marker)) {
+          villagesLayerRef.current.addLayer(marker);
+        }
+      }
+
+      // Bật ranh KML tương ứng
+      const matching = villageKmzItems.filter((kmz) => isVillageMatch(vilName, kmz.label));
+      matching.forEach((m) => {
+        if (!enabledKmzLayers[m.id]) {
+          renderKmzLayerOnMap(m);
+        }
+      });
+    });
+
+    // Cập nhật state villageVisibility để tick xanh đồng bộ trong bảng 21 thôn
+    setVillageVisibility((prev) => {
+      const next = { ...prev };
+      affectedVillages.forEach((v) => {
+        next[v] = true;
+      });
+      return next;
+    });
+
+    // 3. Nhấp nháy ranh thôn cảnh báo theo từng thôn
+    setTimeout(() => {
+      Object.entries(villageBoundaryPathsRef.current).forEach(([vilName, items]) => {
+        const isAffected = affectedVillages.includes(vilName);
+        items.forEach(({ path, originalStyle }) => {
+          try {
+            if (isAffected) {
+              path.setStyle({
+                color: '#e11d48',
+                fillColor: '#f43f5e',
+                fillOpacity: 0.52,
+                weight: 4.2,
+              });
+              if ((path as any)._path) {
+                (path as any)._path.classList.add('flood-warning-pulsing-path');
+              }
+            } else {
+              path.setStyle(originalStyle);
+              if ((path as any)._path) {
+                (path as any)._path.classList.remove('flood-warning-pulsing-path');
+              }
+            }
+          } catch {}
+        });
+      });
+    }, 200);
+
+    // Zoom bao quát vùng ngập
+    if (map) {
+      map.flyTo([13.072, 107.892], 13.5, { duration: 1.2 });
+    }
+  }, [scenarioId, mapLoaded, villageKmzItems]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ kết hợp Fullscreen API & CSS Fallback
   const handleToggleFullscreen = useCallback(() => {
@@ -2343,6 +2486,34 @@ export const WebGISMap: React.FC = () => {
           polyLine.on('click', () => {
             syncToggleVillage(matchedVillageForKmz.name, true);
           });
+
+          if (!villageBoundaryPathsRef.current[matchedVillageForKmz.name]) {
+            villageBoundaryPathsRef.current[matchedVillageForKmz.name] = [];
+          }
+          villageBoundaryPathsRef.current[matchedVillageForKmz.name].push({
+            path: polyLine,
+            originalStyle: {
+              color: strokeColor,
+              weight: baseWeight,
+              opacity: 0.92,
+            },
+          });
+
+          if (scenarioId && scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER') {
+            const scMeta = MIKE_FLOOD_SCENARIOS[scenarioId];
+            if (scMeta?.affectedVillages?.includes(matchedVillageForKmz.name)) {
+              polyLine.setStyle({
+                color: '#e11d48',
+                weight: 4.2,
+                opacity: 1,
+              });
+              setTimeout(() => {
+                if ((polyLine as any)._path) {
+                  (polyLine as any)._path.classList.add('flood-warning-pulsing-path');
+                }
+              }, 60);
+            }
+          }
         }
 
         polyLine.on('mouseover', () => {
@@ -2375,6 +2546,36 @@ export const WebGISMap: React.FC = () => {
           polygon.on('click', () => {
             syncToggleVillage(matchedVillageForKmz.name, true);
           });
+
+          if (!villageBoundaryPathsRef.current[matchedVillageForKmz.name]) {
+            villageBoundaryPathsRef.current[matchedVillageForKmz.name] = [];
+          }
+          villageBoundaryPathsRef.current[matchedVillageForKmz.name].push({
+            path: polygon,
+            originalStyle: {
+              color: strokeColor,
+              weight: polyWeight,
+              fillColor: grp.fillColor || strokeColor,
+              fillOpacity: grp.outline ? 0.35 : 0.55,
+            },
+          });
+
+          if (scenarioId && scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER') {
+            const scMeta = MIKE_FLOOD_SCENARIOS[scenarioId];
+            if (scMeta?.affectedVillages?.includes(matchedVillageForKmz.name)) {
+              polygon.setStyle({
+                color: '#e11d48',
+                fillColor: '#f43f5e',
+                fillOpacity: 0.52,
+                weight: 4.2,
+              });
+              setTimeout(() => {
+                if ((polygon as any)._path) {
+                  (polygon as any)._path.classList.add('flood-warning-pulsing-path');
+                }
+              }, 60);
+            }
+          }
         }
 
         polygon.on('mouseover', () => {
@@ -3468,16 +3669,6 @@ export const WebGISMap: React.FC = () => {
         m.category === 'FLOOD' ||
         m.id.includes('MIKE_FLOOD'))
   );
-  const villageKmzItems = kmzManifest.filter(
-    (m) =>
-      m.id !== 'KMZ_BAN_VE_MAT_CAT' &&
-      !m.label.toLowerCase().includes('ngập lụt') &&
-      m.category !== 'Nhóm lớp hệ thống' &&
-      m.category !== 'SYSTEM' &&
-      m.category !== 'LỚP BẢN ĐỒ LŨ ĐÃ KIỂM CHỨNG' &&
-      m.category !== 'FLOOD' &&
-      !m.id.includes('MIKE_FLOOD')
-  );
 
   const systemTabActiveCount =
     (systemLayers.markers ? 1 : 0) +
@@ -3930,7 +4121,10 @@ export const WebGISMap: React.FC = () => {
           <button
             id="village-sidebar-trigger"
             type="button"
-            onClick={() => setIsVillageSidebarOpen(true)}
+            onClick={() => {
+              setIsVillageSidebarOpen(true);
+              setIsFloodScenarioSidebarOpen(false);
+            }}
             className="absolute top-14 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2.5 py-2 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none"
             title="Mở danh sách Thôn/buôn & Quản lý lớp"
           >
@@ -3938,6 +4132,153 @@ export const WebGISMap: React.FC = () => {
             <span className="text-[10.5px] font-bold tracking-tight">Thôn/buôn</span>
             <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-x-0.5 transition-transform" />
           </button>
+        )}
+
+        {/* NÚT KÍCH HOẠT THANH KỊCH BẢN LŨ (Bên góc trái bản đồ, bên dưới thanh Thôn/buôn - Ảnh 1) */}
+        {!isFloodScenarioSidebarOpen && (
+          <button
+            id="flood-scenario-sidebar-trigger"
+            type="button"
+            onClick={() => {
+              setIsFloodScenarioSidebarOpen(true);
+              setIsVillageSidebarOpen(false);
+            }}
+            className={`absolute top-[98px] left-0 z-[490] ${
+              scenarioId && scenarioId !== 'NONE'
+                ? 'bg-rose-700 hover:bg-rose-800 ring-2 ring-rose-400'
+                : 'bg-[#0A4393] hover:bg-[#083576]'
+            } active:bg-[#062859] text-white px-2.5 py-2 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none`}
+            title="Mở 5 kịch bản thủy lực MIKE FLOOD đã kiểm định"
+          >
+            <Waves className="w-3.5 h-3.5 text-cyan-300 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="text-[10.5px] font-bold tracking-tight">Kịch bản lũ</span>
+            {scenarioId && scenarioId !== 'NONE' && (
+              <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping shrink-0" />
+            )}
+            <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
+
+        {/* BẢNG TRƯỢT 5 KỊCH BẢN LŨ MIKE FLOOD (Thò ra từ bên trái, đồng bộ 2 chiều và nhấp nháy ranh thôn) */}
+        {isFloodScenarioSidebarOpen && (
+          <div
+            ref={floodScenarioSidebarRef}
+            id="flood-scenario-sidebar-drawer"
+            className="absolute top-0 left-0 bottom-0 z-[530] w-[210px] sm:w-[225px] bg-white/95 backdrop-blur-md shadow-2xl border-r-2 border-[#0A4393] flex flex-col overflow-hidden text-xs font-sans animate-slideInLeft select-none"
+          >
+            {/* Header thanh trượt */}
+            <div className="bg-[#0A4393] text-white px-2.5 py-1.5 flex items-center justify-between shrink-0 shadow-xs">
+              <div className="flex items-center gap-1.5 font-bold min-w-0">
+                <Waves className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                <span className="text-[11px] uppercase tracking-tight font-extrabold truncate">Kịch bản lũ</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFloodScenarioSidebarOpen(false)}
+                className="p-0.5 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer shrink-0"
+                title="Thu hẹp bảng về bên trái"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Thanh tác vụ nhanh */}
+            <div className="px-2 py-1 bg-[#F0F6FF] border-b border-[#0A4393]/20 flex items-center justify-between gap-1 shrink-0 text-[10px]">
+              <span className="text-slate-600 font-bold truncate">5 kịch bản MIKE FM</span>
+              <button
+                type="button"
+                onClick={() => handleTriggerScenarioFromMap('NONE')}
+                className={`px-1.5 py-0.2 rounded font-bold text-[9px] transition-colors cursor-pointer ${
+                  scenarioId === 'NONE'
+                    ? 'bg-[#0A4393] text-white shadow-2xs'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
+                }`}
+                title="Đặt lại trạng thái trực chiến an toàn"
+              >
+                Đặt lại
+              </button>
+            </div>
+
+            {/* Danh sách 5 kịch bản thủy lực MIKE FLOOD (Ảnh 2) */}
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5">
+              {(
+                ['KB4_1', 'KB1_1', 'KB1_2', 'KB2_1', 'KB5_2'] as Array<
+                  Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'>
+                >
+              ).map((key) => {
+                const sc = MIKE_FLOOD_SCENARIOS[key];
+                const isSelected = scenarioId === key;
+                const isDamBreak = key === 'KB2_1' || key === 'KB5_2';
+
+                return (
+                  <div
+                    key={key}
+                    onClick={() => handleTriggerScenarioFromMap(isSelected ? 'NONE' : key)}
+                    className={`p-2 rounded-lg border-2 transition-all cursor-pointer ${
+                      isSelected
+                        ? isDamBreak
+                          ? 'bg-rose-50 border-rose-600 shadow-md ring-1 ring-rose-500'
+                          : 'bg-[#F0F6FF] border-[#0A4393] shadow-md ring-1 ring-[#0A4393]'
+                        : isDamBreak
+                        ? 'bg-white hover:bg-rose-50/50 border-rose-300'
+                        : 'bg-white hover:bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-mono mb-1">
+                      <span
+                        className={`text-xs font-black ${
+                          isDamBreak ? 'text-rose-700' : 'text-[#0A4393]'
+                        }`}
+                      >
+                        {sc.code}
+                      </span>
+                      <span
+                        className={`text-[9.5px] px-1.5 py-0.2 rounded font-bold ${
+                          isSelected
+                            ? isDamBreak
+                              ? 'bg-rose-600 text-white animate-pulse'
+                              : 'bg-[#0A4393] text-white'
+                            : isDamBreak
+                            ? 'bg-rose-100 text-rose-800'
+                            : 'bg-blue-100 text-[#0A4393]'
+                        }`}
+                      >
+                        {sc.probabilityLabel}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-slate-600 leading-tight mb-1">
+                      <span className="font-semibold text-slate-800">{sc.totalFloodedAreaHa.toLocaleString('en-US')} ha</span> ngập • <span className="font-bold text-amber-900">{sc.affectedHouseholds} hộ</span>
+                    </div>
+
+                    {/* Danh sách các thôn nhấp nháy cảnh báo theo kịch bản này */}
+                    <div className="pt-1 border-t border-slate-200/60 text-[9.5px]">
+                      <div className="text-slate-500 font-semibold mb-0.5">Thôn cảnh báo ngập:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {sc.affectedVillages.slice(0, 4).map((v) => (
+                          <span
+                            key={v}
+                            className={`px-1 py-0.2 rounded font-medium ${
+                              isSelected
+                                ? 'bg-rose-600 text-white font-bold animate-pulse'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {v.replace('Thôn ', 'T.')}
+                          </span>
+                        ))}
+                        {sc.affectedVillages.length > 4 && (
+                          <span className="text-[8.5px] text-slate-400 self-center">
+                            +{sc.affectedVillages.length - 4} thôn
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* BẢNG TRƯỢT THÔN/BUÔN & TK 249 (Thò ra từ bên trái, bấm ra ngoài thì thu hẹp ẩn vào) */}
@@ -3995,6 +4336,11 @@ export const WebGISMap: React.FC = () => {
                   (matchingKmz.length > 0 && matchingKmz.some((m) => !!enabledKmzLayers[m.id]));
 
                 const isSelected = selectedVillageBottomInfo?.name === v.name;
+                const isFloodAlert =
+                  scenarioId &&
+                  scenarioId !== 'NONE' &&
+                  scenarioId !== 'CUSTOM_SLIDER' &&
+                  MIKE_FLOOD_SCENARIOS[scenarioId]?.affectedVillages?.includes(v.name);
 
                 return (
                   <div
@@ -4002,6 +4348,8 @@ export const WebGISMap: React.FC = () => {
                     className={`flex items-center justify-between px-1.5 py-1 rounded-md border transition-all ${
                       isSelected
                         ? 'bg-[#EBF3FF] border-[#0A4393] ring-1 ring-[#0A4393]'
+                        : isFloodAlert
+                        ? 'bg-rose-50/90 border-rose-400 ring-1 ring-rose-300'
                         : isChecked
                         ? 'bg-emerald-50/70 border-emerald-300 hover:bg-emerald-100/50'
                         : 'bg-white border-slate-200 hover:bg-slate-50'
@@ -4020,12 +4368,19 @@ export const WebGISMap: React.FC = () => {
                       />
                       <div
                         onClick={() => syncToggleVillage(v.name, true)}
-                        className="truncate cursor-pointer flex-1 min-w-0"
+                        className="truncate cursor-pointer flex-1 min-w-0 flex items-center gap-1"
                         title={`Nhấp để xem thông tin ${v.name}`}
                       >
-                        <span className={`font-bold truncate text-[11px] block ${isChecked ? 'text-slate-900' : 'text-slate-600'}`}>
+                        <span className={`font-bold truncate text-[11px] block ${
+                          isFloodAlert ? 'text-rose-900' : isChecked ? 'text-slate-900' : 'text-slate-600'
+                        }`}>
                           {v.name}
                         </span>
+                        {isFloodAlert && (
+                          <span className="text-[7.5px] bg-rose-600 text-white font-black px-1 py-0.2 rounded uppercase animate-pulse shrink-0">
+                            Ngập
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -5204,8 +5559,8 @@ export const WebGISMap: React.FC = () => {
           <div
             ref={villageBottomInfoRef}
             className={`absolute bottom-2.5 z-[540] bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-[#0A4393]/35 p-1.5 sm:p-2 animate-in fade-in slide-in-from-bottom-1 duration-150 select-none transition-all ${
-              isVillageSidebarOpen
-                ? 'left-[188px] sm:left-[205px] right-2 sm:right-auto sm:max-w-md'
+              isVillageSidebarOpen || isFloodScenarioSidebarOpen
+                ? 'left-[190px] sm:left-[230px] right-2 sm:right-auto sm:max-w-md'
                 : 'left-[56px] sm:left-[60px] right-14 sm:right-auto sm:max-w-md md:max-w-lg'
             }`}
           >
