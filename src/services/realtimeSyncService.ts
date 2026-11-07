@@ -8,7 +8,9 @@ export interface SyncMessage {
   timestamp: number;
   data: IoTTelemetryData;
   scenarioName?: string;
-  triggerSource: 'BUTTON_TEST' | 'SCENARIO_CLICK' | 'SLIDER_CHANGE';
+  scenarioId?: string;
+  action?: 'SYNC' | 'STOP_ALL_ALERTS_SYSTEM_WIDE';
+  triggerSource: 'BUTTON_TEST' | 'SCENARIO_CLICK' | 'SLIDER_CHANGE' | 'RESET_NORMAL' | 'STOP_ALARM';
 }
 
 type SyncCallback = (msg: SyncMessage) => void;
@@ -141,14 +143,18 @@ class RealtimeSyncManager {
    */
   public broadcastTelemetry(
     data: IoTTelemetryData,
-    triggerSource: 'BUTTON_TEST' | 'SCENARIO_CLICK' | 'SLIDER_CHANGE' = 'BUTTON_TEST',
-    scenarioName?: string
+    triggerSource: 'BUTTON_TEST' | 'SCENARIO_CLICK' | 'SLIDER_CHANGE' | 'RESET_NORMAL' | 'STOP_ALARM' = 'BUTTON_TEST',
+    scenarioName?: string,
+    scenarioId?: string,
+    action: 'SYNC' | 'STOP_ALL_ALERTS_SYSTEM_WIDE' = 'SYNC'
   ): boolean {
     const message: SyncMessage = {
       senderId: this.myClientId,
       timestamp: Date.now(),
       data,
       scenarioName,
+      scenarioId,
+      action,
       triggerSource,
     };
 
@@ -166,6 +172,19 @@ class RealtimeSyncManager {
     }
 
     return false;
+  }
+
+  /**
+   * Admin / Cán bộ phát lệnh TẮT TOÀN BỘ CẢNH BÁO trên toàn hệ thống đến tất cả các máy
+   */
+  public broadcastStopAllAlerts(safeResetData: IoTTelemetryData): boolean {
+    return this.broadcastTelemetry(
+      safeResetData,
+      'STOP_ALARM',
+      'Vận hành An toàn (Dưới Báo động I)',
+      'NONE',
+      'STOP_ALL_ALERTS_SYSTEM_WIDE'
+    );
   }
 
   public getStatus() {

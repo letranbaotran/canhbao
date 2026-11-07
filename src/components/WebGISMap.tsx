@@ -851,12 +851,20 @@ export const WebGISMap: React.FC = () => {
     applyMikeFloodScenario(key);
   };
 
-  // Đồng bộ 2 chiều: Khi kịch bản lũ thay đổi -> Bật và nhấp nháy ranh thôn nằm trong vùng lũ
+  // Đồng bộ 2 chiều: Khi kịch bản lũ hoặc mực nước Hồ Thượng / tốc độ dâng thay đổi -> Bật và nhấp nháy ranh thôn nằm trong vùng lũ
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!mapLoaded) return;
 
-    if (!scenarioId || scenarioId === 'NONE' || scenarioId === 'CUSTOM_SLIDER') {
+    const affectedVillages = hydraulicModel.affectedVillages || [];
+    const isFloodAlertActive =
+      affectedVillages.length > 0 &&
+      (iotData.hoThuong.elevation >= 208.5 ||
+        iotData.hoThuong.riseRate >= 15 ||
+        hydraulicModel.totalFloodedAreaHa > 0 ||
+        (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER'));
+
+    if (!isFloodAlertActive || affectedVillages.length === 0) {
       // 1. Tắt nhấp nháy cho toàn bộ các ranh thôn
       Object.values(villageBoundaryPathsRef.current).forEach((items) => {
         items.forEach(({ path, originalStyle }) => {
@@ -870,11 +878,6 @@ export const WebGISMap: React.FC = () => {
       });
       return;
     }
-
-    const scenarioMeta = MIKE_FLOOD_SCENARIOS[scenarioId];
-    if (!scenarioMeta) return;
-
-    const affectedVillages = scenarioMeta.affectedVillages || [];
 
     // 2. Kích hoạt đồng bộ 2 chiều: Tự động bật các thôn bị ngập lũ
     affectedVillages.forEach((vilName) => {
@@ -938,7 +941,7 @@ export const WebGISMap: React.FC = () => {
     if (map) {
       map.flyTo([13.072, 107.892], 13.5, { duration: 1.2 });
     }
-  }, [scenarioId, mapLoaded, villageKmzItems]);
+  }, [scenarioId, hydraulicModel, iotData.hoThuong.elevation, iotData.hoThuong.riseRate, mapLoaded, villageKmzItems]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ thuần CSS Viewport (Ảnh 2: Loại bỏ hoàn toàn browser toast hướng dẫn trên mobile)
   const handleToggleFullscreen = useCallback(() => {

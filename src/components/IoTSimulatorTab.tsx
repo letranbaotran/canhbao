@@ -25,6 +25,8 @@ import {
   MIKE_FLOOD_SCENARIOS,
   MikeFloodScenarioId,
   DEFAULT_IOT_DATA,
+  stopAllAlertsSystemWide,
+  stopAlertsLocallyForGuest,
   type IoTTelemetryData,
 } from '@/services/telemetryStore';
 
@@ -347,44 +349,18 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     }
   };
 
-  // Hàm xử lý nút TẮT CẢNH BÁO (Ảnh 3): Đặt lại toàn bộ thông số và tắt hoàn toàn mọi âm thanh cảnh báo
+  // Hàm xử lý nút TẮT CẢNH BÁO: Phân quyền Admin/Cán bộ tắt toàn hệ thống, Khách chỉ tắt trên thiết bị cá nhân
   const handleTurnOffAllAlertsAndReset = () => {
-    // 1. Tắt toàn bộ âm thanh báo động còi hú & phát thanh đọc thông báo AI
-    stopAllEmergencyAlerts();
-
-    // 2. Đặt lại kịch bản thủy lực về trạng thái an toàn
-    handleSelectMikeScenario('NONE');
-
-    // 3. Đặt lại toàn bộ dữ liệu cảm biến IoT về thông số bình thường an toàn
-    const safeData: IoTTelemetryData = {
-      ...DEFAULT_IOT_DATA,
-      hoThuong: {
-        ...DEFAULT_IOT_DATA.hoThuong,
-        elevation: 206.8,
-        riseRate: 2,
-        discharge: 45,
-      },
-      tk293: {
-        ...DEFAULT_IOT_DATA.tk293,
-        temperature: 32.4,
-        smokeCo: 8,
-      },
-      hoHa: {
-        ...DEFAULT_IOT_DATA.hoHa,
-        illegalCages: 0,
-        status: 'An toàn',
-      },
-      hoTrungChuyen: {
-        ...DEFAULT_IOT_DATA.hoTrungChuyen,
-        dissolvedOxygen: 6.8,
-        overflowRisk: 'Thấp',
-        dykeStatus: 'Ổn định',
-      },
-    };
-    setFormData(safeData);
-    setIotData(safeData, { broadcast: canManageIoT, scenarioId: 'NONE', triggerDominoAudio: false });
-    setActiveStation('HO_THUONG');
-    setApiResult(null);
+    if (canManageIoT) {
+      // 1. Admin hoặc Cán bộ quản lý: Tắt toàn bộ cảnh báo trên TOÀN BỘ HỆ THỐNG
+      stopAllAlertsSystemWide();
+      setFormData(DEFAULT_IOT_DATA);
+      setActiveStation('HO_THUONG');
+      setApiResult(null);
+    } else {
+      // 2. Khách hoặc chưa đăng nhập: CHỈ TẮT TRÊN THIẾT BỊ CÁ NHÂN CỦA KHÁCH
+      stopAlertsLocallyForGuest();
+    }
   };
 
   return (

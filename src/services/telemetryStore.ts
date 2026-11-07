@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import { getVillageScenarioImpact } from '@/data/village_disaster_profiles';
+import { stopAllEmergencyAlerts, alarmSystem } from '@/utils/alarmSound';
 
 export interface IoTTelemetryData {
   tk293: {
@@ -344,10 +345,30 @@ function ensureRealtimeSubscription() {
   if (isRealtimeHooked || typeof window === 'undefined') return;
   isRealtimeHooked = true;
   realtimeSync.onSync((msg) => {
-    if (msg?.data) {
-      currentTelemetryState = msg.data;
+    if (!msg) return;
+
+    if (msg.action === 'STOP_ALL_ALERTS_SYSTEM_WIDE') {
+      // 1. Tắt toàn bộ âm thanh còi hú và đọc AI trên mọi thiết bị
+      stopAllEmergencyAlerts();
+      // 2. Đặt lại kịch bản lũ về NONE
+      currentScenarioId = 'NONE';
+      // 3. Đặt lại dữ liệu telemetry về bình thường
+      currentTelemetryState = msg.data || DEFAULT_IOT_DATA;
+      customVillageBulletin = null;
+      // 4. Cho phép thiết bị nhận báo động mới trong tương lai
+      alarmSystem.setMuted(false);
       emitChange();
+      return;
     }
+
+    if (msg.data) {
+      currentTelemetryState = msg.data;
+    }
+    if (msg.scenarioId !== undefined) {
+      currentScenarioId = msg.scenarioId as MikeFloodScenarioId;
+    }
+    customVillageBulletin = null;
+    emitChange();
   });
 }
 
@@ -534,10 +555,71 @@ export function setTelemetryData(
     realtimeSync.broadcastTelemetry(
       nextData,
       'SCENARIO_CLICK',
-      options.scenarioName || 'Cập nhật Trực chiến Global Store'
+      options.scenarioName || 'Cập nhật Trực chiến Global Store',
+      options.scenarioId || currentScenarioId,
+      'SYNC'
     );
   }
   return nextData;
+}
+
+/**
+ * Lệnh TẮT CẢNH BÁO TOÀN HỆ THỐNG dành riêng cho Admin và Cán bộ Quản lý:
+ * 1. Tắt còi hú Web Audio & giọng đọc AI trên mọi thiết bị kết nối.
+ * 2. Đặt lại kịch bản MIKE FLOOD về 'NONE' (an toàn).
+ * 3. Đặt lại toàn bộ thông số IoT về mặc định an toàn.
+ * 4. Phát lệnh MQTT WSS & BroadcastChannel đến toàn bộ thiết bị đang mở hệ thống.
+ */
+export function stopAllAlertsSystemWide(): void {
+  stopAllEmergencyAlerts();
+  currentScenarioId = 'NONE';
+  const safeData: IoTTelemetryData = {
+    ...DEFAULT_IOT_DATA,
+    hoThuong: {
+      ...DEFAULT_IOT_DATA.hoThuong,
+      elevation: 206.8,
+      riseRate: 2,
+      discharge: 45,
+      capacity: 92.5,
+    },
+    tk293: {
+      ...DEFAULT_IOT_DATA.tk293,
+      temperature: 32.4,
+      smokeCo: 12,
+      humidity: 58,
+      windSpeed: 2.8,
+    },
+    hoHa: {
+      ...DEFAULT_IOT_DATA.hoHa,
+      illegalCages: 0,
+      status: 'An toàn',
+    },
+    hoTrungChuyen: {
+      ...DEFAULT_IOT_DATA.hoTrungChuyen,
+      dissolvedOxygen: 6.8,
+      overflowRisk: 'Thấp',
+      dykeStatus: 'Ổn định',
+    },
+  };
+  currentTelemetryState = safeData;
+  customVillageBulletin = null;
+  alarmSystem.setMuted(false);
+
+  if (typeof window !== 'undefined') {
+    realtimeSync.broadcastStopAllAlerts(safeData);
+  }
+  emitChange();
+}
+
+/**
+ * Lệnh TẮT CẢNH BÁO CÁ NHÂN dành cho Khách / Người dùng chưa đăng nhập:
+ * 1. Tắt còi hú Web Audio & dừng đọc AI TRÊN ĐÚNG THIẾT BỊ NÀY.
+ * 2. Bật cờ mute cá nhân để không bị hú còi tiếp trên máy này.
+ * 3. TUYỆT ĐỐI KHÔNG GỬI LỆNH RA HỆ THỐNG (giữ nguyên cảnh báo cho các thiết bị khác).
+ */
+export function stopAlertsLocallyForGuest(): void {
+  stopAllEmergencyAlerts();
+  alarmSystem.setMuted(true);
 }
 
 /**

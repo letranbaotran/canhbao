@@ -13,7 +13,11 @@ import {
 } from '@/data/village_disaster_profiles';
 import { alarmSystem } from '@/utils/alarmSound';
 import { realtimeSync } from '@/services/realtimeSyncService';
-import { useTelemetryStore } from '@/services/telemetryStore';
+import {
+  useTelemetryStore,
+  stopAllAlertsSystemWide,
+  stopAlertsLocallyForGuest,
+} from '@/services/telemetryStore';
 import {
   getCurrentSessionUser,
   isUserManagerOrAdmin,
@@ -32,6 +36,7 @@ import {
   Waves,
   X,
   Volume2,
+  VolumeX,
   MapPin,
   Users,
   Mountain,
@@ -73,6 +78,7 @@ export const CommandCenterDashboard: React.FC = () => {
   const canAccessIoT = isUserManagerOrAdmin(currentUser.role);
   const {
     iotData,
+    scenarioId,
     setIotData,
     updateHoThuongElevation,
     triggerVillageBroadcast,
@@ -231,6 +237,21 @@ export const CommandCenterDashboard: React.FC = () => {
     iotData.hoTrungChuyen.dykeStatus === 'Tràn bờ';
 
   const isAnyRedAlert = isTk293Red || isHoThuongRed || isHoHaRed || isHoTrungChuyenRed;
+  const isAnyAlertActive =
+    isAnyRedAlert ||
+    iotData.hoThuong.elevation >= 208.5 ||
+    (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER') ||
+    hydraulicModel.affectedVillages.length > 0;
+
+  const handleTurnOffAlert = () => {
+    if (isUserManagerOrAdmin(currentUser.role)) {
+      // Admin hoặc Cán bộ quản lý: Tắt toàn bộ hệ thống
+      stopAllAlertsSystemWide();
+    } else {
+      // Khách hoặc chưa đăng nhập: Chỉ tắt trên thiết bị cá nhân
+      stopAlertsLocallyForGuest();
+    }
+  };
 
   // Tự động kích hoạt còi hú báo động âm thanh khi chuyển sang màu đỏ
   useEffect(() => {
@@ -314,6 +335,44 @@ export const CommandCenterDashboard: React.FC = () => {
         </div>
       </header>
 
+      {/* 2.05 Thanh Cảnh Báo Khẩn Cấp & Nút TẮT CẢNH BÁO Toàn Cục */}
+      {isAnyAlertActive && (
+        <div className="bg-rose-600 text-white border-b-2 border-rose-700 px-3 sm:px-4 py-2 shadow-lg flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 text-xs font-mono font-bold min-w-0">
+            <span className="inline-block w-3 h-3 rounded-full bg-white animate-ping shrink-0" />
+            <span className="truncate">
+              🚨 CẢNH BÁO:{' '}
+              {isHoThuongRed
+                ? `HỒ THƯỢNG ${iotData.hoThuong.elevation}m ĐANG XẢ LŨ KHẨN CẤP`
+                : isTk293Red
+                ? `LÂM NGHIỆP TK-293 BÁO ĐỘNG CHÁY (${iotData.tk293.temperature}°C)`
+                : isHoHaRed
+                ? `PHÁT HIỆN ${iotData.hoHa.illegalCages} LỒNG BÈ TẠI HỒ HẠ`
+                : `KỊCH BẢN ${hydraulicModel.code} - ${hydraulicModel.affectedVillages.length} THÔN BỊ ẢNH HƯỞNG`}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleTurnOffAlert}
+            className="px-3 sm:px-4 py-1.5 rounded-lg bg-white text-rose-700 hover:bg-rose-50 active:scale-95 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md border-2 border-rose-200 cursor-pointer transition-all select-none shrink-0"
+            title={
+              isUserManagerOrAdmin(currentUser.role)
+                ? 'Bấm để tắt toàn bộ cảnh báo trên TOÀN HỆ THỐNG (Admin / Cán bộ)'
+                : 'Bấm để tắt âm thanh cảnh báo trên thiết bị cá nhân của bạn'
+            }
+          >
+            <VolumeX className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>TẮT CẢNH BÁO</span>
+            {isUserManagerOrAdmin(currentUser.role) && (
+              <span className="text-[10px] bg-rose-700 text-white px-1.5 py-0.5 rounded font-normal hidden sm:inline">
+                Toàn hệ thống
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* 2.1 Thông báo nhận tín hiệu đồng bộ khẩn cấp từ thiết bị khác */}
       {networkSyncMsg && (
         <div className="bg-[#0A4393] border-b border-white/30 text-white px-4 py-2 text-xs font-mono flex items-center justify-between shadow-lg animate-pulse">
@@ -345,6 +404,21 @@ export const CommandCenterDashboard: React.FC = () => {
                 Cụm Loa Truyền Thanh Số
               </h2>
               <div className="flex items-center gap-1.5">
+                {isAnyAlertActive && (
+                  <button
+                    type="button"
+                    onClick={handleTurnOffAlert}
+                    className="px-2.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono font-bold text-[10px] uppercase flex items-center gap-1 shadow-xs cursor-pointer select-none"
+                    title={
+                      isUserManagerOrAdmin(currentUser.role)
+                        ? 'Bấm để tắt toàn bộ cảnh báo trên TOÀN HỆ THỐNG'
+                        : 'Bấm để tắt âm thanh trên thiết bị này'
+                    }
+                  >
+                    <VolumeX className="w-3 h-3" />
+                    <span>Tắt cảnh báo</span>
+                  </button>
+                )}
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#F0F6FF] text-[#0A4393] border border-[#0A4393]/30">
                   ⚡ Đồng bộ trực chiến: Hồ Thượng {iotData.hoThuong.elevation}m
                 </span>
