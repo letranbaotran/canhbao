@@ -694,6 +694,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   // Chỉ tài khoản Toàn quyền (Admin) mới được quyền sửa/xóa/nạp file KML, KMZ, GeoJSON
   const canEditMap = userRole === 'ADMIN';
+  // Chỉ tài khoản Cán bộ quản lý hoặc Admin (đã đăng nhập) mới xem được nút Kịch bản lũ (Ảnh 1)
+  const canViewFloodScenarios = Boolean(currentUserEmail && isUserManagerOrAdmin(userRole));
 
   // Quản lý tọa độ vị trí 20 thôn buôn tùy chỉnh do Admin nhập
   const [customVillageCoords, setCustomVillageCoords] = useState<Record<string, [number, number]>>({});
@@ -1080,6 +1082,9 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     if (initialSession.role !== 'ADMIN') {
       setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
     }
+    if (!initialSession.email || !isUserManagerOrAdmin(initialSession.role)) {
+      setIsFloodScenarioSidebarOpen(false);
+    }
     const handleAuthChange = () => {
       const session = getCurrentSessionUser();
       setUserRole(session.role);
@@ -1087,6 +1092,9 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       if (session.role !== 'ADMIN') {
         setEditingLayerId(null);
         setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
+      }
+      if (!session.email || !isUserManagerOrAdmin(session.role)) {
+        setIsFloodScenarioSidebarOpen(false);
       }
     };
     window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
@@ -4165,8 +4173,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
           </button>
         )}
 
-        {/* NÚT KÍCH HOẠT THANH KỊCH BẢN LŨ (Bên góc trái bản đồ, bên dưới thanh Thôn/buôn - Ảnh 1) */}
-        {!isFloodScenarioSidebarOpen && (
+        {/* NÚT KÍCH HOẠT THANH KỊCH BẢN LŨ (Bên góc trái bản đồ, bên dưới thanh Thôn/buôn - CHỈ HIỆN VỚI CÁN BỘ & ADMIN - Ảnh 1) */}
+        {canViewFloodScenarios && !isFloodScenarioSidebarOpen && (
           <button
             id="flood-scenario-sidebar-trigger"
             type="button"
@@ -4191,8 +4199,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
           </button>
         )}
 
-        {/* BẢNG TRƯỢT 5 KỊCH BẢN LŨ MIKE FLOOD (Thò ra từ bên trái, đồng bộ 2 chiều và nhấp nháy ranh thôn) */}
-        {isFloodScenarioSidebarOpen && (
+        {/* BẢNG TRƯỢT 5 KỊCH BẢN LŨ MIKE FLOOD (CHỈ HIỆN VỚI CÁN BỘ & ADMIN) */}
+        {canViewFloodScenarios && isFloodScenarioSidebarOpen && (
           <div
             ref={floodScenarioSidebarRef}
             id="flood-scenario-sidebar-drawer"
