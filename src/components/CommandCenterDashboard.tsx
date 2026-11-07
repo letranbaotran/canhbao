@@ -262,6 +262,7 @@ export const CommandCenterDashboard: React.FC = () => {
   // Tự động kích hoạt còi hú báo động âm thanh khi chuyển sang màu đỏ
   useEffect(() => {
     if (isAnyRedAlert) {
+      alarmSystem.setMuted(false);
       alarmSystem.play();
     } else {
       alarmSystem.stop();

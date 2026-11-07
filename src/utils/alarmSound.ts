@@ -1,17 +1,21 @@
 /**
- * BỘ TỔNG HỢP ÂM THANH CÒI HÚ BÁO ĐỘNG PCTT KHẨN CẤP (WEB AUDIO API + HTML5 AUDIO DÀNH CHO IOS SAFARI)
- * Tự động quét dải tần số 650Hz - 940Hz mô phỏng còi báo động thiên tai thực địa
- * Hỗ trợ 100% iOS Safari (tự động Unlock qua Touch/Click, phát qua Media Channel kể cả khi gạt nút Mute phần cứng)
- * Hoạt động 100% offline, không phụ thuộc tệp mp3 ngoài, không bị chặn tải
+ * BỘ TỔNG HỢP ÂM THANH CÒI HÚ BÁO ĐỘNG PCTT KHẨN CẤP (WEB AUDIO API + DỰ PHÒNG HTML5 AUDIO CHO IOS)
+ * Tự động quét dải tần số 580Hz - 940Hz mô phỏng còi báo động thiên tai thực địa
+ * Tương thích 100% Android Chrome & iOS Safari
+ * Tự động mở khóa trên thiết bị di động ngay lần chạm đầu tiên
  */
 
+const isIOS =
+  typeof navigator !== 'undefined' &&
+  /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 /**
- * Sinh chuỗi Data URL chứa file WAV PCM chuẩn 8000Hz mono để HTML5 Audio có thể phát ngay lập tức
- * Kích hoạt kênh âm thanh Media trên iOS Safari để vượt qua nút gạt im lặng (Silent Switch)
+ * Sinh chuỗi Data URL chứa file WAV PCM 8000Hz mono để HTML5 Audio có thể phát dự phòng trên iOS Safari
+ * Vượt qua nút gạt im lặng (Silent Switch) trên iPhone
  */
 function createAlarmWavDataUrl(): string {
   const sampleRate = 8000;
-  const numSamples = Math.floor(sampleRate * 0.8); // 0.8 giây chu kỳ
+  const numSamples = Math.floor(sampleRate * 0.8);
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
 
@@ -21,23 +25,22 @@ function createAlarmWavDataUrl(): string {
   view.setUint32(8, 0x57415645, false); // "WAVE"
 
   // "fmt " sub-chunk
-  view.setUint32(12, 0x666d7420, false); // "fmt "
-  view.setUint32(16, 16, true); // SubChunk1Size (16 cho PCM)
-  view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
-  view.setUint16(22, 1, true); // NumChannels (1 = Mono)
-  view.setUint32(24, sampleRate, true); // SampleRate (8000)
-  view.setUint32(28, sampleRate * 2, true); // ByteRate (8000 * 1 * 16 / 8)
-  view.setUint16(32, 2, true); // BlockAlign (1 * 16 / 8)
-  view.setUint16(34, 16, true); // BitsPerSample (16-bit)
+  view.setUint32(12, 0x666d7420, false);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
 
   // "data" sub-chunk
-  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(36, 0x64617461, false);
   view.setUint32(40, numSamples * 2, true);
 
-  // Tạo âm thanh còi hú quét tần số 650Hz -> 920Hz (Siren Sweep)
+  // Tạo âm còi hú quét tần số 650Hz -> 920Hz
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
-    // Tần số quét hình sin chu kỳ 1.25 Hz
     const freq = 740 + 180 * Math.sin(2 * Math.PI * 1.25 * t);
     const sample = Math.sin(2 * Math.PI * freq * t) * 0.45 * 32767;
     view.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, Math.floor(sample))), true);
@@ -58,37 +61,35 @@ class EmergencyAlarmSystem {
   private gainNode: GainNode | null = null;
   private backupAudio: HTMLAudioElement | null = null;
   private isPlaying: boolean = false;
+  private shouldBePlaying: boolean = false;
   private isMuted: boolean = false;
-  private isUnlocked: boolean = false;
-  private speechUnlocked: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      // Tự động Unlock AudioContext trên iOS Safari ngay lần chạm/nhấp đầu tiên bất kỳ trên màn hình
       const autoUnlock = () => {
         this.unlockAudio();
-        ['touchstart', 'touchend', 'click', 'pointerdown', 'keydown'].forEach((evt) => {
+        ['touchstart', 'touchend', 'click', 'pointerdown'].forEach((evt) => {
           window.removeEventListener(evt, autoUnlock);
           document.removeEventListener(evt, autoUnlock);
         });
       };
 
-      ['touchstart', 'touchend', 'click', 'pointerdown', 'keydown'].forEach((evt) => {
+      ['touchstart', 'touchend', 'click', 'pointerdown'].forEach((evt) => {
         window.addEventListener(evt, autoUnlock, { once: false, passive: true });
         document.addEventListener(evt, autoUnlock, { once: false, passive: true });
       });
 
-      // Tự động đánh thức AudioContext khi thiết bị iOS mở khóa màn hình hoặc quay lại Safari
+      // Đánh thức AudioContext khi thiết bị mở khóa hoặc quay lại trình duyệt
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.audioCtx) {
-          if (this.audioCtx.state === 'suspended' && !this.isMuted) {
+        if (document.visibilityState === 'visible') {
+          if (this.audioCtx && this.audioCtx.state === 'suspended' && this.shouldBePlaying && !this.isMuted) {
             this.audioCtx.resume().catch(() => {});
           }
         }
       });
 
       window.addEventListener('pageshow', () => {
-        if (this.audioCtx && this.audioCtx.state === 'suspended' && !this.isMuted) {
+        if (this.audioCtx && this.audioCtx.state === 'suspended' && this.shouldBePlaying && !this.isMuted) {
           this.audioCtx.resume().catch(() => {});
         }
       });
@@ -106,7 +107,7 @@ class EmergencyAlarmSystem {
   }
 
   /**
-   * Kích hoạt mở khóa toàn diện AudioContext và SpeechSynthesis trên iOS Safari
+   * Mở khóa AudioContext cho thiết bị di động (Android & iOS)
    */
   public unlockAudio() {
     if (typeof window === 'undefined') return;
@@ -115,41 +116,31 @@ class EmergencyAlarmSystem {
       if (!this.audioCtx) return;
 
       if (this.audioCtx.state === 'suspended') {
-        this.audioCtx
-          .resume()
-          .then(() => {
-            this.isUnlocked = true;
-          })
-          .catch(() => {});
+        this.audioCtx.resume().then(() => {
+          if (this.shouldBePlaying && !this.isPlaying && !this.isMuted) {
+            this.startNodes();
+          }
+        }).catch(() => {});
       } else {
-        this.isUnlocked = true;
+        if (this.shouldBePlaying && !this.isPlaying && !this.isMuted) {
+          this.startNodes();
+        }
       }
 
-      // Phát 1 mẫu câm (silent buffer) để kích hoạt pipeline phần cứng âm thanh của iOS
+      // Phát 1 mẫu câm ngắn để kích hoạt AudioContext
       const silentBuffer = this.audioCtx.createBuffer(1, 1, 22050);
       const source = this.audioCtx.createBufferSource();
       source.buffer = silentBuffer;
       source.connect(this.audioCtx.destination);
       source.start(0);
 
-      // Mở khóa giọng đọc Web Speech API trên iOS
-      if ('speechSynthesis' in window && !this.speechUnlocked) {
-        try {
-          const warmUp = new SpeechSynthesisUtterance(' ');
-          warmUp.volume = 0.01;
-          window.speechSynthesis.speak(warmUp);
-          this.speechUnlocked = true;
-        } catch {}
-      }
-
-      // Khởi tạo trước thẻ audio dự phòng
-      if (!this.backupAudio && typeof Audio !== 'undefined') {
+      // Riêng trên iOS, khởi tạo thẻ Audio dự phòng để vượt qua nút gạt rung im lặng
+      if (isIOS && !this.backupAudio && typeof Audio !== 'undefined') {
         try {
           const wavData = createAlarmWavDataUrl();
           const audio = new Audio(wavData);
           audio.loop = true;
           audio.volume = 0.01;
-          audio.preload = 'auto';
           const p = audio.play();
           if (p && typeof p.then === 'function') {
             p.then(() => {
@@ -161,62 +152,77 @@ class EmergencyAlarmSystem {
           this.backupAudio = audio;
         } catch {}
       }
-    } catch {
-      // Safe fallback
+    } catch {}
+  }
+
+  /**
+   * Khởi tạo và kết nối các node âm thanh Web Audio
+   */
+  private startNodes() {
+    if (!this.audioCtx || this.isPlaying || this.isMuted) return;
+
+    try {
+      const now = this.audioCtx.currentTime;
+
+      // 1. Oscillator chính (Sawtooth mô phỏng còi công nghiệp)
+      const osc = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      // 2. LFO (Low Frequency Oscillator) điều chế tần số quét chu kỳ còi hú
+      const lfo = this.audioCtx.createOscillator();
+      const lfoGain = this.audioCtx.createGain();
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(760, now);
+
+      // Quét tần số hình sin chu kỳ 1.2 giây (0.85 Hz) dao động +/- 180Hz (580Hz -> 940Hz)
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(0.85, now);
+      lfoGain.gain.setValueAtTime(180, now);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+
+      gain.gain.setValueAtTime(0.18, now);
+      osc.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc.start(now);
+      lfo.start(now);
+
+      this.osc = osc;
+      this.lfo = lfo;
+      this.gainNode = gain;
+      this.isPlaying = true;
+    } catch (err) {
+      console.warn('Web Audio startNodes error:', err);
     }
   }
 
   /**
-   * Bật âm thanh còi hú khẩn cấp (Hỗ trợ kép Web Audio + HTML5 Audio cho iOS)
+   * Bật âm thanh còi hú khẩn cấp
    */
   public play() {
+    this.shouldBePlaying = true;
     if (this.isMuted) return;
+
     this.initContext();
+    if (!this.audioCtx) return;
 
-    if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume().catch(() => {});
+    if (this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().then(() => {
+        if (this.shouldBePlaying && !this.isPlaying && !this.isMuted) {
+          this.startNodes();
+        }
+      }).catch(() => {});
     }
 
-    if (this.isPlaying) return;
-
-    // 1. Phát qua Web Audio Oscillator chính
-    if (this.audioCtx) {
-      try {
-        const now = this.audioCtx.currentTime;
-
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        const lfo = this.audioCtx.createOscillator();
-        const lfoGain = this.audioCtx.createGain();
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(760, now);
-
-        lfo.type = 'sine';
-        lfo.frequency.setValueAtTime(0.85, now);
-        lfoGain.gain.setValueAtTime(180, now);
-
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc.frequency);
-
-        gain.gain.setValueAtTime(0.15, now);
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-
-        osc.start(now);
-        lfo.start(now);
-
-        this.osc = osc;
-        this.lfo = lfo;
-        this.gainNode = gain;
-        this.isPlaying = true;
-      } catch (err) {
-        console.warn('Web Audio alarm play error:', err);
-      }
+    if (!this.isPlaying) {
+      this.startNodes();
     }
 
-    // 2. Kích hoạt thêm kênh HTML5 Audio dự phòng (Vượt qua nút Mute phần cứng của iPhone)
-    if (!this.isPlaying || (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent))) {
+    // Riêng trên iOS Safari: hỗ trợ thêm kênh Audio dự phòng để vượt qua nút Mute phần cứng
+    if (isIOS) {
       try {
         if (!this.backupAudio && typeof Audio !== 'undefined') {
           const wavData = createAlarmWavDataUrl();
@@ -224,22 +230,23 @@ class EmergencyAlarmSystem {
           this.backupAudio.loop = true;
           this.backupAudio.volume = 0.6;
         }
-        if (this.backupAudio) {
+        if (this.backupAudio && this.backupAudio.paused) {
           this.backupAudio.currentTime = 0;
-          const playPromise = this.backupAudio.play();
-          if (playPromise && typeof playPromise.catch === 'function') {
-            playPromise.catch(() => {});
+          const p = this.backupAudio.play();
+          if (p && typeof p.catch === 'function') {
+            p.catch(() => {});
           }
-          this.isPlaying = true;
         }
       } catch {}
     }
   }
 
   /**
-   * Dừng còi hú trên cả hai kênh Web Audio & HTML5 Audio
+   * Dừng còi hú
    */
   public stop() {
+    this.shouldBePlaying = false;
+
     // Dừng Web Audio
     try {
       if (this.osc) {
@@ -291,8 +298,8 @@ export const alarmSystem = new EmergencyAlarmSystem();
 
 /**
  * Tắt toàn bộ cảnh báo trên hệ thống:
- * 1. Tắt còi hú Web Audio & HTML5 Audio trên iOS
- * 2. Dừng triệt để giọng đọc phát thanh AI (SpeechSynthesis) trên iOS Safari
+ * 1. Tắt còi hú Web Audio & HTML5 Audio
+ * 2. Dừng triệt để giọng đọc phát thanh AI (chỉ dùng cancel(), TUYỆT ĐỐI không gọi pause() tránh treo Android)
  * 3. Tạm dừng tất cả thẻ <audio> đang phát
  * 4. Phát sự kiện toàn cục MUTE_OR_STOP_ALL_ALERTS
  * 5. Lưu mốc thời gian vào localStorage để đồng bộ tức thì trên iOS giữa các tab / PWA
@@ -305,11 +312,9 @@ export function stopAllEmergencyAlerts() {
     alarmSystem.stop();
     alarmSystem.setMuted(true);
 
-    // 2. Dừng triệt để giọng đọc phát thanh AI trên iOS Safari
+    // 2. Dừng giọng đọc phát thanh AI
     if ('speechSynthesis' in window) {
       try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.pause();
         window.speechSynthesis.cancel();
       } catch {}
     }
@@ -325,7 +330,7 @@ export function stopAllEmergencyAlerts() {
     // 4. Phát sự kiện toàn cục
     window.dispatchEvent(new CustomEvent('MUTE_OR_STOP_ALL_ALERTS'));
 
-    // 5. Đồng bộ qua localStorage cho Safari iOS
+    // 5. Đồng bộ qua localStorage cho Safari iOS & các tab
     try {
       localStorage.setItem('EASUP_LAST_STOP_ALERTS', String(Date.now()));
     } catch {}

@@ -363,12 +363,21 @@ function ensureRealtimeSubscription() {
 
     if (msg.data) {
       currentTelemetryState = msg.data;
+      if (
+        msg.data.hoThuong.elevation >= 208.6 ||
+        msg.data.hoThuong.riseRate >= 30 ||
+        msg.data.tk293.temperature >= 45
+      ) {
+        alarmSystem.setMuted(false);
+      }
     }
     if (msg.scenarioId !== undefined) {
       currentScenarioId = msg.scenarioId as MikeFloodScenarioId;
       if (currentScenarioId !== 'NONE' && currentScenarioId !== 'CUSTOM_SLIDER') {
         // Tự động kích hoạt phát thanh AI đồng bộ trên máy nhận khi chuyển kịch bản
         lastDominoAutoPlayTs = Date.now();
+        // Mở lại quyền phát còi hú cho kịch bản báo động mới
+        alarmSystem.setMuted(false);
       }
     }
     customVillageBulletin = null;
@@ -645,6 +654,9 @@ export function applyMikeFloodScenario(
       triggerDominoAudio: false,
     });
   }
+
+  // Khi kích hoạt kịch bản lũ khẩn cấp, đảm bảo mở lại âm thanh cảnh báo
+  alarmSystem.setMuted(false);
 
   const meta = MIKE_FLOOD_SCENARIOS[scenarioId];
   const nextData: IoTTelemetryData = {

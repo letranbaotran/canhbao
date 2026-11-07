@@ -155,8 +155,6 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
-        window.speechSynthesis.pause();
-        window.speechSynthesis.cancel();
       } catch {}
     }
     if (audioRef.current) {
@@ -177,10 +175,10 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
     if ('speechSynthesis' in window) {
       try {
-        window.speechSynthesis.cancel();
         if (window.speechSynthesis.paused) {
           window.speechSynthesis.resume();
         }
+        window.speechSynthesis.cancel();
       } catch {}
 
       const utterance = new SpeechSynthesisUtterance(textToRead);
@@ -219,10 +217,22 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       };
 
       utterance.onerror = () => {
+        setIsPlaying(false);
+        if (timerRef.current) clearInterval(timerRef.current);
         fallbackPlayAudio(rate);
       };
 
-      window.speechSynthesis.speak(utterance);
+      // Đặt độ trễ nhỏ để Chromium / Safari giải phóng lệnh cancel trước đó
+      setTimeout(() => {
+        try {
+          if (window.speechSynthesis.paused) {
+            window.speechSynthesis.resume();
+          }
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          fallbackPlayAudio(rate);
+        }
+      }, 30);
     } else {
       fallbackPlayAudio(rate);
     }
