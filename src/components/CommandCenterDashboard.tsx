@@ -211,10 +211,16 @@ export const CommandCenterDashboard: React.FC = () => {
   // Lắng nghe tín hiệu đồng bộ từ các máy khác qua MQTT Broker / BroadcastChannel
   useEffect(() => {
     const unsubscribeSync = realtimeSync.onSync((msg) => {
-      setIotData(msg.data);
       const timeStr = new Date(msg.timestamp).toLocaleTimeString('vi-VN');
-      setNetworkSyncMsg(`📡 Nhận tín hiệu đồng bộ từ thiết bị khác lúc ${timeStr}: Số liệu & cảnh báo đã đồng loạt cập nhật!`);
-      setTimeout(() => setNetworkSyncMsg(null), 5000);
+      const scName =
+        msg.scenarioName ||
+        (msg.scenarioId && msg.scenarioId !== 'NONE'
+          ? `Kịch bản ${msg.scenarioId}`
+          : 'Số liệu quan trắc');
+      setNetworkSyncMsg(
+        `📡 Đồng bộ trực tuyến từ Trung tâm Chỉ huy lúc ${timeStr}: ${scName} đã cập nhật tức thì trên toàn bộ bản đồ & hệ thống!`
+      );
+      setTimeout(() => setNetworkSyncMsg(null), 6000);
     });
 
     const unsubscribeStatus = realtimeSync.onStatus((status) => {
@@ -225,7 +231,7 @@ export const CommandCenterDashboard: React.FC = () => {
       unsubscribeSync();
       unsubscribeStatus();
     };
-  }, [setIotData]);
+  }, []);
 
   // Tính toán điều kiện chuyển sang màu đỏ (Báo động đỏ)
   const isTk293Red = iotData.tk293.temperature > 45 || iotData.tk293.smokeCo > 50;

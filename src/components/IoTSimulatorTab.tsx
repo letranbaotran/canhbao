@@ -90,7 +90,16 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
   const handleSelectMikeScenario = (
     id: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE'
   ) => {
-    const nextData = applyMikeFloodScenario(id);
+    if (id === 'NONE') {
+      if (canManageIoT) {
+        stopAllAlertsSystemWide();
+      } else {
+        stopAlertsLocallyForGuest();
+        applyMikeFloodScenario('NONE', { broadcast: false });
+      }
+      return;
+    }
+    const nextData = applyMikeFloodScenario(id, { broadcast: canManageIoT });
     setFormData(nextData);
     setActiveStation('HO_THUONG');
     setApiResult(null);

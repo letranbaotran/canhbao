@@ -19,11 +19,14 @@ import {
 import {
   AUTH_CHANGED_EVENT,
   getCurrentSessionUser,
+  isUserManagerOrAdmin,
   MapUserRole,
 } from '@/services/authRoleService';
 import {
   useTelemetryStore,
   applyMikeFloodScenario,
+  stopAllAlertsSystemWide,
+  stopAlertsLocallyForGuest,
   MIKE_FLOOD_SCENARIOS,
   type MikeFloodScenarioId,
 } from '@/services/telemetryStore';
@@ -850,11 +853,22 @@ export const WebGISMap: React.FC = () => {
     };
   }, [isFloodScenarioSidebarOpen]);
 
-  // Kích hoạt kịch bản lũ MIKE FLOOD từ bảng trượt trên bản đồ
+  // Kích hoạt kịch bản lũ MIKE FLOOD từ bảng trượt trên bản đồ (Đồng bộ toàn bộ máy con khi Admin/Cán bộ bấm)
   const handleTriggerScenarioFromMap = (
     key: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE'
   ) => {
-    applyMikeFloodScenario(key);
+    const isManager = isUserManagerOrAdmin(userRole);
+    if (key === 'NONE') {
+      if (isManager) {
+        stopAllAlertsSystemWide();
+      } else {
+        stopAlertsLocallyForGuest();
+        applyMikeFloodScenario('NONE', { broadcast: false });
+      }
+      return;
+    }
+
+    applyMikeFloodScenario(key, { broadcast: isManager });
   };
 
   // Đồng bộ 2 chiều: Khi kịch bản lũ hoặc mực nước Hồ Thượng / tốc độ dâng thay đổi -> Bật và nhấp nháy ranh thôn nằm trong vùng lũ
@@ -1236,40 +1250,70 @@ export const WebGISMap: React.FC = () => {
         const floodGroup = L.layerGroup().addTo(map);
         mikeFloodOverlayRef.current = floodGroup;
 
-        const isDamBreak = scenarioId === 'KB2_1' || scenarioId === 'KB5_2';
-        const polyColor = isDamBreak ? '#e11d48' : '#0284c7';
-        const fillColor = isDamBreak ? '#f43f5e' : '#38bdf8';
+        // Cấu hình màu sắc, độ tỏa (spread) và độ trong suốt riêng biệt cho từng kịch bản trong 5 kịch bản
+        let polyColor = '#0284c7';
+        let fillColor = '#38bdf8';
+        let fillOpacity = 0.28;
+        let spread = 0.008;
 
-        // Vùng ngập lụt hạ du MIKE FLOOD dọc sông Ea Súp, Thôn Đoàn Kết, Thôn 5-11, Thôn Bình Lợi
-        const spread = isDamBreak ? 0.018 : scenarioId === 'KB1_1' || scenarioId === 'KB1_2' ? 0.012 : 0.008;
+        if (scenarioId === 'KB4_1') {
+          polyColor = '#0284c7';
+          fillColor = '#38bdf8';
+          fillOpacity = 0.28;
+          spread = 0.007;
+        } else if (scenarioId === 'KB1_1') {
+          polyColor = '#d97706';
+          fillColor = '#fbbf24';
+          fillOpacity = 0.33;
+          spread = 0.012;
+        } else if (scenarioId === 'KB1_2') {
+          polyColor = '#ea580c';
+          fillColor = '#f97316';
+          fillOpacity = 0.36;
+          spread = 0.016;
+        } else if (scenarioId === 'KB2_1') {
+          polyColor = '#dc2626';
+          fillColor = '#ef4444';
+          fillOpacity = 0.42;
+          spread = 0.024;
+        } else if (scenarioId === 'KB5_2') {
+          polyColor = '#be123c';
+          fillColor = '#f43f5e';
+          fillOpacity = 0.46;
+          spread = 0.026;
+        }
+
         const floodCorridorCoords: [number, number][] = [
           [13.043, 107.935],
           [13.058 + spread, 107.905],
-          [13.076 + spread, 107.888 + spread],
-          [13.084 + spread, 107.872 - spread],
-          [13.065 - spread, 107.868 - spread],
+          [13.076 + spread * 1.1, 107.888 + spread * 1.1],
+          [13.084 + spread * 1.2, 107.872 - spread],
+          [13.065 - spread, 107.868 - spread * 1.1],
           [13.046 - spread, 107.888],
           [13.036 - spread, 107.925],
         ];
 
         const floodPoly = L.polygon(floodCorridorCoords, {
           color: polyColor,
-          weight: 2,
+          weight: 2.5,
           dashArray: '6, 4',
           fillColor,
-          fillOpacity: isDamBreak ? 0.38 : 0.28,
+          fillOpacity,
         }).addTo(floodGroup);
 
         floodPoly.bindPopup(`
-          <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:260px; color:#0f172a;">
-            <div style="font-weight:800; color:${polyColor}; font-size:13px; margin-bottom:4px;">
-              🌊 VÙNG NGẬP MIKE FLOOD (${hydraulicModel.code})
+          <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:280px; color:#0f172a;">
+            <div style="font-weight:800; color:${polyColor}; font-size:13px; margin-bottom:4px; border-bottom:1px solid #e2e8f0; padding-bottom:3px;">
+              🌊 ${hydraulicModel.fullName} (${hydraulicModel.code})
             </div>
-            <div style="font-size:11px; line-height:1.45;">
+            <div style="font-size:11px; line-height:1.5;">
+              <div>• <strong>Xác suất / Tần suất:</strong> <span style="color:${polyColor}; font-weight:bold;">${hydraulicModel.probabilityLabel}</span></div>
               <div>• <strong>MBL Ea Súp:</strong> ${hydraulicModel.mblEaSup}m (${hydraulicModel.diffBd3EaSup >= 0 ? '+' : ''}${hydraulicModel.diffBd3EaSup}m BĐ III)</div>
+              <div>• <strong>Mực nước Hồ Thượng:</strong> ${hydraulicModel.hoThuongElevation}m (Xả ${hydraulicModel.hoThuongDischarge} m³/s)</div>
               <div>• <strong>Diện tích ngập:</strong> ${hydraulicModel.totalFloodedAreaHa.toLocaleString('en-US')} ha</div>
-              <div>• <strong>Dân cư ảnh hưởng:</strong> ${hydraulicModel.affectedHouseholds.toLocaleString('en-US')} hộ (${hydraulicModel.affectedPeople.toLocaleString('en-US')} người)</div>
-              <div>• <strong>Thôn trọng điểm:</strong> Thôn Đoàn Kết, Thôn 5, 6, 7, 8, 9, 10, 11, Bình Lợi</div>
+              <div>• <strong>Hộ dân bị ngập:</strong> ${hydraulicModel.affectedHouseholds.toLocaleString('en-US')} hộ (${hydraulicModel.affectedPeople.toLocaleString('en-US')} người)</div>
+              <div>• <strong>Giao thông chia cắt:</strong> QL14C (${hydraulicModel.ql14cFloodedKm} km) • TL681 (${hydraulicModel.tl681FloodedKm} km)</div>
+              <div>• <strong>Thôn ảnh hưởng (${hydraulicModel.affectedVillages.length} thôn):</strong> ${(hydraulicModel.affectedVillages || []).join(', ')}</div>
             </div>
           </div>
         `);

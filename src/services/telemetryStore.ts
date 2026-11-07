@@ -366,6 +366,10 @@ function ensureRealtimeSubscription() {
     }
     if (msg.scenarioId !== undefined) {
       currentScenarioId = msg.scenarioId as MikeFloodScenarioId;
+      if (currentScenarioId !== 'NONE' && currentScenarioId !== 'CUSTOM_SLIDER') {
+        // Tự động kích hoạt phát thanh AI đồng bộ trên máy nhận khi chuyển kịch bản
+        lastDominoAutoPlayTs = Date.now();
+      }
     }
     customVillageBulletin = null;
     emitChange();
@@ -627,12 +631,15 @@ export function stopAlertsLocallyForGuest(): void {
  * (Vẽ biểu đồ 5 mức ngập + Đổi màu 9 thôn trọng điểm + Bật Bản đồ vùng ngập + Phát Loa AI).
  */
 export function applyMikeFloodScenario(
-  scenarioId: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE'
+  scenarioId: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE',
+  options?: { broadcast?: boolean }
 ): IoTTelemetryData {
+  const shouldBroadcast = options?.broadcast !== undefined ? options.broadcast : true;
+
   if (scenarioId === 'NONE') {
     currentScenarioId = 'NONE';
     return setTelemetryData(JSON.parse(JSON.stringify(DEFAULT_IOT_DATA)), {
-      broadcast: true,
+      broadcast: shouldBroadcast,
       scenarioId: 'NONE',
       scenarioName: 'Đặt lại trạng thái an toàn ban đầu',
       triggerDominoAudio: false,
@@ -656,7 +663,7 @@ export function applyMikeFloodScenario(
   };
 
   return setTelemetryData(nextData, {
-    broadcast: true,
+    broadcast: shouldBroadcast,
     scenarioId,
     scenarioName: meta.fullName,
     triggerDominoAudio: true,
