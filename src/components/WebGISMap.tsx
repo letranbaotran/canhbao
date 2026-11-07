@@ -640,6 +640,12 @@ export const WebGISMap: React.FC = () => {
   const villageMarkersMapRef = useRef<Record<string, any>>({});
   const kmzLayerGroupsRef = useRef<Record<string, any>>({});
   const kmzDataCacheRef = useRef<Record<string, KmzLayerData>>({});
+  // Lưu trạng thái các lớp bản đồ trước khi xảy ra tình huống cảnh báo để phục hồi nguyên trạng khi Tắt Cảnh Báo
+  const preAlertLayersSnapshotRef = useRef<{
+    selectedGibsLayer: string;
+    enabledKmzLayers: Record<string, boolean>;
+    villageVisibility: Record<string, boolean>;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const layerManagerPanelRef = useRef<HTMLDivElement | null>(null);
   const layerManagerBtnTopRef = useRef<HTMLButtonElement | null>(null);
@@ -865,18 +871,32 @@ export const WebGISMap: React.FC = () => {
         (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER'));
 
     if (!isFloodAlertActive || affectedVillages.length === 0) {
-      // 1. Tắt nhấp nháy cho toàn bộ các ranh thôn
-      Object.values(villageBoundaryPathsRef.current).forEach((items) => {
-        items.forEach(({ path, originalStyle }) => {
-          try {
-            path.setStyle(originalStyle);
-            if ((path as any)._path) {
-              (path as any)._path.classList.remove('flood-warning-pulsing-path');
-            }
-          } catch {}
+      // Khi không còn tình huống cảnh báo: Phục hồi toàn bộ các lớp bản đồ về nguyên trạng
+      if (preAlertLayersSnapshotRef.current) {
+        restoreMapToPreAlertState();
+      } else {
+        // Tắt nhấp nháy cho toàn bộ các ranh thôn
+        Object.values(villageBoundaryPathsRef.current).forEach((items) => {
+          items.forEach(({ path, originalStyle }) => {
+            try {
+              path.setStyle(originalStyle);
+              if ((path as any)._path) {
+                (path as any)._path.classList.remove('flood-warning-pulsing-path');
+              }
+            } catch {}
+          });
         });
-      });
+      }
       return;
+    }
+
+    // Khi phát sinh tình huống cảnh báo: Ghi nhớ trạng thái các lớp trước cảnh báo
+    if (!preAlertLayersSnapshotRef.current) {
+      preAlertLayersSnapshotRef.current = {
+        selectedGibsLayer,
+        enabledKmzLayers: { ...enabledKmzLayers },
+        villageVisibility: { ...villageVisibility },
+      };
     }
 
     // 2. Kích hoạt đồng bộ 2 chiều: Tự động bật các thôn bị ngập lũ
@@ -1186,6 +1206,14 @@ export const WebGISMap: React.FC = () => {
     const map = leafletMapRef.current;
 
     if (hydraulicModel.totalFloodedAreaHa > 0) {
+      if (!preAlertLayersSnapshotRef.current) {
+        preAlertLayersSnapshotRef.current = {
+          selectedGibsLayer,
+          enabledKmzLayers: { ...enabledKmzLayers },
+          villageVisibility: { ...villageVisibility },
+        };
+      }
+
       // 1. Tự động bật lớp Bản đồ Ngập lụt vệ tinh
       setSelectedGibsLayer('FLOOD_SURFACE');
 
@@ -1373,6 +1401,90 @@ export const WebGISMap: React.FC = () => {
       }
     });
   };
+
+  // PHỤC HỒI TOÀN BỘ CÁC LỚP BẢN ĐỒ VỀ NGUYÊN TRẠNG TRƯỚC KHI CÓ TÌNH HUỐNG CẢNH BÁO
+  const restoreMapToPreAlertState = useCallback(() => {
+    const map = leafletMapRef.current;
+    const snapshot = preAlertLayersSnapshotRef.current;
+
+    // 1. Phục hồi Lớp Vệ Tinh NASA về lớp trước cảnh báo (mặc định 'THERMAL_ANOMALIES')
+    const targetGibs = snapshot?.selectedGibsLayer || 'THERMAL_ANOMALIES';
+    setSelectedGibsLayer(targetGibs);
+    updateGibsOverlay(targetGibs, gibsOpacity);
+
+    // 2. Gỡ bỏ hoàn toàn lớp phủ đa giác MIKE FLOOD 2D
+    if (mikeFloodOverlayRef.current && map) {
+      try {
+        map.removeLayer(mikeFloodOverlayRef.current);
+      } catch {}
+      mikeFloodOverlayRef.current = null;
+    }
+
+    // 3. Phục hồi danh sách các lớp KML: Tắt toàn bộ lớp KML ngập lụt và KML thôn tự động bật
+    const targetEnabled = snapshot?.enabledKmzLayers || {};
+    setEnabledKmzLayers(targetEnabled);
+    if (map) {
+      Object.entries(kmzLayerGroupsRef.current).forEach(([id, group]) => {
+        if (!targetEnabled[id] && map.hasLayer(group)) {
+          try {
+            map.removeLayer(group);
+          } catch {}
+        }
+      });
+    }
+
+    // 4. Phục hồi điểm tập trung thôn/buôn
+    const targetVillageVis = snapshot?.villageVisibility || {};
+    setVillageVisibility(targetVillageVis);
+
+    if (villagesLayerRef.current && map) {
+      try {
+        villagesLayerRef.current.clearLayers();
+        Object.entries(targetVillageVis).forEach(([vName, isVis]) => {
+          if (isVis && villageMarkersMapRef.current[vName]) {
+            villagesLayerRef.current.addLayer(villageMarkersMapRef.current[vName]);
+          }
+        });
+        const hasAnyVillage = Object.values(targetVillageVis).some(Boolean);
+        if (!hasAnyVillage && map.hasLayer(villagesLayerRef.current)) {
+          map.removeLayer(villagesLayerRef.current);
+        }
+      } catch {}
+    }
+
+    // 5. Tắt nhấp nháy viền đỏ pulsing cho tất cả các đường ranh thôn và đưa về màu gốc
+    Object.values(villageBoundaryPathsRef.current).forEach((items) => {
+      items.forEach(({ path, originalStyle }) => {
+        try {
+          path.setStyle(originalStyle);
+          if ((path as any)._path) {
+            (path as any)._path.classList.remove('flood-warning-pulsing-path');
+          }
+        } catch {}
+      });
+    });
+
+    // 6. Bay bản đồ về góc nhìn mặc định toàn xã Ea Súp
+    if (map) {
+      try {
+        map.flyTo([13.045, 107.905], 12, { duration: 1.0 });
+      } catch {}
+    }
+
+    // Xóa snapshot sau khi đã phục hồi xong
+    preAlertLayersSnapshotRef.current = null;
+  }, [gibsOpacity]);
+
+  // Lắng nghe sự kiện toàn cục khi người dùng bấm nút "TẮT CẢNH BÁO" -> Trả bản đồ về nguyên trạng
+  useEffect(() => {
+    const handleStopAlertsEvent = () => {
+      restoreMapToPreAlertState();
+    };
+    window.addEventListener('MUTE_OR_STOP_ALL_ALERTS', handleStopAlertsEvent);
+    return () => {
+      window.removeEventListener('MUTE_OR_STOP_ALL_ALERTS', handleStopAlertsEvent);
+    };
+  }, [restoreMapToPreAlertState]);
 
   // HÀM THAY ĐỔI TOÀN BỘ ẢNH VỆ TINH BẢN ĐỒ THEO THỜI ĐIỂM HOẶC THEO NĂM (2001 - 2026)
   const updateTemporalFullMap = (mode: '2001' | '2026' | 'DELTA' | number, customDate?: string) => {
