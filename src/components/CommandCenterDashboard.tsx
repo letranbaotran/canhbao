@@ -21,7 +21,6 @@ import {
   Radio,
   Cpu,
   Activity,
-  Info,
   ShieldCheck,
   Satellite,
   Waves,
@@ -563,17 +562,6 @@ export const CommandCenterDashboard: React.FC = () => {
               <Activity className="w-3 h-3 shrink-0" />
               <span className="truncate">SỐ LIỆU TRỰC CHIẾN</span>
               <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowScientificModal(true)}
-              className="shrink-0 py-1.5 px-2 rounded-lg text-[10px] font-bold font-mono bg-[#F0F6FF] hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/35 transition-all flex items-center gap-1 shadow-xs"
-              title="Nguồn dữ liệu & Kiểm định khoa học (NASA FIRMS & MIKE FLOOD)"
-              aria-label="Mở Nguồn dữ liệu và Kiểm định khoa học"
-            >
-              <Info className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">Kiểm định KH</span>
             </button>
 
             <button

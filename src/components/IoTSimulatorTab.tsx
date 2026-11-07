@@ -5,7 +5,6 @@ import {
   RotateCcw,
   Send,
   Cpu,
-  Waves,
   AlertTriangle,
   BarChart3,
   MapPin,
@@ -14,7 +13,6 @@ import CryptoJS from 'crypto-js';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import {
   useTelemetryStore,
-  FLOOD_BENCHMARKS,
   MIKE_FLOOD_SCENARIOS,
   MikeFloodScenarioId,
   DEFAULT_IOT_DATA,
@@ -303,9 +301,6 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     { label: '> 3m', ha: dist.over3m, color: 'bg-rose-600', textColor: 'text-rose-700' },
   ];
 
-  const isEaSupOverBd3 = hydraulicModel.mblEaSup >= FLOOD_BENCHMARKS.EA_SUP_CENTER.bd3;
-  const isEaRokOverBd3 = hydraulicModel.mblEaRok >= FLOOD_BENCHMARKS.EA_ROK_DOWNSTREAM.bd3;
-
   return (
     <div className="w-full bg-white border border-[#0A4393]/25 rounded-xl shadow-lg overflow-hidden font-sans">
       {/* 1. Header Tinh Gọn */}
@@ -326,91 +321,6 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
 
       {isOpen && (
         <div className="p-3 space-y-3">
-          {/* YÊU CẦU 1: THẺ HIỂN THỊ 'MỐC BÁO LŨ CHUẨN' */}
-          <div className="p-2.5 rounded-xl bg-[#F4F8FD] border border-[#0A4393]/25 shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-[#0A4393] uppercase tracking-wide flex items-center gap-1.5 font-mono">
-                <Waves className="w-3.5 h-3.5 text-[#0A4393]" />
-                Mốc Báo Lũ Chuẩn (Quy chuẩn Thủy văn)
-              </span>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-[#0A4393] border border-[#0A4393]/25">
-                MIKE 11 + MIKE 21 FM
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 gap-2 text-[11px] font-mono">
-              {/* Mốc 1: Trung tâm xã Ea Súp */}
-              <div
-                className={`p-2 rounded-lg border transition-colors ${
-                  isEaSupOverBd3
-                    ? 'bg-rose-50 border-rose-400 text-rose-900'
-                    : 'bg-white border-[#0A4393]/20 text-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between font-bold mb-1">
-                  <span className="text-[#0A4393]">1. Mốc báo lũ Ea Súp (Trung tâm xã)</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      isEaSupOverBd3
-                        ? 'bg-rose-600 text-white animate-pulse'
-                        : 'bg-[#F0F6FF] text-[#0A4393]'
-                    }`}
-                  >
-                    Hiện tại: {hydraulicModel.mblEaSup.toFixed(2)}m (
-                    {hydraulicModel.diffBd3EaSup >= 0
-                      ? `+${hydraulicModel.diffBd3EaSup.toFixed(2)}m BĐ III`
-                      : 'An toàn'}
-                    )
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1 text-[10px] text-center">
-                  <div className="py-0.5 px-1 rounded bg-sky-50 border border-sky-200 text-sky-900 font-semibold">
-                    Báo động I: <strong>185.0m</strong>
-                  </div>
-                  <div className="py-0.5 px-1 rounded bg-amber-50 border border-amber-300 text-amber-900 font-semibold">
-                    Báo động II: <strong>187.0m</strong>
-                  </div>
-                  <div className="py-0.5 px-1 rounded bg-rose-50 border border-rose-300 text-rose-800 font-bold">
-                    Báo động III: <strong>189.0m</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mốc 2: Hạ lưu Ea Rốk */}
-              <div
-                className={`p-2 rounded-lg border transition-colors ${
-                  isEaRokOverBd3
-                    ? 'bg-rose-50 border-rose-400 text-rose-900'
-                    : 'bg-white border-[#0A4393]/20 text-slate-800'
-                }`}
-              >
-                <div className="flex items-center justify-between font-bold mb-1">
-                  <span className="text-[#0A4393]">2. Mốc báo lũ Hạ lưu (Ea Rốk)</span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      isEaRokOverBd3
-                        ? 'bg-rose-600 text-white'
-                        : 'bg-[#F0F6FF] text-[#0A4393]'
-                    }`}
-                  >
-                    Hiện tại: {hydraulicModel.mblEaRok.toFixed(2)}m
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-1 text-[10px] text-center">
-                  <div className="py-0.5 px-1 rounded bg-sky-50 border border-sky-200 text-sky-900 font-semibold">
-                    Báo động I: <strong>166.0m</strong>
-                  </div>
-                  <div className="py-0.5 px-1 rounded bg-amber-50 border border-amber-300 text-amber-900 font-semibold">
-                    Báo động II: <strong>167.5m</strong>
-                  </div>
-                  <div className="py-0.5 px-1 rounded bg-rose-50 border border-rose-300 text-rose-800 font-bold">
-                    Báo động III: <strong>169.0m</strong>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* YÊU CẦU 2: BỘ CHỌN 'KỊCH BẢN THỦY LỰC MIKE FLOOD ĐÃ KIỂM ĐỊNH' */}
           <div className="p-2.5 rounded-xl bg-[#F0F6FF] border border-[#0A4393]/30 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
@@ -492,31 +402,6 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                   </button>
                 );
               })}
-            </div>
-
-            {/* Các tình huống nhanh khác (Cháy rừng, Vi phạm hồ Hạ, Cá ngạt khí) */}
-            <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-[#0A4393]/15">
-              <button
-                type="button"
-                onClick={() => applyScenario('FIRE_ALERT')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-rose-50 border border-rose-400 text-rose-700 text-[10px] font-semibold transition-colors"
-              >
-                🔥 Cháy rừng TK-293
-              </button>
-              <button
-                type="button"
-                onClick={() => applyScenario('CAGE_VIOLATION')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-amber-50 border border-amber-500 text-amber-800 text-[10px] font-semibold transition-colors"
-              >
-                ⛔ Vi phạm lồng bè Hồ Hạ
-              </button>
-              <button
-                type="button"
-                onClick={() => applyScenario('OXYGEN_DEPLETION')}
-                className="px-2 py-0.5 rounded bg-white hover:bg-cyan-50 border border-cyan-500 text-cyan-800 text-[10px] font-semibold transition-colors"
-              >
-                🐟 Cá ngạt khí Hồ Trung Chuyển
-              </button>
             </div>
           </div>
 
