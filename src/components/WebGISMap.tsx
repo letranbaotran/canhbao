@@ -1029,12 +1029,17 @@ export const WebGISMap: React.FC = () => {
   // Lắng nghe quyền đăng nhập hiện tại (Toàn quyền / Sửa xóa bản đồ / Khách)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setUserRole(getCurrentSessionUser().role);
+    const initialRole = getCurrentSessionUser().role;
+    setUserRole(initialRole);
+    if (initialRole !== 'ADMIN') {
+      setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
+    }
     const handleAuthChange = () => {
       const role = getCurrentSessionUser().role;
       setUserRole(role);
-      if (role === 'GUEST') {
+      if (role !== 'ADMIN') {
         setEditingLayerId(null);
+        setActiveLayerTab((prev) => (prev === 'VILLAGE' ? 'SYSTEM' : prev));
       }
     };
     window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
@@ -4501,31 +4506,33 @@ export const WebGISMap: React.FC = () => {
                 </span>
               </button>
 
-              {/* Tab 3: Thôn / Buôn (Tone Xanh lá nhạt) */}
-              <button
-                type="button"
-                onClick={() => setActiveLayerTab('VILLAGE')}
-                className={`flex-1 py-2 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
-                  activeLayerTab === 'VILLAGE'
-                    ? 'bg-[#EBF7EE] text-[#065F46] border-[#059669] shadow-xs font-extrabold'
-                    : 'bg-[#F4FAF5] text-slate-600 hover:text-[#065F46] border-transparent hover:bg-[#EBF7EE]/60'
-                }`}
-              >
-                <span>Thôn / Buôn</span>
-                <span
-                  className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
+              {/* Tab 3: Thôn / Buôn (Tone Xanh lá nhạt) - CHỈ ADMIN MỚI ĐƯỢC QUYỀN XEM */}
+              {userRole === 'ADMIN' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveLayerTab('VILLAGE')}
+                  className={`flex-1 py-2 px-1 text-center transition-all border-b-2 flex items-center justify-center gap-1 cursor-pointer ${
                     activeLayerTab === 'VILLAGE'
-                      ? 'bg-[#059669] text-white'
-                      : 'bg-emerald-100 text-emerald-900'
+                      ? 'bg-[#EBF7EE] text-[#065F46] border-[#059669] shadow-xs font-extrabold'
+                      : 'bg-[#F4FAF5] text-slate-600 hover:text-[#065F46] border-transparent hover:bg-[#EBF7EE]/60'
                   }`}
                 >
-                  {villageTabActiveCount}/{villageTabTotalCount}
-                </span>
-              </button>
+                  <span>Thôn / Buôn</span>
+                  <span
+                    className={`text-[9px] px-1 py-0.2 rounded-full font-mono ${
+                      activeLayerTab === 'VILLAGE'
+                        ? 'bg-[#059669] text-white'
+                        : 'bg-emerald-100 text-emerald-900'
+                    }`}
+                  >
+                    {villageTabActiveCount}/{villageTabTotalCount}
+                  </span>
+                </button>
+              )}
             </div>
 
-            {/* Thanh tác vụ của Tab Hệ Thống & Lũ Kiểm Chứng */}
-            {activeLayerTab !== 'VILLAGE' && (
+            {/* Thanh tác vụ của Tab Hệ Thống & Lũ Kiểm Chứng (Chỉ ẩn khi là Admin và đang ở tab Thôn/Buôn) */}
+            {(userRole !== 'ADMIN' || activeLayerTab !== 'VILLAGE') && (
               <div className="px-2.5 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input
@@ -4569,8 +4576,8 @@ export const WebGISMap: React.FC = () => {
               </div>
             )}
 
-            {/* 2 TAB LỚN TẠI TAB THÔN/BUÔN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN */}
-            {activeLayerTab === 'VILLAGE' && (
+            {/* 2 TAB LỚN TẠI TAB THÔN/BUÔN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN - CHỈ ADMIN */}
+            {userRole === 'ADMIN' && activeLayerTab === 'VILLAGE' && (
               <div className="p-2 bg-slate-100/90 border-b border-slate-200 shrink-0">
                 <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-xl">
                   <button
@@ -4944,8 +4951,8 @@ export const WebGISMap: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 3: NHÓM LỚP THÔN/BUÔN - TÁCH THÀNH 2 TAB LỚN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN */}
-              {activeLayerTab === 'VILLAGE' && (
+              {/* TAB 3: NHÓM LỚP THÔN/BUÔN - TÁCH THÀNH 2 TAB LỚN: 1. ĐIỂM TẬP TRUNG | 2. RANH THÔN/BUÔN - CHỈ ADMIN */}
+              {userRole === 'ADMIN' && activeLayerTab === 'VILLAGE' && (
                 <div className="space-y-1.5">
                   {/* 1. TAB ĐIỂM TẬP TRUNG (Ảnh 2) */}
                   {villageSubTab === 'POINTS' && (

@@ -361,12 +361,13 @@ export const CommandCenterDashboard: React.FC = () => {
             />
           </section>
 
-          {/* 20 Thôn Buôn Matrix Quick Overview + Card Chi Tiết Thôn/Buôn + Báo Tin Thiên Tai Cộng Đồng */}
-          <section
-            id="villages-matrix-section"
-            aria-label="Danh sách 20 thôn buôn"
-            className="bg-white border border-[#0A4393]/25 rounded-xl p-3 shadow-md space-y-3"
-          >
+          {/* 20 Thôn Buôn Matrix Quick Overview + Card Chi Tiết Thôn/Buôn + Báo Tin Thiên Tai Cộng Đồng - CHỈ ADMIN MỚI ĐƯỢC XEM (Ảnh 2) */}
+          {currentUser.role === 'ADMIN' && (
+            <section
+              id="villages-matrix-section"
+              aria-label="Danh sách 20 thôn buôn"
+              className="bg-white border border-[#0A4393]/25 rounded-xl p-3 shadow-md space-y-3"
+            >
             <div>
               <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1">
                 <h3 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider flex items-center gap-1.5">
@@ -578,6 +579,7 @@ export const CommandCenterDashboard: React.FC = () => {
               )}
             </div>
           </section>
+          )}
         </div>
 
         {/* Right Column: Alert Center & Command Telemetry (4 cols) */}
