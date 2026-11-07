@@ -3,7 +3,7 @@
  * Mật khẩu được quản lý và bảo mật tuyệt đối trong file .env trên máy chủ.
  */
 
-export type MapUserRole = 'ADMIN' | 'MAP_EDITOR' | 'GUEST';
+export type MapUserRole = 'ADMIN' | 'MANAGER' | 'GUEST' | 'MAP_EDITOR';
 
 export const MASTER_ADMIN_EMAIL = 'lehanhkt01@gmail.com';
 
@@ -75,12 +75,21 @@ export function getRoleLabel(role: MapUserRole): string {
   switch (role) {
     case 'ADMIN':
       return 'Toàn quyền';
+    case 'MANAGER':
     case 'MAP_EDITOR':
-      return 'Quyền sửa/xóa bản đồ';
+      return 'Cán bộ quản lý';
     case 'GUEST':
     default:
       return 'Khách';
   }
+}
+
+export function isUserAdmin(role: MapUserRole): boolean {
+  return role === 'ADMIN';
+}
+
+export function isUserManagerOrAdmin(role: MapUserRole): boolean {
+  return role === 'ADMIN' || role === 'MANAGER' || role === 'MAP_EDITOR';
 }
 
 export function getStoredUsers(): AuthUserAccount[] {

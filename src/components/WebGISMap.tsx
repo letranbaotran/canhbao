@@ -675,7 +675,8 @@ export const WebGISMap: React.FC = () => {
   const [editingLayerId, setEditingLayerId] = useState<string | null>(null);
   const [editingLayerName, setEditingLayerName] = useState<string>('');
   const [userRole, setUserRole] = useState<MapUserRole>('GUEST');
-  const canEditMap = userRole === 'ADMIN' || userRole === 'MAP_EDITOR';
+  // Chỉ tài khoản Toàn quyền (Admin) mới được quyền sửa/xóa/nạp file KML, KMZ, GeoJSON
+  const canEditMap = userRole === 'ADMIN';
 
   // Quản lý tọa độ vị trí 20 thôn buôn tùy chỉnh do Admin nhập
   const [customVillageCoords, setCustomVillageCoords] = useState<Record<string, [number, number]>>({});
@@ -3213,10 +3214,15 @@ export const WebGISMap: React.FC = () => {
     }
   };
 
-  // Hỗ trợ nạp trực tiếp file .KML (Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml) & .GeoJSON (Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson)
+  // Hỗ trợ nạp trực tiếp file .KML (Mo_phong_Thuy_luc_MIKE_FLOOD_EaSup.kml) & .GeoJSON (Du_lieu_Ban_do_MIKE_FLOOD_EaSup.geojson) - CHỈ ADMIN
   const handleUploadCustomKml = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (userRole !== 'ADMIN') {
+      alert('Chỉ tài khoản Toàn quyền (Admin) mới có quyền nạp hoặc thay đổi file KML/GeoJSON.');
+      e.target.value = '';
+      return;
+    }
     try {
       const text = await file.text();
       const palette = ['#0284c7', '#ff1744', '#00e676', '#ff9100', '#d500f9', '#00b0ff'];
@@ -3386,10 +3392,16 @@ export const WebGISMap: React.FC = () => {
     e.target.value = '';
   };
 
-  // Nạp file KML/GeoJSON riêng cho từng Thôn/Buôn trong danh sách 21 nút
+  // Nạp file KML/GeoJSON riêng cho từng Thôn/Buôn trong danh sách 21 nút - CHỈ ADMIN
   const handleVillageSpecificFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !targetUploadVillage) return;
+    if (userRole !== 'ADMIN') {
+      alert('Chỉ tài khoản Toàn quyền (Admin) mới có quyền nạp hoặc thay đổi file KML/GeoJSON.');
+      setTargetUploadVillage(null);
+      e.target.value = '';
+      return;
+    }
     try {
       const textContent = await file.text();
       const isGeoJson =
@@ -4210,19 +4222,21 @@ export const WebGISMap: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                      {/* Nút tải file bản đồ lên cho thôn/buôn này */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTargetUploadVillage(v.name);
-                          villageSpecificFileInputRef.current?.click();
-                        }}
-                        className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/30 transition-colors cursor-pointer"
-                        title={`Tải file KML/GeoJSON cho ${v.name}`}
-                      >
-                        <Upload className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      </button>
+                      {/* Nút tải file bản đồ lên cho thôn/buôn này - CHỈ HIỂN THỊ KHI TÀI KHOẢN LÀ ADMIN */}
+                      {userRole === 'ADMIN' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTargetUploadVillage(v.name);
+                            villageSpecificFileInputRef.current?.click();
+                          }}
+                          className="p-1 rounded bg-white hover:bg-[#0A4393] text-[#0A4393] hover:text-white border border-[#0A4393]/30 transition-colors cursor-pointer"
+                          title={`Tải file KML/GeoJSON cho ${v.name}`}
+                        >
+                          <Upload className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        </button>
+                      )}
 
                       {/* Nút tâm ngắm phóng tới */}
                       <button

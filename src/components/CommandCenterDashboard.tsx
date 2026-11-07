@@ -249,7 +249,7 @@ export const CommandCenterDashboard: React.FC = () => {
                 : 'bg-[#E1EFFF] border-[#B8D7FF] text-[#0A4393]'
             }`}
           >
-            <ShieldAlert className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isHoHaRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
+            <Droplets className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${isHoHaRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
             <div className="min-w-0 flex-1">
               <div className={`text-[9px] sm:text-[10px] uppercase font-bold tracking-tight truncate ${isHoHaRed ? 'text-rose-100' : 'text-[#0A4393]/80'}`}>
                 HỒ HẠ

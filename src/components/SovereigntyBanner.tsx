@@ -40,7 +40,9 @@ import {
 
 export const SovereigntyBanner: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<string>('home');
-  const [activeModal, setActiveModal] = useState<'guide' | 'contact' | 'stats' | 'auth' | null>(null);
+  const [activeModal, setActiveModal] = useState<
+    'guide' | 'contact' | 'stats' | 'auth' | 'role_management' | null
+  >(null);
   const [authTab, setAuthTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
@@ -61,9 +63,10 @@ export const SovereigntyBanner: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  // Thêm/phân quyền nhanh dành cho Admin
+  // Thêm/phân quyền dành cho Admin
   const [newEmail, setNewEmail] = useState<string>('');
-  const [newRole, setNewRole] = useState<MapUserRole>('MAP_EDITOR');
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [newRole, setNewRole] = useState<MapUserRole>('MANAGER');
   const [adminMessage, setAdminMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -103,6 +106,15 @@ export const SovereigntyBanner: React.FC = () => {
     setConfirmPasswordInput('');
     setIsMobileMenuOpen(false);
     setActiveModal('auth');
+  };
+
+  const openRoleManagementModal = () => {
+    setAdminMessage(null);
+    setNewEmail('');
+    setNewPassword('');
+    setNewRole('MANAGER');
+    setIsMobileMenuOpen(false);
+    setActiveModal('role_management');
   };
 
   const handleNavClick = (menuKey: string, targetId?: string) => {
@@ -176,11 +188,12 @@ export const SovereigntyBanner: React.FC = () => {
       setAdminMessage('Email không hợp lệ!');
       return;
     }
-    const res = await adminSetUserRole(cleanEmail, newRole);
+    const res = await adminSetUserRole(cleanEmail, newRole, newPassword.trim() || undefined);
     if (res.ok) {
       setUsersList(res.users);
       setNewEmail('');
-      setAdminMessage(`Đã cấp quyền cho ${cleanEmail}`);
+      setNewPassword('');
+      setAdminMessage(`Đã cấp quyền (${getRoleLabel(newRole)}) cho ${cleanEmail}`);
     } else {
       setAdminMessage(res.error || 'Lỗi cập nhật');
     }
@@ -243,13 +256,29 @@ export const SovereigntyBanner: React.FC = () => {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => openAuthModal('LOGIN')}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
-                >
-                  <ShieldCheck className="w-3 h-3" />
-                  <span className="max-w-[100px] truncate">{currentUser.email}</span>
-                </button>
+                <div className="flex items-center gap-1">
+                  {currentUser.role === 'ADMIN' && (
+                    <button
+                      onClick={openRoleManagementModal}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-amber-400 text-[#0A4393] hover:bg-amber-300 shadow-sm border border-amber-200"
+                      title="Mở Trang Quản Lý Phân Quyền Hệ Thống"
+                    >
+                      <ShieldCheck className="w-3 h-3 text-[#0A4393]" />
+                      <span>Phân quyền</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      currentUser.role === 'ADMIN'
+                        ? openRoleManagementModal()
+                        : openAuthModal('LOGIN')
+                    }
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    <span className="max-w-[70px] truncate">{currentUser.email}</span>
+                  </button>
+                </div>
               )}
 
               <button
@@ -359,8 +388,22 @@ export const SovereigntyBanner: React.FC = () => {
                 </>
               ) : (
                 <div className="flex items-center gap-1.5">
+                  {currentUser.role === 'ADMIN' && (
+                    <button
+                      onClick={openRoleManagementModal}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 hover:bg-amber-300 text-[#0A4393] border border-amber-200 shadow-sm transition-all cursor-pointer"
+                      title="Mở Trang Quản Lý Phân Quyền Hệ Thống"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#0A4393]" />
+                      <span>🛡️ Quản lý phân quyền</span>
+                    </button>
+                  )}
                   <button
-                    onClick={() => openAuthModal('LOGIN')}
+                    onClick={() =>
+                      currentUser.role === 'ADMIN'
+                        ? openRoleManagementModal()
+                        : openAuthModal('LOGIN')
+                    }
                     className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 border border-white/40 shadow-sm transition-all cursor-pointer"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
@@ -383,6 +426,15 @@ export const SovereigntyBanner: React.FC = () => {
           {/* Menu xổ xuống trên điện thoại */}
           {isMobileMenuOpen && (
             <div className="sm:hidden w-full pt-2 pb-1 border-t border-white/20 flex flex-col gap-1.5 animate-fadeIn">
+              {currentUser.role === 'ADMIN' && (
+                <button
+                  onClick={openRoleManagementModal}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold bg-amber-400 text-[#0A4393] hover:bg-amber-300 text-left shadow-xs"
+                >
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-[#0A4393]" />
+                  <span>🛡️ Quản lý phân quyền (3 cấp bậc)</span>
+                </button>
+              )}
               <button
                 onClick={() => handleNavClick('home')}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white/10 text-white hover:bg-white/20 text-left"
@@ -834,9 +886,18 @@ export const SovereigntyBanner: React.FC = () => {
                 {/* BẢNG PHÂN QUYỀN GỌN DÀNH CHO ADMIN */}
                 {currentUser.role === 'ADMIN' && (
                   <div className="space-y-2.5 pt-2 border-t border-[#0A4393]/20">
-                    <div className="text-xs font-bold text-[#0A4393] flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Phân quyền tài khoản</span>
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-[#0A4393] flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Phân quyền tài khoản</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveModal('role_management')}
+                        className="text-[11px] font-bold text-[#0A4393] hover:underline flex items-center gap-1"
+                      >
+                        <span>Mở trang chi tiết →</span>
+                      </button>
                     </div>
 
                     {adminMessage && (
@@ -859,11 +920,11 @@ export const SovereigntyBanner: React.FC = () => {
                       <select
                         value={newRole}
                         onChange={(e) => setNewRole(e.target.value as MapUserRole)}
-                        className="px-2 py-1.5 rounded-lg border border-[#0A4393]/40 text-xs font-semibold text-[#0A4393] bg-white"
+                        className="px-2 py-1.5 rounded-lg border border-[#0A4393]/40 text-xs font-semibold text-[#0A4393] bg-white cursor-pointer"
                       >
-                        <option value="MAP_EDITOR">Quyền sửa/xóa bản đồ</option>
-                        <option value="ADMIN">Toàn quyền</option>
-                        <option value="GUEST">Khách</option>
+                        <option value="ADMIN">🔴 Toàn quyền</option>
+                        <option value="MANAGER">🟡 Cán bộ quản lý</option>
+                        <option value="GUEST">🟢 Khách</option>
                       </select>
                       <button
                         type="button"
@@ -891,7 +952,7 @@ export const SovereigntyBanner: React.FC = () => {
 
                               <div className="flex items-center gap-1 shrink-0">
                                 <select
-                                  value={acc.role}
+                                  value={acc.role === 'MAP_EDITOR' ? 'MANAGER' : acc.role}
                                   disabled={isMaster}
                                   onChange={(e) =>
                                     handleChangeUserRole(
@@ -899,18 +960,18 @@ export const SovereigntyBanner: React.FC = () => {
                                       e.target.value as MapUserRole
                                     )
                                   }
-                                  className="px-2 py-1 rounded border border-[#0A4393]/30 text-[11px] font-semibold text-[#0A4393] bg-[#F0F6FF] disabled:opacity-60"
+                                  className="px-2 py-1 rounded border border-[#0A4393]/30 text-[11px] font-bold text-[#0A4393] bg-[#F0F6FF] disabled:opacity-60 cursor-pointer"
                                 >
-                                  <option value="ADMIN">Toàn quyền</option>
-                                  <option value="MAP_EDITOR">Quyền sửa/xóa bản đồ</option>
-                                  <option value="GUEST">Khách</option>
+                                  <option value="ADMIN">🔴 Toàn quyền</option>
+                                  <option value="MANAGER">🟡 Cán bộ quản lý</option>
+                                  <option value="GUEST">🟢 Khách</option>
                                 </select>
 
                                 {!isMaster && (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteUser(acc.email)}
-                                    className="p-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white transition-colors"
+                                    className="p-1 rounded border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white transition-colors cursor-pointer"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -924,6 +985,231 @@ export const SovereigntyBanner: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 7. MODAL QUẢN LÝ PHÂN QUYỀN HỆ THỐNG DÀNH CHO ADMIN (3 LOẠI PHÂN QUYỀN CHÍNH) */}
+      {activeModal === 'role_management' && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-[#0A4393]/70 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setActiveModal(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border-2 border-[#0A4393] p-4 sm:p-5 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Nút đóng modal */}
+            <button
+              onClick={() => setActiveModal(null)}
+              className="absolute top-3.5 right-3.5 p-1.5 rounded-full bg-[#F0F6FF] text-[#0A4393] hover:bg-[#0A4393] hover:text-white transition-colors cursor-pointer"
+              title="Đóng cửa sổ"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Tiêu đề Modal */}
+            <div className="flex items-center gap-2.5 mb-3.5 pb-2.5 border-b border-[#0A4393]/20">
+              <div className="p-2 rounded-xl bg-[#0A4393] text-white shrink-0">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-[#0A4393] uppercase tracking-wide">
+                  Trang Quản Lý Phân Quyền Hệ Thống
+                </h3>
+                <p className="text-[11px] text-slate-600 font-medium">
+                  3 loại phân quyền trọng tâm - Vận hành hệ thống cảnh báo sớm thiên tai xã Ea Súp
+                </p>
+              </div>
+            </div>
+
+            {/* BẢNG GIẢI THÍCH 3 LOẠI PHÂN QUYỀN CHÍNH */}
+            <div className="space-y-2 mb-4">
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Quy chuẩn 3 tầng phân quyền vận hành:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {/* 1. Toàn quyền (Admin) */}
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-rose-600 text-white">
+                      Toàn quyền
+                    </span>
+                    <span className="text-[10px] font-mono text-rose-700 font-bold">ADMIN</span>
+                  </div>
+                  <div className="text-[11px] text-rose-950 leading-relaxed font-sans">
+                    • <strong>Toàn quyền cao nhất</strong> hệ thống.<br />
+                    • <strong>Thêm, sửa, xóa, nạp tải</strong> file .kml/.geojson.<br />
+                    • <strong>Phân quyền &amp; quản trị</strong> mọi tài khoản.
+                  </div>
+                </div>
+
+                {/* 2. Cán bộ quản lý (Manager) */}
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-600 text-white">
+                      Cán bộ quản lý
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-800 font-bold">MANAGER</span>
+                  </div>
+                  <div className="text-[11px] text-amber-950 leading-relaxed font-sans">
+                    • <strong>Điều chỉnh tab Cảm biến IoT</strong>.<br />
+                    • <strong>Gửi / tắt cảnh báo</strong> khẩn cấp.<br />
+                    • Gửi <strong>&quot;kiểm thử máy chủ&quot;</strong>, bật/tắt <strong>loa số AI</strong>.<br />
+                    • <strong>Đọc tin báo</strong> người dân gửi đến.
+                  </div>
+                </div>
+
+                {/* 3. Khách (Guest) */}
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-600 text-white">
+                      Khách
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-800 font-bold">GUEST</span>
+                  </div>
+                  <div className="text-[11px] text-emerald-950 leading-relaxed font-sans">
+                    • <strong>Thao tác các nút</strong> trên giao diện bản đồ.<br />
+                    • <strong>Kiểm thử mô phỏng</strong> kịch bản lũ trên bản đồ.<br />
+                    • <strong>Gửi tin báo SOS</strong> đến Admin &amp; Cán bộ.
+                  </div>
+                </div>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-center gap-1.5">
+                <span className="text-slate-500 font-bold">ℹ️ Người dùng chưa đăng nhập:</span>
+                <span>Thao tác các nút trên giao diện bản đồ, tiếp nhận cảnh báo âm thanh &amp; thông báo phát thanh AI.</span>
+              </div>
+            </div>
+
+            {/* FORM THÊM / CẬP NHẬT PHÂN QUYỀN TÀI KHOẢN */}
+            <div className="p-3 rounded-xl bg-[#F0F6FF] border border-[#0A4393]/30 mb-4 space-y-2.5">
+              <div className="text-xs font-bold text-[#0A4393] flex items-center gap-1.5">
+                <UserPlus className="w-4 h-4" />
+                <span>Thêm tài khoản hoặc cập nhật phân quyền</span>
+              </div>
+
+              {adminMessage && (
+                <div className="p-2 rounded-lg bg-white border border-[#0A4393]/30 text-[#0A4393] text-xs font-semibold">
+                  {adminMessage}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <input
+                  type="text"
+                  inputMode="email"
+                  autoComplete="off"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Email (VD: canbo@easupso.com)"
+                  className="sm:col-span-5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
+                />
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Mật khẩu (tùy chọn)"
+                  className="sm:col-span-3 px-3 py-1.5 rounded-lg border border-slate-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
+                />
+                <select
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value as MapUserRole)}
+                  className="sm:col-span-3 px-2 py-1.5 rounded-lg border border-[#0A4393]/40 text-xs font-bold text-[#0A4393] bg-white cursor-pointer"
+                >
+                  <option value="ADMIN">🔴 Toàn quyền (Admin)</option>
+                  <option value="MANAGER">🟡 Cán bộ quản lý</option>
+                  <option value="GUEST">🟢 Khách</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleCreateOrAssignUser}
+                  className="sm:col-span-1 px-3 py-1.5 rounded-lg bg-[#0A4393] hover:bg-[#083576] text-white text-xs font-bold flex items-center justify-center cursor-pointer transition-colors"
+                  title="Lưu phân quyền tài khoản"
+                >
+                  Lưu
+                </button>
+              </div>
+            </div>
+
+            {/* DANH SÁCH TẤT CẢ TÀI KHOẢN VÀ ĐIỀU CHỈNH PHÂN QUYỀN TRỰC TIẾP */}
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                <span>Danh sách tài khoản hệ thống ({usersList.length}):</span>
+                <span className="text-[10px] text-slate-500 font-normal">Thay đổi vai trò có hiệu lực tức thì</span>
+              </div>
+
+              <div className="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                {usersList
+                  .filter((acc) => acc && typeof acc.email === 'string' && acc.email)
+                  .map((acc) => {
+                    const isMaster =
+                      (acc.email || '').toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase();
+                    return (
+                      <div
+                        key={acc.email}
+                        className="p-2.5 bg-white hover:bg-slate-50 flex items-center justify-between gap-2 text-xs transition-colors"
+                      >
+                        <div className="min-w-0 flex-1 flex items-center gap-2">
+                          <span className="font-semibold text-slate-800 truncate">
+                            {acc.email}
+                          </span>
+                          {isMaster && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-300 shrink-0">
+                              Admin Tối Cao
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            value={acc.role === 'MAP_EDITOR' ? 'MANAGER' : acc.role}
+                            disabled={isMaster}
+                            onChange={(e) =>
+                              handleChangeUserRole(
+                                acc.email,
+                                e.target.value as MapUserRole
+                              )
+                            }
+                            className={`px-2 py-1 rounded border text-[11px] font-bold cursor-pointer disabled:opacity-60 ${
+                              acc.role === 'ADMIN'
+                                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                : acc.role === 'MANAGER' || acc.role === 'MAP_EDITOR'
+                                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            }`}
+                          >
+                            <option value="ADMIN">🔴 Toàn quyền (Admin)</option>
+                            <option value="MANAGER">🟡 Cán bộ quản lý</option>
+                            <option value="GUEST">🟢 Khách</option>
+                          </select>
+
+                          {!isMaster && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(acc.email)}
+                              className="p-1.5 rounded border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white transition-colors cursor-pointer"
+                              title={`Xóa tài khoản ${acc.email}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <div className="pt-3 mt-3 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="px-4 py-1.5 rounded-lg bg-[#0A4393] hover:bg-[#083576] text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -15,6 +15,12 @@ import CryptoJS from 'crypto-js';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import { stopAllEmergencyAlerts } from '@/utils/alarmSound';
 import {
+  getCurrentSessionUser,
+  isUserManagerOrAdmin,
+  AUTH_CHANGED_EVENT,
+  type CurrentSessionUser,
+} from '@/services/authRoleService';
+import {
   useTelemetryStore,
   MIKE_FLOOD_SCENARIOS,
   MikeFloodScenarioId,
@@ -50,6 +56,24 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
   >('HO_THUONG');
   const [apiResult, setApiResult] = useState<{ success: boolean; msg: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Phân quyền 3 cấp bậc: Chỉ 'ADMIN' và 'MANAGER' (Cán bộ quản lý) mới được điều chỉnh cảm biến diện rộng & gửi kiểm thử máy chủ
+  const [currentUser, setCurrentUser] = useState<CurrentSessionUser>({
+    email: '',
+    fullName: 'Khách',
+    role: 'GUEST',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentUser(getCurrentSessionUser());
+      const handleAuth = () => setCurrentUser(getCurrentSessionUser());
+      window.addEventListener(AUTH_CHANGED_EVENT, handleAuth);
+      return () => window.removeEventListener(AUTH_CHANGED_EVENT, handleAuth);
+    }
+  }, []);
+
+  const canManageIoT = isUserManagerOrAdmin(currentUser.role);
 
   // Đồng bộ hai chiều: Khi Global Store thay đổi từ Tab Trực chiến hoặc thiết bị khác, cập nhật formData ngay lập tức
   useEffect(() => {
@@ -236,6 +260,17 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
   const handleTestSend = async () => {
     setIsSubmitting(true);
     setApiResult(null);
+
+    // Kiểm tra phân quyền: Chỉ Cán bộ quản lý hoặc Admin mới được gửi kiểm thử máy chủ
+    if (!canManageIoT) {
+      setApiResult({
+        success: false,
+        msg: '⛔ QUYỀN TRUY CẬP BỊ TỪ CHỐI: Chức năng "Kiểm thử máy chủ" và phát tán gói tin diện rộng chỉ dành cho Cán bộ quản lý hoặc Admin. Quý khách vui lòng đăng nhập tài khoản có thẩm quyền!',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const payload: Record<string, unknown> = {
         stationId:
@@ -347,7 +382,7 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
       },
     };
     setFormData(safeData);
-    setIotData(safeData, { broadcast: true, scenarioId: 'NONE', triggerDominoAudio: false });
+    setIotData(safeData, { broadcast: canManageIoT, scenarioId: 'NONE', triggerDominoAudio: false });
     setActiveStation('HO_THUONG');
     setApiResult(null);
   };
@@ -358,6 +393,16 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
 
       {isOpen && (
         <div className="p-3 space-y-3">
+          {/* Thông báo quyền hạn nếu chưa đăng nhập hoặc là Khách */}
+          {!canManageIoT && (
+            <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2 shadow-xs">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span className="font-bold">Chế độ xem (Khách / Chưa đăng nhập):</span> Quý vị có thể xem và mô phỏng trên thiết bị cá nhân. Quyền lưu cảm biến diện rộng, gửi <strong>Kiểm thử máy chủ</strong> và phát thanh toàn xã yêu cầu tài khoản <strong>Cán bộ quản lý</strong> hoặc <strong>Toàn quyền (Admin)</strong>.
+              </div>
+            </div>
+          )}
+
           {/* YÊU CẦU 2 & Ảnh 3: BỘ CHỌN 'KỊCH BẢN ĐÃ KIỂM ĐỊNH' + NÚT 'TẮT CẢNH BÁO' TO ĐẬM */}
           <div className="p-2.5 rounded-xl bg-[#F0F6FF] border border-[#0A4393]/30 shadow-xs space-y-2">
             <div className="flex items-center justify-between gap-2 flex-wrap">
