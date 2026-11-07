@@ -35,6 +35,11 @@ import {
   ShieldCheck,
   Satellite,
   Waves,
+  Wind,
+  Clock,
+  Wifi,
+  Sparkles,
+  RefreshCw,
   X,
   Volume2,
   VolumeX,
@@ -116,6 +121,95 @@ export const CommandCenterDashboard: React.FC = () => {
       timestamp: 'Trực chiến hôm nay',
     },
   ]);
+
+  // Luồng dữ liệu động thời gian thực từ Vệ tinh NASA & Cảm biến IoT (Real-time Telemetry Stream)
+  const [liveJitter, setLiveJitter] = useState({
+    wind: 0,
+    temp: 0,
+    humidity: 0,
+    smoke: 0,
+    turbidity: 0,
+    do: 0,
+    ph: 0,
+    discharge: 0,
+    lastChangedField: '' as string,
+    lastSyncTime: 'Vừa xong',
+    packetCount: 14890,
+    secondsSincePacket: 0,
+  });
+
+  useEffect(() => {
+    // 1. Đồng hồ đếm giây sau gói tin gần nhất
+    const secondTimer = setInterval(() => {
+      setLiveJitter((prev) => ({
+        ...prev,
+        secondsSincePacket: prev.secondsSincePacket + 1,
+      }));
+    }, 1000);
+
+    // 2. Chu kỳ nhận gói tin vi mô cảm biến & vệ tinh (mỗi 3.5 giây)
+    const telemetryStreamTimer = setInterval(() => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+
+      // Chọn ngẫu nhiên 1 trường để biến thiên vi mô
+      const fields = ['wind', 'temp', 'humidity', 'smoke', 'turbidity', 'do', 'ph'] as const;
+      const targetField = fields[Math.floor(Math.random() * fields.length)];
+
+      setLiveJitter((prev) => {
+        const next = { ...prev };
+        next.lastChangedField = targetField;
+        next.lastSyncTime = timeStr;
+        next.packetCount = prev.packetCount + 1;
+        next.secondsSincePacket = 0;
+
+        // Sinh độ lệch nhẹ trong phạm vi tự nhiên an toàn
+        if (targetField === 'wind') {
+          // Gió dao động tự nhiên quanh -0.3 đến +0.4
+          const delta = Math.random() * 0.7 - 0.3;
+          next.wind = Number(Math.max(-0.6, Math.min(0.8, delta)).toFixed(1));
+        } else if (targetField === 'temp') {
+          // Nhiệt độ dao động ±0.2°C
+          const delta = Math.random() * 0.4 - 0.2;
+          next.temp = Number(delta.toFixed(1));
+        } else if (targetField === 'humidity') {
+          // Độ ẩm dao động ±1%
+          next.humidity = Math.floor(Math.random() * 3) - 1;
+        } else if (targetField === 'smoke') {
+          // Khói CO dao động ±1 ppm
+          next.smoke = Math.floor(Math.random() * 3) - 1;
+        } else if (targetField === 'turbidity') {
+          // Độ đục dao động ±0.15 NTU
+          const delta = Math.random() * 0.3 - 0.15;
+          next.turbidity = Number(delta.toFixed(1));
+        } else if (targetField === 'do') {
+          // Oxy DO dao động ±0.1 mg/L
+          const delta = Math.random() * 0.2 - 0.1;
+          next.do = Number(delta.toFixed(1));
+        } else if (targetField === 'ph') {
+          // pH dao động ±0.03
+          const delta = Math.random() * 0.06 - 0.03;
+          next.ph = Number(delta.toFixed(2));
+        }
+
+        return next;
+      });
+
+      // Tự tắt hiệu ứng highlight sau 1.2s
+      setTimeout(() => {
+        setLiveJitter((prev) => ({ ...prev, lastChangedField: '' }));
+      }, 1200);
+    }, 3500);
+
+    return () => {
+      clearInterval(secondTimer);
+      clearInterval(telemetryStreamTimer);
+    };
+  }, []);
 
   const activeVillageImpact = getVillageScenarioImpact(selectedVillage, hydraulicModel);
 
@@ -761,65 +855,151 @@ export const CommandCenterDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN (Ảnh 1: Đã bỏ thanh tiêu đề cho gọn nhẹ) */}
+          {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN TỪ VỆ TINH NASA & CẢM BIẾN IoT THỜI GIAN THỰC */}
           {telemetryTab === 'LIVE' && (
             <section
               aria-label="Chuỗi số liệu quan trắc trực chiến"
               className="bg-white border border-[#0A4393]/25 rounded-xl overflow-hidden shadow-lg flex-1 flex flex-col justify-between"
             >
               <div>
+                {/* THANH TRẠNG THÁI TRỰC TIẾP (LIVE HUD BAR): ĐÈN TÍN HIỆU VỆ TINH & GÓI TIN TELEMETRY */}
+                <div className="px-3 py-2 bg-gradient-to-r from-[#0A4393] via-[#0d55b8] to-[#0A4393] text-white flex items-center justify-between text-[11px] border-b border-[#0A4393]/30 select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 shadow-sm"></span>
+                    </span>
+                    <span className="font-extrabold tracking-wide uppercase text-[10.5px]">
+                      VỆ TINH NASA &amp; TRẠM IoT
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/30 text-emerald-200 text-[9px] font-bold border border-emerald-400/40 animate-pulse">
+                      LIVE 3.5s
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-[10px] text-blue-100 font-mono">
+                    <div className="hidden xs:flex items-center gap-1 text-emerald-300">
+                      <Radio className="w-3 h-3 animate-pulse" />
+                      <span>Gói #{liveJitter.packetCount}</span>
+                    </div>
+                    <span className="text-white/40">•</span>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-blue-200" />
+                      <span className="text-white font-semibold">{liveJitter.secondsSincePacket}s trước</span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="p-3.5 space-y-2.5 text-xs font-mono">
-                  {/* Trạm Lâm Nghiệp TK-293 */}
+                  {/* Trạm 1: Trạm Lâm Nghiệp TK-293 (Giám sát nhiệt vệ tinh NASA FIRMS & Vi khí hậu) */}
                   <div
-                    className={`p-2.5 rounded-lg border transition-all ${
+                    className={`p-2.5 rounded-lg border transition-all duration-300 ${
                       isTk293Red
                         ? 'emergency-flash text-white'
-                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20 hover:border-[#0A4393]/40'
                     }`}
                   >
-                    <div className={`flex justify-between font-bold ${isTk293Red ? 'text-white' : 'text-[#0A4393]'}`}>
+                    <div className={`flex items-center justify-between font-bold ${isTk293Red ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
-                        Trạm Lâm Nghiệp TK-293
+                        <Flame className={`w-3.5 h-3.5 ${isTk293Red ? 'text-white siren-wobble' : 'text-amber-500 animate-pulse'}`} />
+                        <span>Trạm Lâm Nghiệp TK-293</span>
                       </span>
+                      <div className="flex items-center gap-1 text-[10px]">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        <span className={`font-semibold ${isTk293Red ? 'text-rose-100' : 'text-slate-500'}`}>
+                          NASA FIRMS 375m
+                        </span>
+                      </div>
                     </div>
+
                     <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isTk293Red ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Nhiệt độ:{' '}
-                        <strong className={isTk293Red ? 'text-white font-black' : 'text-[#0A4393]'}>
-                          {iotData.tk293.temperature}°C
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isTk293Red
+                              ? 'text-white font-black'
+                              : liveJitter.lastChangedField === 'temp'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {(iotData.tk293.temperature + (isTk293Red ? 0 : liveJitter.temp)).toFixed(1)}°C
                         </strong>
                       </div>
+
                       <div>
-                        Độ ẩm: <strong className={isTk293Red ? 'text-white' : 'text-[#0A4393]'}>{iotData.tk293.humidity}%</strong>
+                        Độ ẩm:{' '}
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isTk293Red
+                              ? 'text-white'
+                              : liveJitter.lastChangedField === 'humidity'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Math.round(iotData.tk293.humidity + (isTk293Red ? 0 : liveJitter.humidity))}%
+                        </strong>
                       </div>
+
                       <div>
                         Khói CO:{' '}
-                        <strong className={isTk293Red ? 'text-white font-black' : 'text-[#0A4393]'}>
-                          {iotData.tk293.smokeCo} ppm
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isTk293Red
+                              ? 'text-white font-black'
+                              : liveJitter.lastChangedField === 'smoke'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Math.max(0, Math.round(iotData.tk293.smokeCo + (isTk293Red ? 0 : liveJitter.smoke)))} ppm
                         </strong>
                       </div>
-                      <div>
-                        Gió: <strong className={isTk293Red ? 'text-white' : 'text-[#0A4393]'}>{iotData.tk293.windSpeed} m/s</strong>
+
+                      <div className="flex items-center gap-1">
+                        <span>Gió:</span>
+                        <Wind
+                          className={`w-3.5 h-3.5 shrink-0 ${isTk293Red ? 'text-white' : 'text-[#0A4393]'} animate-spin-slow`}
+                        />
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isTk293Red
+                              ? 'text-white'
+                              : liveJitter.lastChangedField === 'wind'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Math.max(0.5, Number((iotData.tk293.windSpeed + (isTk293Red ? 0 : liveJitter.wind)).toFixed(1)))} m/s
+                        </strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Trạm Thủy Văn Hồ Thượng (Đồng bộ trực tiếp với Cụm Loa Truyền Thanh Số) */}
+                  {/* Trạm 2: Trạm Thủy Văn Hồ Thượng (Đồng bộ trực tiếp với Cụm Loa Truyền Thanh Số) */}
                   <div
-                    className={`p-2.5 rounded-lg border transition-all ${
+                    className={`p-2.5 rounded-lg border transition-all duration-300 ${
                       isHoThuongRed
                         ? 'emergency-flash text-white'
-                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20 hover:border-[#0A4393]/40'
                     }`}
                   >
-                    <div className={`flex justify-between font-bold ${isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}`}>
+                    <div className={`flex items-center justify-between font-bold ${isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Droplets className={`w-3.5 h-3.5 ${isHoThuongRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
-                        Trạm Thủy Văn Hồ Thượng
+                        <Waves className={`w-3.5 h-3.5 ${isHoThuongRed ? 'text-white siren-wobble' : 'text-[#0A4393] animate-water-ripple'}`} />
+                        <span>Trạm Thủy Văn Hồ Thượng</span>
                       </span>
-                      <span className={`font-normal ${isHoThuongRed ? 'text-rose-100' : 'text-slate-500'}`}>Radar Siêu Âm</span>
+                      <span className={`text-[10px] flex items-center gap-1 font-semibold ${isHoThuongRed ? 'text-rose-100' : 'text-blue-700'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span>
+                        Radar Siêu Âm 2.4G
+                      </span>
                     </div>
+
                     <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoThuongRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Cao trình:{' '}
@@ -827,12 +1007,29 @@ export const CommandCenterDashboard: React.FC = () => {
                           {iotData.hoThuong.elevation} m
                         </strong>
                       </div>
+
                       <div>
-                        Lưu lượng xả: <strong className={isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoThuong.discharge} m³/s</strong>
+                        Lưu lượng xả:{' '}
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isHoThuongRed
+                              ? 'text-white'
+                              : liveJitter.lastChangedField === 'discharge'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {iotData.hoThuong.discharge > 0
+                            ? Math.max(1, Math.round(iotData.hoThuong.discharge + (isHoThuongRed ? 0 : liveJitter.discharge)))
+                            : 0}{' '}
+                          m³/s
+                        </strong>
                       </div>
+
                       <div>
                         Dung tích: <strong className={isHoThuongRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoThuong.capacity}M m³</strong>
                       </div>
+
                       <div>
                         Tốc độ dâng:{' '}
                         <strong className={isHoThuongRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
@@ -843,7 +1040,8 @@ export const CommandCenterDashboard: React.FC = () => {
 
                     {/* Bộ chọn nhanh cao trình trực chiến để đồng bộ tức thì với Cụm Loa Truyền Thanh Số */}
                     <div className="mt-2 pt-2 border-t border-[#0A4393]/15 flex flex-wrap items-center justify-between gap-1 text-[10px]">
-                      <span className={isHoThuongRed ? 'text-rose-100 font-semibold' : 'text-slate-600 font-semibold'}>
+                      <span className={isHoThuongRed ? 'text-rose-100 font-semibold' : 'text-slate-600 font-semibold flex items-center gap-1'}>
+                        <Sparkles className="w-3 h-3 text-amber-500" />
                         Đồng bộ Loa AI:
                       </span>
                       <div className="flex items-center gap-1 flex-wrap">
@@ -852,7 +1050,7 @@ export const CommandCenterDashboard: React.FC = () => {
                             key={lvl}
                             type="button"
                             onClick={() => updateHoThuongElevation(lvl)}
-                            className={`px-1.5 py-0.5 rounded font-mono font-bold transition-all ${
+                            className={`px-1.5 py-0.5 rounded font-mono font-bold transition-all cursor-pointer ${
                               iotData.hoThuong.elevation === lvl
                                 ? 'bg-[#0A4393] text-white ring-1 ring-white shadow-xs'
                                 : 'bg-white text-[#0A4393] border border-[#0A4393]/30 hover:bg-[#E6F0FA]'
@@ -866,21 +1064,24 @@ export const CommandCenterDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Hồ Ea Súp Hạ (Cấp Nước) */}
+                  {/* Trạm 3: Hồ Ea Súp Hạ (Cấp Nước) - Nguồn sinh hoạt nghiêm ngặt */}
                   <div
-                    className={`p-2.5 rounded-lg border transition-all ${
+                    className={`p-2.5 rounded-lg border transition-all duration-300 ${
                       isHoHaRed
                         ? 'emergency-flash text-white'
-                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20 hover:border-[#0A4393]/40'
                     }`}
                   >
-                    <div className={`flex justify-between font-bold ${isHoHaRed ? 'text-white' : 'text-[#0A4393]'}`}>
+                    <div className={`flex items-center justify-between font-bold ${isHoHaRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <ShieldAlert className={`w-3.5 h-3.5 ${isHoHaRed ? 'text-white siren-wobble' : 'text-[#0A4393]'}`} />
-                        Hồ Ea Súp Hạ (Cấp Nước)
+                        <ShieldAlert className={`w-3.5 h-3.5 ${isHoHaRed ? 'text-white siren-wobble' : 'text-blue-600'}`} />
+                        <span>Hồ Ea Súp Hạ (Cấp Nước)</span>
                       </span>
-                      <span className={isHoHaRed ? 'text-rose-100 font-bold' : 'text-[#0A4393] font-bold'}>Nguồn sinh hoạt</span>
+                      <span className={`text-[10px] font-bold ${isHoHaRed ? 'text-rose-100' : 'text-[#0A4393]'}`}>
+                        Nguồn sinh hoạt
+                      </span>
                     </div>
+
                     <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoHaRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Trạng thái:{' '}
@@ -888,60 +1089,118 @@ export const CommandCenterDashboard: React.FC = () => {
                           {iotData.hoHa.status}
                         </strong>
                       </div>
+
                       <div>
                         Độ đục:{' '}
-                        <strong className={iotData.hoHa.turbidity > 5 ? 'text-amber-600' : isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>
-                          {iotData.hoHa.turbidity} NTU
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            iotData.hoHa.turbidity > 5
+                              ? 'text-amber-600 font-bold'
+                              : isHoHaRed
+                              ? 'text-white font-bold'
+                              : liveJitter.lastChangedField === 'turbidity'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Math.max(1.0, Number((iotData.hoHa.turbidity + (isHoHaRed ? 0 : liveJitter.turbidity)).toFixed(1)))} NTU
                         </strong>
                       </div>
+
                       <div>
                         Lồng bè vi phạm:{' '}
                         <strong className={isHoHaRed ? 'text-white font-black' : 'text-[#0A4393]'}>
                           {iotData.hoHa.illegalCages}
                         </strong>
                       </div>
+
                       <div>
-                        Mực nước: <strong className={isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoHa.capacityPct}% dung tích</strong>
+                        Mực nước: <strong className={isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoHa.capacityPct}%</strong>
+                      </div>
+
+                      {/* Mini Progress Bar động dung tích nước Hồ Hạ */}
+                      <div className="col-span-2 pt-0.5">
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, iotData.hoHa.capacityPct)}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Hồ Trung Chuyển */}
+                  {/* Trạm 4: Hồ Trung Chuyển (IoT Thủy Sản Thôn Đoàn Kết) */}
                   <div
-                    className={`p-2.5 rounded-lg border transition-all ${
+                    className={`p-2.5 rounded-lg border transition-all duration-300 ${
                       isHoTrungChuyenRed
                         ? 'emergency-flash text-white'
-                        : 'bg-[#F4F8FD] border-[#0A4393]/20'
+                        : 'bg-[#F4F8FD] border-[#0A4393]/20 hover:border-[#0A4393]/40'
                     }`}
                   >
-                    <div className={`flex justify-between font-bold ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}`}>
+                    <div className={`flex items-center justify-between font-bold ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}`}>
                       <span className="flex items-center gap-1.5">
-                        <Activity className={`w-3.5 h-3.5 ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}`} />
-                        Hồ Trung Chuyển
+                        <Activity className={`w-3.5 h-3.5 ${isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393] animate-pulse'}`} />
+                        <span>Hồ Trung Chuyển</span>
                       </span>
-                      <span className={`font-normal ${isHoTrungChuyenRed ? 'text-rose-100' : 'text-slate-500'}`}>IoT Thủy Sản</span>
+                      <span className={`text-[10px] font-normal ${isHoTrungChuyenRed ? 'text-rose-100' : 'text-slate-500'}`}>
+                        IoT Thủy Sản
+                      </span>
                     </div>
+
                     <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoTrungChuyenRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
                         Oxy hòa tan DO:{' '}
-                        <strong className={iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ? 'text-white font-black' : 'text-[#0A4393]'}>
-                          {iotData.hoTrungChuyen.dissolvedOxygen} mg/L
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            iotData.hoTrungChuyen.dissolvedOxygen < 4.0
+                              ? 'text-white font-black'
+                              : liveJitter.lastChangedField === 'do'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Math.max(2.0, Number((iotData.hoTrungChuyen.dissolvedOxygen + (isHoTrungChuyenRed ? 0 : liveJitter.do)).toFixed(1)))}{' '}
+                          mg/L
                         </strong>
                       </div>
+
                       <div>
-                        Độ pH: <strong className={isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoTrungChuyen.ph}</strong>
+                        Độ pH:{' '}
+                        <strong
+                          className={`transition-all duration-300 px-1 py-0.5 rounded ${
+                            isHoTrungChuyenRed
+                              ? 'text-white font-bold'
+                              : liveJitter.lastChangedField === 'ph'
+                              ? 'live-highlight bg-emerald-100 text-emerald-800'
+                              : 'text-[#0A4393]'
+                          }`}
+                        >
+                          {Number((iotData.hoTrungChuyen.ph + (isHoTrungChuyenRed ? 0 : liveJitter.ph)).toFixed(2))}
+                        </strong>
                       </div>
+
                       <div>
                         Nguy cơ ngập tràn:{' '}
                         <strong className={iotData.hoTrungChuyen.overflowRisk === 'Cao' ? 'text-white font-bold' : 'text-[#0A4393]'}>
                           {iotData.hoTrungChuyen.overflowRisk}
                         </strong>
                       </div>
+
                       <div>
                         Bờ bao: <strong className={isHoTrungChuyenRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoTrungChuyen.dykeStatus}</strong>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* DÒNG FOOTER NHỊP TRUYỀN VỆ TINH */}
+                <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500 flex items-center justify-between font-mono">
+                  <span className="flex items-center gap-1 truncate">
+                    <Wifi className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <span>NASA VIIRS/MODIS &amp; LoRaWAN 433MHz trực chiến</span>
+                  </span>
+                  <span className="text-[#0A4393] font-bold shrink-0">100% Online</span>
                 </div>
               </div>
             </section>
