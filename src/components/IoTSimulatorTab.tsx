@@ -325,7 +325,7 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
             MÔ PHỎNG THỦY LỰC & CẢM BIẾN IoT
           </span>
         </div>
-        {/* NÚT TẮT TOÀN BỘ CẢNH BÁO TẠI VỊ TRÍ CHỮ TRỰC CHIẾN */}
+        {/* NÚT TẮT TOÀN BỘ CẢNH BÁO (Ảnh 3) */}
         <button
           type="button"
           onClick={handleSilenceAllAlerts}
@@ -338,7 +338,7 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
           aria-label="Tắt toàn bộ cảnh báo"
         >
           <VolumeX className="w-3 h-3 shrink-0" />
-          <span>{hydraulicModel.code === 'TRỰC CHIẾN' ? 'TRỰC CHIẾN (TẮT CẢNH BÁO)' : `${hydraulicModel.code} (TẮT CẢNH BÁO)`}</span>
+          <span>TẮT CẢNH BÁO</span>
         </button>
       </div>
 
@@ -355,8 +355,12 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
               </label>
               <button
                 type="button"
-                onClick={() => handleSelectMikeScenario('NONE')}
+                onClick={() => {
+                  handleSelectMikeScenario('NONE');
+                  stopAllEmergencyAlerts();
+                }}
                 className="px-2 py-0.5 rounded bg-white hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393] text-[10px] font-mono font-semibold transition-colors flex items-center gap-1"
+                title="Đặt lại kịch bản và đồng thời tắt toàn bộ cảnh báo"
               >
                 <RotateCcw className="w-2.5 h-2.5" />
                 Đặt lại

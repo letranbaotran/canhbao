@@ -27,6 +27,7 @@ import {
   MIKE_FLOOD_SCENARIOS,
   type MikeFloodScenarioId,
 } from '@/services/telemetryStore';
+import { stopAllEmergencyAlerts } from '@/utils/alarmSound';
 import {
   VERIFIED_FLOOD_MARKS_2023,
   VULNERABLE_FACILITIES_EASUP,
@@ -782,6 +783,30 @@ export const WebGISMap: React.FC = () => {
       document.removeEventListener('touchstart', handleOutsideClick);
     };
   }, [isVillageSidebarOpen]);
+
+  // Thanh trượt năm thời gian (2001 - 2026) thò thụt góc trên bên trái bản đồ (Ảnh 1)
+  const [isTimelineSliderOpen, setIsTimelineSliderOpen] = useState<boolean>(false);
+  const timelineSliderRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isTimelineSliderOpen) return;
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        timelineSliderRef.current &&
+        !timelineSliderRef.current.contains(target) &&
+        !target.closest('#timeline-slider-trigger')
+      ) {
+        setIsTimelineSliderOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isTimelineSliderOpen]);
 
   // Thanh 5 Kịch bản lũ MIKE FLOOD trượt bên trái bản đồ
   const [isFloodScenarioSidebarOpen, setIsFloodScenarioSidebarOpen] = useState<boolean>(false);
@@ -3880,150 +3905,7 @@ export const WebGISMap: React.FC = () => {
             ))}
           </select>
         </div>
-
-        {/* 25-Year Swipe Compare Toggle */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={handleToggleSwipeTool}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono transition-colors ${
-              showSwipeTool
-                ? 'bg-white text-[#0A4393] font-bold ring-2 ring-white shadow-md'
-                : 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>So Sánh Thời Điểm & Vẽ Vùng</span>
-          </button>
-        </div>
       </div>
-
-      {/* BANNER HƯỚNG DẪN KHI ĐANG VẼ VÙNG TỰ DO */}
-      {isDrawingMode && (
-        <div className="z-20 bg-[#0A4393] text-white px-3 py-1.5 flex items-center justify-between text-xs font-bold animate-pulse shadow-lg border-b border-white/30">
-          <div className="flex items-center gap-2">
-            <Crop className="w-4 h-4" />
-            <span>ĐANG BẬT CHẾ ĐỘ VẼ VÙNG: Nhấp giữ và kéo chuột trên bản đồ để khoanh vùng hình chữ nhật so sánh...</span>
-          </div>
-          <button
-            onClick={handleToggleDrawing}
-            className="px-2 py-0.5 rounded bg-white text-[#0A4393] text-[11px] hover:bg-blue-50 font-mono font-bold"
-          >
-            ✕ Hủy vẽ
-          </button>
-        </div>
-      )}
-
-      {/* Thanh công cụ So Sánh Thời Điểm & Vẽ Vùng (Tinh gọn phía trên, không che hoặc làm co hẹp bản đồ) */}
-      {showSwipeTool && (
-        <div className="z-10 bg-[#F0F6FF] border-b border-[#0A4393]/25 px-2.5 py-1.5 flex flex-col gap-1.5 text-xs text-slate-800">
-          {/* Hàng 1: Khu vực + Vẽ Vùng + Các nút Mốc 2001/2026/Đối chiếu/Chạy tua */}
-          <div className="flex flex-wrap items-center justify-between gap-1.5">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[#0A4393] font-bold flex items-center gap-1 font-mono text-[11px]">
-                <MapPin className="w-3.5 h-3.5 text-[#0A4393]" /> Khu vực:
-              </span>
-              <select
-                value={selectedAreaKey}
-                onChange={(e) => handleSelectArea(e.target.value)}
-                className="bg-white text-[#0A4393] font-semibold border border-[#0A4393]/30 rounded px-2 py-0.5 text-[11px] focus:ring-1 focus:ring-[#0A4393] cursor-pointer"
-                aria-label="Chọn khu vực so sánh biến động"
-              >
-                {Object.entries(COMPARISON_AREAS).map(([key, item]) => (
-                  <option key={key} value={key} className="bg-white text-[#0A4393]">
-                    {item.name} ({item.areaHa.toLocaleString()} ha)
-                  </option>
-                ))}
-                {customArea && (
-                  <option value="CUSTOM" className="bg-white text-[#0A4393] font-bold">
-                    ✏️ {customArea.name}
-                  </option>
-                )}
-              </select>
-
-              <button
-                onClick={handleToggleDrawing}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                  isDrawingMode
-                    ? 'bg-[#0A4393] text-white ring-2 ring-[#0A4393]/40 animate-pulse'
-                    : 'bg-white hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393]'
-                }`}
-                title="Nhấp giữ và kéo chuột trên bản đồ để khoanh vùng diện tích cần so sánh"
-              >
-                <Pencil className="w-3 h-3" />
-                <span>{isDrawingMode ? 'Đang Vẽ...' : 'Vẽ Vùng'}</span>
-              </button>
-
-              {customArea && (
-                <button
-                  onClick={handleClearCustomArea}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono bg-rose-50 hover:bg-rose-100 border border-rose-400 text-rose-700"
-                  title="Xóa vùng người dùng tự vẽ"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  <span>Xóa</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1 flex-wrap">
-              <button
-                onClick={() => handleSelectYear(2001)}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                  selectedYear === 2001 && compareMode !== 'DELTA'
-                    ? 'bg-[#0A4393] text-white'
-                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
-                }`}
-              >
-                🌿 Mốc 2001
-              </button>
-
-              <button
-                onClick={() => handleSelectYear(2026)}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                  selectedYear === 2026 && compareMode !== 'DELTA'
-                    ? 'bg-[#0A4393] text-white'
-                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
-                }`}
-              >
-                ⚠️ Mốc 2026
-              </button>
-
-              <button
-                onClick={() => handleSelectCompareMode('DELTA')}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                  compareMode === 'DELTA'
-                    ? 'bg-[#0A4393] text-white'
-                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
-                }`}
-              >
-                📊 Đối Chiếu
-              </button>
-
-              <button
-                onClick={() => setIsAutoPlayYear(!isAutoPlayYear)}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono font-bold transition-all ${
-                  isAutoPlayYear
-                    ? 'bg-[#0A4393] text-white animate-pulse'
-                    : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-[#E6F0FA]'
-                }`}
-                title="Tự động chạy tua theo từng năm từ 2001 -> 2026"
-              >
-                {isAutoPlayYear ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                <span>{isAutoPlayYear ? 'Dừng' : 'Chạy Tua'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Hàng 2: Thanh trượt năm gọn trên 1 dòng */}
-          <SatelliteTimelineSlider
-            currentYear={selectedYear}
-            minYear={2001}
-            maxYear={2026}
-            isLoading={isTileLoading}
-            onYearChange={handleSelectYear}
-          />
-        </div>
-      )}
 
       {/* 2. Thanh Trạng Thái Phân Tích Điểm Ảnh Nhiệt: Hiển thị đầy đủ số điểm nhiệt + Tên Tiểu khu + Hiệu ứng chữ chạy ngang mượt mà (CSS Marquee / News Ticker, tuyệt đối không cắt chữ '...') */}
       <div className="z-10 bg-white border-b border-[#0A4393]/20 px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
@@ -4116,6 +3998,52 @@ export const WebGISMap: React.FC = () => {
           className="hidden"
         />
 
+        {/* NÚT KÍCH HOẠT THANH TRƯỢT THỜI GIAN NĂM (2001 - 2026) (Ảnh 1) */}
+        {!isTimelineSliderOpen && (
+          <button
+            id="timeline-slider-trigger"
+            type="button"
+            onClick={() => {
+              setIsTimelineSliderOpen(true);
+              setIsVillageSidebarOpen(false);
+              setIsFloodScenarioSidebarOpen(false);
+            }}
+            className="absolute top-2 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2.5 py-1.5 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none"
+            title="Mở thanh trượt thời gian (2001 - 2026)"
+          >
+            <Calendar className="w-3.5 h-3.5 text-amber-300 shrink-0 group-hover:scale-110 transition-transform" />
+            <span className="text-[10.5px] font-bold tracking-tight">Năm: {selectedYear}</span>
+            <ChevronRight className="w-3.5 h-3.5 text-white/80 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </button>
+        )}
+
+        {/* BẢNG TRƯỢT THANH TRƯỢT THỜI GIAN NĂM (Thò ra từ bên trái - Ảnh 1) */}
+        {isTimelineSliderOpen && (
+          <div
+            ref={timelineSliderRef}
+            id="timeline-slider-drawer"
+            className="absolute top-2 left-2 z-[530] w-[310px] sm:w-[460px] md:w-[520px] max-w-[95vw] bg-white/95 backdrop-blur-md shadow-2xl border-2 border-[#0A4393] rounded-xl p-2 sm:p-2.5 flex items-center gap-2 animate-slideInLeft text-xs select-none"
+          >
+            <div className="flex-1 min-w-0">
+              <SatelliteTimelineSlider
+                currentYear={selectedYear}
+                minYear={2001}
+                maxYear={2026}
+                isLoading={isTileLoading}
+                onYearChange={handleSelectYear}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTimelineSliderOpen(false)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+              title="Thu gọn thanh trượt năm"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* NÚT KÍCH HOẠT THANH THÔN/BUÔN (Bên góc trái bản đồ, khi bấm thì thò ra) */}
         {!isVillageSidebarOpen && (
           <button
@@ -4124,8 +4052,9 @@ export const WebGISMap: React.FC = () => {
             onClick={() => {
               setIsVillageSidebarOpen(true);
               setIsFloodScenarioSidebarOpen(false);
+              setIsTimelineSliderOpen(false);
             }}
-            className="absolute top-14 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2.5 py-2 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none"
+            className="absolute top-12 left-0 z-[490] bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white px-2.5 py-2 rounded-r-lg shadow-xl border-y border-r border-white/50 flex items-center gap-1.5 transition-all text-xs font-bold cursor-pointer group hover:pl-3 select-none"
             title="Mở danh sách Thôn/buôn & Quản lý lớp"
           >
             <MapIcon className="w-3.5 h-3.5 text-emerald-300 shrink-0 group-hover:scale-110 transition-transform" />
@@ -4142,8 +4071,9 @@ export const WebGISMap: React.FC = () => {
             onClick={() => {
               setIsFloodScenarioSidebarOpen(true);
               setIsVillageSidebarOpen(false);
+              setIsTimelineSliderOpen(false);
             }}
-            className={`absolute top-[98px] left-0 z-[490] ${
+            className={`absolute top-[86px] left-0 z-[490] ${
               scenarioId && scenarioId !== 'NONE'
                 ? 'bg-rose-700 hover:bg-rose-800 ring-2 ring-rose-400'
                 : 'bg-[#0A4393] hover:bg-[#083576]'
@@ -4187,13 +4117,16 @@ export const WebGISMap: React.FC = () => {
               <span className="text-slate-600 font-bold truncate">5 kịch bản MIKE FM</span>
               <button
                 type="button"
-                onClick={() => handleTriggerScenarioFromMap('NONE')}
+                onClick={() => {
+                  handleTriggerScenarioFromMap('NONE');
+                  stopAllEmergencyAlerts();
+                }}
                 className={`px-1.5 py-0.2 rounded font-bold text-[9px] transition-colors cursor-pointer ${
                   scenarioId === 'NONE'
                     ? 'bg-[#0A4393] text-white shadow-2xs'
                     : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-300'
                 }`}
-                title="Đặt lại trạng thái trực chiến an toàn"
+                title="Đặt lại kịch bản và đồng thời tắt toàn bộ cảnh báo"
               >
                 Đặt lại
               </button>
