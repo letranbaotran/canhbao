@@ -45,6 +45,7 @@ export const SovereigntyBanner: React.FC = () => {
   >(null);
   const [authTab, setAuthTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState<boolean>(false);
 
   const [bannerSrc, setBannerSrc] = useState<string>('/images/banner_easup_nature.jpg');
   const [logoSrc, setLogoSrc] = useState<string>('/images/logo_easup.png');
@@ -179,6 +180,7 @@ export const SovereigntyBanner: React.FC = () => {
     logoutSession();
     setCurrentUser({ email: '', fullName: 'Khách', role: 'GUEST' });
     setAdminMessage(null);
+    setIsUserMenuOpen(false);
   };
 
   const handleCreateOrAssignUser = async () => {
@@ -255,31 +257,7 @@ export const SovereigntyBanner: React.FC = () => {
                     <span>Đăng ký</span>
                   </button>
                 </>
-              ) : (
-                <div className="flex items-center gap-1">
-                  {currentUser.role === 'ADMIN' && (
-                    <button
-                      onClick={openRoleManagementModal}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-amber-400 text-[#0A4393] hover:bg-amber-300 shadow-sm border border-amber-200"
-                      title="Mở Trang Quản Lý Phân Quyền Hệ Thống"
-                    >
-                      <ShieldCheck className="w-3 h-3 text-[#0A4393]" />
-                      <span>Phân quyền</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() =>
-                      currentUser.role === 'ADMIN'
-                        ? openRoleManagementModal()
-                        : openAuthModal('LOGIN')
-                    }
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm"
-                  >
-                    <ShieldCheck className="w-3 h-3" />
-                    <span className="max-w-[70px] truncate">{currentUser.email}</span>
-                  </button>
-                </div>
-              )}
+              ) : null}
 
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -387,37 +365,100 @@ export const SovereigntyBanner: React.FC = () => {
                   </button>
                 </>
               ) : (
-                <div className="flex items-center gap-1.5">
-                  {currentUser.role === 'ADMIN' && (
-                    <button
-                      onClick={openRoleManagementModal}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400 hover:bg-amber-300 text-[#0A4393] border border-amber-200 shadow-sm transition-all cursor-pointer"
-                      title="Mở Trang Quản Lý Phân Quyền Hệ Thống"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#0A4393]" />
-                      <span>🛡️ Quản lý phân quyền</span>
-                    </button>
+                /* Ảnh 1: Khi đăng nhập, gom toàn bộ 3 nút lại vào 1 nút 3 dấu gạch ngang */
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="p-1.5 px-2.5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 text-white border border-white/40 shadow-sm transition-all flex items-center justify-center cursor-pointer focus:outline-none"
+                    title="Menu quản trị & tài khoản"
+                    aria-label="Menu tài khoản"
+                  >
+                    <Menu className="w-5 h-5 text-white" />
+                  </button>
+
+                  {isUserMenuOpen && (
+                    <>
+                      {/* Lớp nền trong suốt click ra ngoài để đóng menu */}
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      />
+
+                      {/* Dropdown Menu nổi */}
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-2xl border border-[#0A4393]/30 z-50 py-2 animate-fadeIn font-sans text-slate-800">
+                        {/* 1. Header thông tin tài khoản */}
+                        <div className="px-3.5 py-2 border-b border-slate-100 flex flex-col gap-0.5">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            Tài khoản đang đăng nhập
+                          </span>
+                          <span
+                            className="text-xs font-extrabold text-[#0A4393] truncate"
+                            title={currentUser.email}
+                          >
+                            {currentUser.email}
+                          </span>
+                          <div className="mt-1">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                currentUser.role === 'ADMIN'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                  : currentUser.role === 'MANAGER' ||
+                                    currentUser.role === 'MAP_EDITOR'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              }`}
+                            >
+                              {getRoleLabel(currentUser.role)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 2. Danh mục chức năng đã gom lại */}
+                        <div className="p-1.5 space-y-1">
+                          {currentUser.role === 'ADMIN' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsUserMenuOpen(false);
+                                openRoleManagementModal();
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 transition-colors text-left cursor-pointer border border-amber-200"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>🛡️ Quản lý phân quyền</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              openAuthModal('LOGIN');
+                            }}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-[#F0F6FF] transition-colors text-left cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-[#0A4393] shrink-0" />
+                            <span>Thông tin tài khoản</span>
+                          </button>
+
+                          <div className="border-t border-slate-100 my-1" />
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              handleLogout();
+                            }}
+                            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>Thoát</span>
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
-                  <button
-                    onClick={() =>
-                      currentUser.role === 'ADMIN'
-                        ? openRoleManagementModal()
-                        : openAuthModal('LOGIN')
-                    }
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 border border-white/40 shadow-sm transition-all cursor-pointer"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>
-                      {currentUser.email} ({getRoleLabel(currentUser.role)})
-                    </span>
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 border border-white/30 shadow-sm transition-all cursor-pointer"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Thoát</span>
-                  </button>
                 </div>
               )}
             </div>
@@ -426,9 +467,23 @@ export const SovereigntyBanner: React.FC = () => {
           {/* Menu xổ xuống trên điện thoại */}
           {isMobileMenuOpen && (
             <div className="sm:hidden w-full pt-2 pb-1 border-t border-white/20 flex flex-col gap-1.5 animate-fadeIn">
+              {currentUser.email && (
+                <div className="p-2.5 rounded-lg bg-white/10 border border-white/20 text-white space-y-1.5 mb-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold truncate max-w-[170px]">{currentUser.email}</span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-white text-[#0A4393]">
+                      {getRoleLabel(currentUser.role)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {currentUser.role === 'ADMIN' && (
                 <button
-                  onClick={openRoleManagementModal}
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openRoleManagementModal();
+                  }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold bg-amber-400 text-[#0A4393] hover:bg-amber-300 text-left shadow-xs"
                 >
                   <ShieldCheck className="w-4 h-4 shrink-0 text-[#0A4393]" />
@@ -477,6 +532,19 @@ export const SovereigntyBanner: React.FC = () => {
                 <PhoneCall className="w-4 h-4 shrink-0" />
                 <span>Liên hệ</span>
               </button>
+
+              {currentUser.email && (
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 text-left cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 shrink-0" />
+                  <span>Thoát ({currentUser.email.split('@')[0]})</span>
+                </button>
+              )}
             </div>
           )}
         </div>

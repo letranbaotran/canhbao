@@ -15,6 +15,12 @@ import { alarmSystem } from '@/utils/alarmSound';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import { useTelemetryStore } from '@/services/telemetryStore';
 import {
+  getCurrentSessionUser,
+  isUserManagerOrAdmin,
+  AUTH_CHANGED_EVENT,
+  type CurrentSessionUser,
+} from '@/services/authRoleService';
+import {
   Flame,
   Droplets,
   ShieldAlert,
@@ -38,6 +44,33 @@ import {
 
 export const CommandCenterDashboard: React.FC = () => {
   const [telemetryTab, setTelemetryTab] = useState<'LIVE' | 'SIMULATOR'>('LIVE');
+  const [currentUser, setCurrentUser] = useState<CurrentSessionUser>({
+    email: '',
+    fullName: 'Khách',
+    role: 'GUEST',
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const u = getCurrentSessionUser();
+      setCurrentUser(u);
+      if (!isUserManagerOrAdmin(u.role)) {
+        setTelemetryTab('LIVE');
+      }
+
+      const handleAuth = () => {
+        const nextUser = getCurrentSessionUser();
+        setCurrentUser(nextUser);
+        if (!isUserManagerOrAdmin(nextUser.role)) {
+          setTelemetryTab('LIVE');
+        }
+      };
+      window.addEventListener(AUTH_CHANGED_EVENT, handleAuth);
+      return () => window.removeEventListener(AUTH_CHANGED_EVENT, handleAuth);
+    }
+  }, []);
+
+  const canAccessIoT = isUserManagerOrAdmin(currentUser.role);
   const {
     iotData,
     setIotData,
@@ -549,33 +582,53 @@ export const CommandCenterDashboard: React.FC = () => {
 
         {/* Right Column: Alert Center & Command Telemetry (4 cols) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
-          {/* TAB CHUYỂN MẠCH: TRỰC CHIẾN LIVE (+ Nút Nguồn dữ liệu & Kiểm định KH) <-> TAB ẨN MÔ PHỎNG IoT */}
-          <div className="flex items-center gap-1 p-1 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
-            <button
-              onClick={() => setTelemetryTab('LIVE')}
-              className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
-                telemetryTab === 'LIVE'
-                  ? 'bg-[#0A4393] text-white shadow-md'
-                  : 'text-[#0A4393] hover:bg-[#F0F6FF]'
-              }`}
-            >
-              <Activity className="w-3 h-3 shrink-0" />
-              <span className="truncate">SỐ LIỆU TỪ VỆ TINH NASA</span>
-              <span className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${telemetryTab === 'LIVE' ? 'bg-white text-[#0A4393] font-bold' : 'bg-[#F0F6FF] text-[#0A4393]'}`}>LIVE</span>
-            </button>
+          {/* TAB CHUYỂN MẠCH: CHỈ HIỂN THỊ TAB CẢM BIẾN IoT KHI LÀ CÁN BỘ QUẢN LÝ / ADMIN (GIAO DIỆN KHÁCH HOÀN TOÀN KHÔNG HIỆN) */}
+          {canAccessIoT ? (
+            <div className="flex items-center gap-1 p-1 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
+              <button
+                onClick={() => setTelemetryTab('LIVE')}
+                className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
+                  telemetryTab === 'LIVE'
+                    ? 'bg-[#0A4393] text-white shadow-md'
+                    : 'text-[#0A4393] hover:bg-[#F0F6FF]'
+                }`}
+              >
+                <Activity className="w-3 h-3 shrink-0" />
+                <span className="truncate">SỐ LIỆU TỪ VỆ TINH NASA</span>
+                <span
+                  className={`text-[9px] px-1 py-0.2 rounded font-normal shrink-0 ${
+                    telemetryTab === 'LIVE'
+                      ? 'bg-white text-[#0A4393] font-bold'
+                      : 'bg-[#F0F6FF] text-[#0A4393]'
+                  }`}
+                >
+                  LIVE
+                </span>
+              </button>
 
-            <button
-              onClick={() => setTelemetryTab('SIMULATOR')}
-              className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
-                telemetryTab === 'SIMULATOR'
-                  ? 'bg-[#0A4393] text-white shadow-md'
-                  : 'text-[#0A4393] hover:bg-[#F0F6FF]'
-              }`}
-            >
-              <Cpu className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate font-bold">CẢM BIẾN IoT</span>
-            </button>
-          </div>
+              <button
+                onClick={() => setTelemetryTab('SIMULATOR')}
+                className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] xl:text-[11px] font-bold font-mono whitespace-nowrap transition-all flex items-center justify-center gap-1 ${
+                  telemetryTab === 'SIMULATOR'
+                    ? 'bg-[#0A4393] text-white shadow-md'
+                    : 'text-[#0A4393] hover:bg-[#F0F6FF]'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate font-bold">CẢM BIẾN IoT</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between py-2 px-3 bg-white border border-[#0A4393]/25 rounded-xl shadow-md">
+              <div className="flex items-center gap-2 text-xs font-bold font-mono text-[#0A4393]">
+                <Activity className="w-4 h-4 text-[#0A4393]" />
+                <span>SỐ LIỆU TỪ VỆ TINH NASA</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 font-mono">
+                  LIVE
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* NỘI DUNG 1: CHUỖI SỐ LIỆU QUAN TRẮC TRỰC CHIẾN (Ảnh 1: Đã bỏ thanh tiêu đề cho gọn nhẹ) */}
           {telemetryTab === 'LIVE' && (
@@ -763,8 +816,8 @@ export const CommandCenterDashboard: React.FC = () => {
             </section>
           )}
 
-          {/* NỘI DUNG 2: TAB ẨN MÔ PHỎNG IoT VỚI CHỈ SỐ ĐO LƯỜNG THỰC TẾ */}
-          {telemetryTab === 'SIMULATOR' && (
+          {/* NỘI DUNG 2: TAB ẨN MÔ PHỎNG IoT VỚI CHỈ SỐ ĐO LƯỜNG THỰC TẾ (CHỈ CÁN BỘ QUẢN LÝ / ADMIN) */}
+          {canAccessIoT && telemetryTab === 'SIMULATOR' && (
             <div className="flex-1">
               <IoTSimulatorTab
                 currentData={iotData}
