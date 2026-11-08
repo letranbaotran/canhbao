@@ -1694,7 +1694,6 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       // Gỡ bỏ tiền tố link Leaflet dài dòng, giữ thanh chú thích nguồn ảnh siêu gọn
       map.attributionControl.setPrefix('');
 
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
       canvasRendererRef.current = L.canvas({ padding: 0.5, tolerance: 8 });
 
       // Lấy cấu hình lớp đã lưu hoặc mặc định (3 lớp hệ thống bật, các lớp khác tắt)
