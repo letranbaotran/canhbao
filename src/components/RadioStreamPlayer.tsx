@@ -2,7 +2,19 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Radio, Volume2, VolumeX, Settings, Check } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  Tv,
+  Share2,
+  RefreshCw,
+  MoreHorizontal,
+  Settings,
+  Check,
+  Radio,
+} from 'lucide-react';
 
 export interface RadioChannel {
   id: string;
@@ -11,6 +23,7 @@ export interface RadioChannel {
   url: string;
   backupUrl?: string;
   description: string;
+  needlePercent: number; // Vị trí kim đỏ trên thước dò sóng cổ điển (%)
   isCustom?: boolean;
 }
 
@@ -18,18 +31,20 @@ export const PRESET_RADIO_CHANNELS: RadioChannel[] = [
   {
     id: 'vov1',
     name: 'VOV1 - Thời sự & Chính trị (Toàn quốc)',
-    shortName: 'VOV1 Thời sự',
+    shortName: 'VOV1 Thời Sự',
     url: 'https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8',
     backupUrl: 'https://audio-lss.vov.vn/live/vov1.m3u8',
-    description: 'Kênh Thời sự - Chính trị Quốc gia phát sóng trực tuyến 24/7',
+    description: 'Kênh Thời sự - Chính trị Quốc gia phát sóng trực tuyến 24/7 (FM 100MHz)',
+    needlePercent: 35,
   },
   {
     id: 'vov2',
     name: 'VOV2 - Văn hóa & Đời sống',
-    shortName: 'VOV2 Văn hóa',
+    shortName: 'VOV2 Văn Hóa',
     url: 'https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8',
     backupUrl: 'https://audio-lss.vov.vn/live/vov2.m3u8',
-    description: 'Kênh Văn hóa - Xã hội - Khoa giáo Đài Tiếng nói Việt Nam',
+    description: 'Kênh Văn hóa - Xã hội - Khoa giáo Đài Tiếng nói Việt Nam (FM 96.5MHz)',
+    needlePercent: 50,
   },
   {
     id: 'vov-gt',
@@ -37,7 +52,8 @@ export const PRESET_RADIO_CHANNELS: RadioChannel[] = [
     shortName: 'VOV Giao thông',
     url: 'https://str.vov.gov.vn/vovlive/vovGTHN.sdp_aac/playlist.m3u8',
     backupUrl: 'https://audio-lss.vov.vn/live/giao_thong_ha_noi.m3u8',
-    description: 'Kênh Thông tin Giao thông & Cứu nạn khẩn cấp',
+    description: 'Kênh Thông tin Giao thông & Cứu nạn khẩn cấp (FM 91MHz)',
+    needlePercent: 65,
   },
   {
     id: 'daklak',
@@ -45,7 +61,8 @@ export const PRESET_RADIO_CHANNELS: RadioChannel[] = [
     shortName: 'Đài Đắk Lắk',
     url: 'https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8',
     backupUrl: 'https://audio-lss.vov.vn/live/vov1.m3u8',
-    description: 'Tiếng nói Đảng bộ, Chính quyền & Nhân dân tỉnh Đắk Lắk (Admin có thể tùy chỉnh luồng .m3u8/.mp3)',
+    description: 'Tiếng nói Đảng bộ, Chính quyền & Nhân dân tỉnh Đắk Lắk (FM 94.7MHz)',
+    needlePercent: 80,
     isCustom: true,
   },
 ];
@@ -72,7 +89,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Modal Admin cấu hình URL đài Đắk Lắk
+  // Modal cấu hình URL đài Đắk Lắk & thông tin sóng
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
   const [customDaklakUrl, setCustomDaklakUrl] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
@@ -83,7 +100,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
   const networkRetryCountRef = useRef<number>(0);
   const currentStreamUrlRef = useRef<string>('');
 
-  // Giữ callback onPlayingChange trong ref để tránh việc re-render của component cha kích hoạt cleanup hủy Hls
+  // Giữ callback onPlayingChange trong ref để tránh re-render của component cha hủy phiên HLS
   const onPlayingChangeRef = useRef(onPlayingChange);
   useEffect(() => {
     onPlayingChangeRef.current = onPlayingChange;
@@ -99,7 +116,11 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
         setChannels((prev) =>
           prev.map((ch) =>
             ch.id === 'daklak'
-              ? { ...ch, url: savedUrl.trim(), description: 'Luồng trực tuyến Đài Đắk Lắk do Ban Quản trị cấu hình' }
+              ? {
+                  ...ch,
+                  url: savedUrl.trim(),
+                  description: 'Luồng trực tuyến Đài Đắk Lắk do Ban Quản trị cấu hình',
+                }
               : ch
           )
         );
@@ -110,136 +131,138 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
   const activeChannel = channels.find((c) => c.id === selectedChannelId) || channels[0];
 
   // Khởi tạo luồng HLS hoặc Native HLS cho audio element
-  const initStream = useCallback((channel: RadioChannel, shouldAutoPlay: boolean = false, useBackup: boolean = false) => {
-    const audio = audioRef.current;
-    if (!audio) return;
+  const initStream = useCallback(
+    (channel: RadioChannel, shouldAutoPlay: boolean = false, useBackup: boolean = false) => {
+      const audio = audioRef.current;
+      if (!audio) return;
 
-    const targetUrl = useBackup && channel.backupUrl ? channel.backupUrl : channel.url;
-    currentStreamUrlRef.current = targetUrl;
-    networkRetryCountRef.current = 0;
-    setErrorMessage(null);
+      const targetUrl = useBackup && channel.backupUrl ? channel.backupUrl : channel.url;
+      currentStreamUrlRef.current = targetUrl;
+      networkRetryCountRef.current = 0;
+      setErrorMessage(null);
 
-    if (shouldAutoPlay) {
-      setIsBuffering(true);
-    }
+      if (shouldAutoPlay) {
+        setIsBuffering(true);
+      }
 
-    // Hủy phiên Hls cũ nếu có
-    if (hlsRef.current) {
-      try {
-        hlsRef.current.destroy();
-      } catch {}
-      hlsRef.current = null;
-    }
+      if (hlsRef.current) {
+        try {
+          hlsRef.current.destroy();
+        } catch {}
+        hlsRef.current = null;
+      }
 
-    // 1. Kiểm tra hỗ trợ HLS.js (Chrome, Android, Edge, Firefox, Desktop PC)
-    if (Hls.isSupported() && targetUrl.includes('.m3u8')) {
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 60,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        manifestLoadingTimeOut: 8000,
-        manifestLoadingMaxRetry: 2,
-        levelLoadingTimeOut: 8000,
-        fragLoadingTimeOut: 10000,
-      });
-      hlsRef.current = hls;
+      if (Hls.isSupported() && targetUrl.includes('.m3u8')) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 60,
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+          manifestLoadingTimeOut: 8000,
+          manifestLoadingMaxRetry: 2,
+          levelLoadingTimeOut: 8000,
+          fragLoadingTimeOut: 10000,
+        });
+        hlsRef.current = hls;
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (shouldAutoPlay || isUserPlayingRef.current) {
-          audio.play().then(() => {
-            setIsPlaying(true);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (shouldAutoPlay || isUserPlayingRef.current) {
+            audio
+              .play()
+              .then(() => {
+                setIsPlaying(true);
+                setIsBuffering(false);
+                onPlayingChangeRef.current?.(true);
+              })
+              .catch((err) => {
+                console.warn('HLS play waiting for user gesture or buffer:', err);
+              });
+          } else {
             setIsBuffering(false);
-            onPlayingChangeRef.current?.(true);
-          }).catch((err) => {
-            console.warn('HLS play waiting for user gesture or buffer:', err);
-          });
+          }
+        });
+
+        hls.on(Hls.Events.FRAG_BUFFERED, () => {
+          setIsBuffering(false);
+          setErrorMessage(null);
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                networkRetryCountRef.current += 1;
+                if (networkRetryCountRef.current <= 1) {
+                  hls.startLoad();
+                } else if (channel.backupUrl && currentStreamUrlRef.current !== channel.backupUrl) {
+                  currentStreamUrlRef.current = channel.backupUrl;
+                  hls.loadSource(channel.backupUrl);
+                  hls.startLoad();
+                } else {
+                  setIsBuffering(false);
+                  setErrorMessage('Đang tự động dò lại tần số phát thanh...');
+                  setTimeout(() => {
+                    if (isUserPlayingRef.current && hlsRef.current) {
+                      hlsRef.current.loadSource(channel.url);
+                      hlsRef.current.startLoad();
+                    }
+                  }, 2500);
+                }
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                if (channel.backupUrl && currentStreamUrlRef.current !== channel.backupUrl) {
+                  currentStreamUrlRef.current = channel.backupUrl;
+                  hls.loadSource(channel.backupUrl);
+                  hls.startLoad();
+                } else {
+                  setIsBuffering(false);
+                }
+                break;
+            }
+          }
+        });
+
+        hls.loadSource(targetUrl);
+        hls.attachMedia(audio);
+      } else {
+        audio.src = targetUrl;
+        audio.load();
+        if (shouldAutoPlay || isUserPlayingRef.current) {
+          audio
+            .play()
+            .then(() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+              onPlayingChangeRef.current?.(true);
+            })
+            .catch(() => {
+              setIsBuffering(false);
+            });
         } else {
           setIsBuffering(false);
         }
-      });
-
-      hls.on(Hls.Events.FRAG_BUFFERED, () => {
-        setIsBuffering(false);
-        setErrorMessage(null);
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              networkRetryCountRef.current += 1;
-              if (networkRetryCountRef.current <= 1) {
-                console.warn('HLS Network error, retrying primary stream...');
-                hls.startLoad();
-              } else if (channel.backupUrl && currentStreamUrlRef.current !== channel.backupUrl) {
-                console.info('Switching to backup CDN stream:', channel.backupUrl);
-                currentStreamUrlRef.current = channel.backupUrl;
-                hls.loadSource(channel.backupUrl);
-                hls.startLoad();
-              } else {
-                setIsBuffering(false);
-                setErrorMessage('Mạng đang nghẽn, đang tự động kết nối lại...');
-                setTimeout(() => {
-                  if (isUserPlayingRef.current && hlsRef.current) {
-                    hlsRef.current.loadSource(channel.url);
-                    hlsRef.current.startLoad();
-                  }
-                }, 2500);
-              }
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn('HLS Media error, recovering...');
-              hls.recoverMediaError();
-              break;
-            default:
-              if (channel.backupUrl && currentStreamUrlRef.current !== channel.backupUrl) {
-                currentStreamUrlRef.current = channel.backupUrl;
-                hls.loadSource(channel.backupUrl);
-                hls.startLoad();
-              } else {
-                setIsBuffering(false);
-              }
-              break;
-          }
-        }
-      });
-
-      hls.loadSource(targetUrl);
-      hls.attachMedia(audio);
-    }
-    // 2. Tương thích Native HLS cho Safari trên iPhone / iPad / macOS hoặc luồng MP3 trực tiếp
-    else {
-      audio.src = targetUrl;
-      audio.load();
-      if (shouldAutoPlay || isUserPlayingRef.current) {
-        audio.play().then(() => {
-          setIsPlaying(true);
-          setIsBuffering(false);
-          onPlayingChangeRef.current?.(true);
-        }).catch((err) => {
-          console.warn('Native audio play error:', err);
-          setIsBuffering(false);
-        });
-      } else {
-        setIsBuffering(false);
       }
-    }
-  }, []);
+    },
+    []
+  );
 
-  // Khởi tạo sẵn luồng VOV1 ngay khi mount để khi người dùng bấm Play là phát tiếng tức thì
+  // Khởi tạo sẵn luồng VOV1 ngay khi mount để bấm Play là nói ngay
   useEffect(() => {
     initStream(activeChannel, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tự động chuẩn bị luồng khi đổi kênh
+  // Khi bấm chọn đài: Nếu chưa phát thì tự động phát luôn để trải nghiệm bấm nút đài cổ điển chân thực
   const handleSelectChannel = (channelId: string) => {
     setSelectedChannelId(channelId);
     const target = channels.find((c) => c.id === channelId) || channels[0];
-    const shouldPlay = isUserPlayingRef.current;
-    initStream(target, shouldPlay);
+    isUserPlayingRef.current = true;
+    setIsPlaying(true);
+    initStream(target, true);
   };
 
   // Nút Play / Pause
@@ -258,35 +281,44 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
       setIsPlaying(true);
       setErrorMessage(null);
 
-      // Nếu luồng đã được gắn sẵn (pre-initialized), gọi audio.play() trực tiếp ngay trong click handler
       if (hlsRef.current || audio.src) {
         if (audio.readyState < 2) {
           setIsBuffering(true);
         }
-        audio.play().then(() => {
-          setIsPlaying(true);
-          setIsBuffering(false);
-          onPlayingChangeRef.current?.(true);
-        }).catch((err) => {
-          // Nếu bị gián đoạn do đang nạp manifest, Hls.Events.MANIFEST_PARSED sẽ tự gọi play() ngay khi nạp xong
-          console.warn('Audio play waiting for stream buffer:', err);
-          setIsBuffering(true);
-        });
+        audio
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+            onPlayingChangeRef.current?.(true);
+          })
+          .catch(() => {
+            setIsBuffering(true);
+          });
       } else {
         initStream(activeChannel, true);
       }
     }
   };
 
-  // Nút Bật / Tắt âm
-  const toggleMute = () => {
+  // Nút "Bật âm thanh": Nếu đài đang tắt thì bật phát đài luôn; nếu đang phát thì chuyển đổi Bật/Tắt tiếng
+  const handleSoundButtonClick = () => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.muted = !isMuted;
-    setIsMuted(!isMuted);
+
+    if (!isPlaying) {
+      audio.muted = false;
+      setIsMuted(false);
+      togglePlay();
+      return;
+    }
+
+    const nextMuted = !isMuted;
+    audio.muted = nextMuted;
+    setIsMuted(nextMuted);
   };
 
-  // Auto-Ducking: Tự động tạm dừng khi có thông báo khẩn cấp từ Loa Xã
+  // Auto-Ducking: Tự động tạm dừng khi có thông báo khẩn cấp từ Loa Phóng Thanh
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -298,7 +330,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
     }
   }, [isDucked, isPlaying]);
 
-  // Lắng nghe sự kiện tắt toàn bộ âm thanh cảnh báo từ hệ thống & Dọn dẹp duy nhất khi unmount (dependency [])
+  // Lắng nghe sự kiện tắt toàn bộ âm thanh cảnh báo từ hệ thống & Dọn dẹp duy nhất khi unmount
   useEffect(() => {
     const handleStopAll = () => {
       const audio = audioRef.current;
@@ -336,7 +368,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
       const cleanUrl = customDaklakUrl.trim();
       window.localStorage.setItem(CUSTOM_DAKLAK_STORAGE_KEY, cleanUrl);
       const updatedDaklak: RadioChannel = {
-        ... PRESET_RADIO_CHANNELS[3],
+        ...PRESET_RADIO_CHANNELS[3],
         url: cleanUrl,
         description: 'Luồng trực tuyến Đài Đắk Lắk tùy chỉnh',
       };
@@ -357,11 +389,11 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
 
   return (
     <div
-      className={`flex flex-col gap-1.5 bg-[#F0F6FF] px-2.5 py-1.5 rounded-lg border border-[#0A4393]/25 text-[#0A4393] ${className}`}
+      className={`relative select-none pt-3.5 pb-0.5 ${className}`}
       role="region"
       aria-label="Radio Thời Sự Trực Tuyến HLS"
     >
-      {/* Audio element bắt các sự kiện chính xác */}
+      {/* Audio element ẩn */}
       <audio
         ref={audioRef}
         playsInline
@@ -391,205 +423,368 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
         onCanPlay={() => setIsBuffering(false)}
       />
 
-      {/* Dòng điều khiển chính */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
-        {/* Nhóm trái: Play/Pause, Huy hiệu TRỰC TIẾP, Sóng âm */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={togglePlay}
-            disabled={isDucked}
-            className={`shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full ${
-              isPlaying
-                ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white'
-                : 'bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white'
-            } transition-all transform active:scale-95 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393] disabled:opacity-50 cursor-pointer`}
-            aria-label={isPlaying ? 'Tạm dừng Radio' : 'Phát sóng Radio Thời sự'}
-            title={isPlaying ? 'Tạm dừng tiếp sóng Radio' : 'Phát sóng trực tuyến Radio'}
-          >
-            {isPlaying ? (
-              <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            ) : (
-              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5" />
-            )}
-          </button>
+      {/* 1. ĂNG-TEN ĐỒNG CỔ ĐIỂN (Góc trên bên trái như Ảnh 2) */}
+      <div
+        className="pointer-events-none absolute top-0 left-6 sm:left-8 z-0 flex items-center origin-bottom-left -rotate-14"
+        aria-hidden="true"
+      >
+        {/* Chân đế ăng-ten */}
+        <div className="w-3.5 h-2 rounded-t-sm bg-gradient-to-b from-[#E5B97F] via-[#9C622B] to-[#5A320F] border border-[#4A2508]" />
+        {/* Thân ăng-ten kéo dài */}
+        <div className="w-16 sm:w-22 h-[3.5px] -ml-0.5 bg-gradient-to-b from-[#FCE6C2] via-[#B87D3E] to-[#5E340E] shadow-xs" />
+        {/* Đầu bi tròn ăng-ten */}
+        <div className="w-2.5 h-2.5 -ml-0.5 rounded-full bg-radial from-[#FFF6E5] via-[#C98A4B] to-[#5C310B] border border-[#4A2508] shadow-xs" />
+      </div>
 
-          {/* Huy hiệu TRỰC TIẾP */}
-          <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-300 shadow-xs">
-            <span className="relative flex h-2 w-2">
-              {isPlaying && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-              )}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isPlaying ? 'bg-rose-600' : 'bg-gray-400'}`} />
-            </span>
-            <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-rose-700 uppercase font-mono">
-              TRỰC TIẾP
-            </span>
-          </div>
+      {/* 2. VÒM LOA TRÊN ĐỈNH MÁY ĐÀI (Giữa đỉnh máy như Ảnh 2) */}
+      <div
+        className="relative z-10 mx-auto w-36 sm:w-48 h-3.5 -mb-[3px] rounded-t-xl bg-gradient-to-b from-[#E6B87D] via-[#A66830] to-[#63360F] px-3 pt-1 pb-0.5 border-t border-x border-[#592E0A] shadow-[0_-1px_3px_rgba(70,35,5,0.2)] flex flex-col justify-center gap-[2px]"
+        aria-hidden="true"
+      >
+        <div className="w-full h-[2px] rounded-full bg-[#2B1203] opacity-90" />
+        <div className="w-11/12 mx-auto h-[2px] rounded-full bg-[#2B1203] opacity-90" />
+      </div>
 
-          {/* Sóng âm Equalizer */}
-          <div
-            className="flex items-end gap-0.5 h-4 px-1"
-            title={isPlaying ? 'Đang phát sóng âm trực tiếp' : 'Đang dừng'}
-          >
-            <span
-              className={`w-0.5 sm:w-1 bg-[#0A4393] rounded-full transition-all duration-300 ${
-                isPlaying && !isBuffering ? 'animate-[pulse_0.6s_ease-in-out_infinite] h-3.5' : 'h-1 opacity-40'
-              }`}
-            />
-            <span
-              className={`w-0.5 sm:w-1 bg-[#0A4393] rounded-full transition-all duration-300 ${
-                isPlaying && !isBuffering ? 'animate-[pulse_0.9s_ease-in-out_infinite_0.2s] h-4' : 'h-1 opacity-40'
-              }`}
-            />
-            <span
-              className={`w-0.5 sm:w-1 bg-[#0A4393] rounded-full transition-all duration-300 ${
-                isPlaying && !isBuffering ? 'animate-[pulse_0.7s_ease-in-out_infinite_0.4s] h-2.5' : 'h-1 opacity-40'
-              }`}
-            />
-            <span
-              className={`w-0.5 sm:w-1 bg-[#0A4393] rounded-full transition-all duration-300 ${
-                isPlaying && !isBuffering ? 'animate-[pulse_0.8s_ease-in-out_infinite_0.1s] h-3.5' : 'h-1 opacity-40'
-              }`}
-            />
-          </div>
-        </div>
+      {/* 3. THÂN VỎ ĐÀI RADIO CỔ ĐIỂN VIỀN ĐỒNG GỖ SANG TRỌNG */}
+      <div className="relative z-10 rounded-2xl p-[3.5px] bg-gradient-to-b from-[#E5B880] via-[#965A25] to-[#4E2808] shadow-[0_5px_12px_rgba(68,35,8,0.28),inset_0_1px_1px_rgba(255,242,218,0.75)] border border-[#4A2407]">
+        {/* Lớp viền kim loại trong */}
+        <div className="rounded-[13px] bg-gradient-to-b from-[#5E320E] via-[#7A4519] to-[#3E1F05] p-[2px]">
+          {/* MẶT ĐÀI KEM NGÀ CỔ ĐIỂN (Faceplate) */}
+          <div className="rounded-[11px] bg-gradient-to-b from-[#FFFDF8] via-[#FAF0DA] to-[#EFE0C2] px-2.5 py-2 sm:px-3 sm:py-2 border border-[#D7B788] shadow-inner">
+            {/* Dãy điều khiển trung tâm */}
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 sm:gap-2.5">
+              {/* CỤM TRÁI: Núm xoay Play/Pause có vạch chia độ + Nhãn TRỰC TIẾP */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Núm xoay tròn cổ điển kèm vạch chia khắc quanh viền phải */}
+                <div className="relative flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13">
+                  {/* Vạch chia độ cổ điển quanh núm vặn */}
+                  <svg
+                    viewBox="0 0 60 60"
+                    className="pointer-events-none absolute inset-0 w-full h-full"
+                    aria-hidden="true"
+                  >
+                    {[-75, -55, -35, -15, 5, 25, 45, 65].map((angle, idx) => {
+                      const rad = (angle * Math.PI) / 180;
+                      const r1 = 24;
+                      const r2 = idx % 2 === 0 ? 28.5 : 27;
+                      const x1 = 30 + r1 * Math.cos(rad);
+                      const y1 = 30 + r1 * Math.sin(rad);
+                      const x2 = 30 + r2 * Math.cos(rad);
+                      const y2 = 30 + r2 * Math.sin(rad);
+                      return (
+                        <line
+                          key={angle}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="#5B3210"
+                          strokeWidth={idx % 2 === 0 ? '1.6' : '1.1'}
+                          strokeLinecap="round"
+                        />
+                      );
+                    })}
+                  </svg>
 
-        {/* Nhóm giữa: Chọn kênh (ẩn thanh cuộn ngang trên Windows) */}
-        <div className="flex-1 min-w-[180px] flex flex-wrap items-center gap-1 py-0.5">
-          {channels.map((channel) => {
-            const isSelected = channel.id === selectedChannelId;
-            return (
-              <button
-                key={channel.id}
-                type="button"
-                onClick={() => handleSelectChannel(channel.id)}
-                className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold rounded whitespace-nowrap transition-all border cursor-pointer ${
-                  isSelected
-                    ? 'bg-[#0A4393] text-white border-[#0A4393] shadow-xs'
-                    : 'bg-white text-[#0A4393] border-[#0A4393]/30 hover:bg-[#0A4393]/10'
-                }`}
-                title={channel.description}
+                  {/* Nút bấm Play/Pause viền đồng lõi nâu đậm */}
+                  <button
+                    type="button"
+                    onClick={togglePlay}
+                    disabled={isDucked}
+                    className="relative z-10 w-10 h-10 sm:w-11 sm:h-11 rounded-full p-[3px] bg-gradient-to-b from-[#ECC48E] via-[#A96C32] to-[#582E0A] shadow-[0_3px_6px_rgba(55,25,4,0.45),inset_0_1px_1px_#FFF6E6] active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+                    aria-label={isPlaying ? 'Tạm dừng Radio' : 'Phát sóng Radio Thời sự'}
+                    title={isPlaying ? 'Tạm dừng tiếp sóng Radio' : 'Bấm để nghe Radio Thời sự trực tiếp'}
+                  >
+                    <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-b from-[#5E3516] via-[#43220A] to-[#271102] border border-[#7C4B22] shadow-inner text-white">
+                      {isPlaying ? (
+                        <Pause className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-white text-white" />
+                      ) : (
+                        <Play className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-white text-white ml-0.5" />
+                      )}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Huy hiệu nổi TRỰC TIẾP */}
+                <button
+                  type="button"
+                  onClick={togglePlay}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-gradient-to-b from-[#FFFFFF] via-[#FAF0DC] to-[#E5CCA3] border border-[#C6A06C] shadow-[0_2px_4px_rgba(75,40,8,0.22),inset_0_1px_0_#FFFFFF] cursor-pointer active:scale-98 transition-transform"
+                  title={
+                    isBuffering
+                      ? 'Đang kết nối luồng sóng...'
+                      : isPlaying
+                        ? `Đang phát trực tiếp: ${activeChannel.name}`
+                        : 'Bấm để phát trực tiếp'
+                  }
+                >
+                  <span className="relative flex h-2.5 w-2.5">
+                    {isPlaying && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                    )}
+                    <span
+                      className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                        isPlaying
+                          ? 'bg-[#DC2626] shadow-[0_0_5px_#DC2626]'
+                          : 'bg-[#C93B2B]/70'
+                      }`}
+                    />
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-black tracking-tight text-[#C81E1E] uppercase">
+                    TRỰC TIẾP
+                  </span>
+                </button>
+              </div>
+
+              {/* CỤM GIỮA: 2 HÀNG NÚT BẤM ĐÀI CỔ ĐIỂN (Y hệt bố cục Ảnh 2) */}
+              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                {/* Hàng 1: [Bật âm thanh] - [VOV1 Thời Sự] - [VOV2 Văn Hóa] */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {/* Nút 1: Bật âm thanh / Tắt âm thanh */}
+                  <button
+                    type="button"
+                    onClick={handleSoundButtonClick}
+                    className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                      isMuted
+                        ? 'bg-gradient-to-b from-[#FDE8E8] to-[#F5C6C6] text-red-800 border-red-300 shadow-inner'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102 active:translate-y-[0.5px]'
+                    }`}
+                    title={isMuted ? 'Đang tắt tiếng - Bấm để bật âm thanh' : 'Bật / Tắt âm thanh Radio'}
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-3.5 h-3.5 text-red-700 shrink-0" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-[#5A2E0C] shrink-0" />
+                    )}
+                    <span className="truncate">{isMuted ? 'Tắt âm thanh' : 'Bật âm thanh'}</span>
+                  </button>
+
+                  {/* Nút 2: VOV1 Thời Sự */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectChannel('vov1')}
+                    className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedChannelId === 'vov1'
+                        ? 'bg-gradient-to-b from-[#6B3B19] via-[#4A250A] to-[#2D1403] text-[#FFF9F0] border-2 border-[#C89456] shadow-[0_2px_5px_rgba(55,25,4,0.4),inset_0_1px_1px_rgba(255,225,185,0.35)]'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102'
+                    }`}
+                    title={PRESET_RADIO_CHANNELS[0].description}
+                  >
+                    <Tv className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">VOV1 Thời Sự</span>
+                  </button>
+
+                  {/* Nút 3: VOV2 Văn Hóa (Kèm biểu tượng VOV đỏ-xanh như Ảnh 2) */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectChannel('vov2')}
+                    className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedChannelId === 'vov2'
+                        ? 'bg-gradient-to-b from-[#6B3B19] via-[#4A250A] to-[#2D1403] text-[#FFF9F0] border-2 border-[#C89456] shadow-[0_2px_5px_rgba(55,25,4,0.4),inset_0_1px_1px_rgba(255,225,185,0.35)]'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102'
+                    }`}
+                    title={PRESET_RADIO_CHANNELS[1].description}
+                  >
+                    <span
+                      className="inline-flex items-center font-black tracking-tighter text-[9px] sm:text-[10px] shrink-0"
+                      aria-hidden="true"
+                    >
+                      <span className={selectedChannelId === 'vov2' ? 'text-red-300' : 'text-[#D61F1F]'}>V</span>
+                      <span
+                        className={`inline-flex items-center justify-center w-2.5 h-2.5 rounded-full mx-[0.5px] text-[6px] text-white ${
+                          selectedChannelId === 'vov2' ? 'bg-sky-400' : 'bg-[#0A58CA]'
+                        }`}
+                      >
+                        ▶
+                      </span>
+                      <span className={selectedChannelId === 'vov2' ? 'text-red-300' : 'text-[#D61F1F]'}>V</span>
+                    </span>
+                    <span className="truncate">VOV2 Văn Hóa</span>
+                  </button>
+                </div>
+
+                {/* Hàng 2: [VOV Giao thông] - [Đài Đắk Lắk] */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {/* Nút 4: VOV Giao thông */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectChannel('vov-gt')}
+                    className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedChannelId === 'vov-gt'
+                        ? 'bg-gradient-to-b from-[#6B3B19] via-[#4A250A] to-[#2D1403] text-[#FFF9F0] border-2 border-[#C89456] shadow-[0_2px_5px_rgba(55,25,4,0.4),inset_0_1px_1px_rgba(255,225,185,0.35)]'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102'
+                    }`}
+                    title={PRESET_RADIO_CHANNELS[2].description}
+                  >
+                    <Share2 className="w-3 h-3 shrink-0" />
+                    <span className="truncate">VOV Giao thông</span>
+                  </button>
+
+                  {/* Nút 5: Đài Đắk Lắk */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectChannel('daklak')}
+                    className={`flex items-center justify-center gap-1 px-2 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedChannelId === 'daklak'
+                        ? 'bg-gradient-to-b from-[#6B3B19] via-[#4A250A] to-[#2D1403] text-[#FFF9F0] border-2 border-[#C89456] shadow-[0_2px_5px_rgba(55,25,4,0.4),inset_0_1px_1px_rgba(255,225,185,0.35)]'
+                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102'
+                    }`}
+                    title={channels[3]?.description}
+                  >
+                    <RefreshCw className={`w-3 h-3 shrink-0 ${isPlaying && selectedChannelId === 'daklak' && isBuffering ? 'animate-spin' : ''}`} />
+                    <span className="truncate">Đài Đắk Lắk</span>
+                  </button>
+
+                  {/* Khoảng hiển thị trạng thái sóng nhỏ gọn trên màn hình rộng */}
+                  <div className="hidden sm:flex items-center justify-center px-2 text-[10px] font-semibold text-[#5E3310]/85 truncate">
+                    {isDucked ? (
+                      <span className="text-red-700 font-bold animate-pulse truncate">⚠️ Nhường loa xã</span>
+                    ) : isBuffering ? (
+                      <span className="text-amber-800 animate-pulse truncate">Đang dò sóng...</span>
+                    ) : isPlaying ? (
+                      <span className="text-emerald-800 font-bold truncate">● Đang phát sóng</span>
+                    ) : (
+                      <span className="text-[#7A4B21]/70 truncate">{activeChannel.shortName}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* CỤM PHẢI: Vạch ngăn dọc & Nút 3 chấm (•••) như Ảnh 2 */}
+              <div className="flex items-center pl-1.5 border-l border-[#D5B88E] self-stretch">
+                <button
+                  type="button"
+                  onClick={() => setShowConfigModal(true)}
+                  className="p-1.5 rounded-lg text-[#4B2608] hover:bg-[#E7CFA8]/60 active:scale-95 transition-all cursor-pointer"
+                  title="Thông tin tần số & Cấu hình luồng Đài Phát thanh Đắk Lắk"
+                  aria-label="Tùy chọn cấu hình đài Radio"
+                >
+                  <MoreHorizontal className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 4. DẢI KHE LOA ĐÁY & THƯỚC DÒ TẦN SỐ KIM ĐỎ CỔ ĐIỂN (Giống hệt đáy Ảnh 2) */}
+            <div className="mt-2 pt-1 flex items-center gap-2">
+              {/* Khe tản âm bên trái */}
+              <div className="flex-1 flex flex-col gap-[2.5px]" aria-hidden="true">
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+              </div>
+
+              {/* Thước dò tần số trung tâm với Kim Đỏ dịch chuyển theo kênh */}
+              <div
+                className="relative w-48 sm:w-64 h-5 rounded-full bg-gradient-to-b from-[#F5E4C5] via-[#FFFDF7] to-[#E8D0A7] border border-[#C6A06D] shadow-inner px-3 flex items-center justify-between overflow-hidden"
+                title={`Tần số kênh: ${activeChannel.name}`}
               >
-                {channel.shortName}
-              </button>
-            );
-          })}
-        </div>
+                {/* Các vạch chia tần số trên thước */}
+                {Array.from({ length: 25 }).map((_, idx) => {
+                  const isMajor = idx % 4 === 0;
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-block rounded-full bg-[#4E290B] ${
+                        isMajor ? 'w-[1.5px] h-3 opacity-85' : 'w-[1px] h-1.5 opacity-55'
+                      }`}
+                    />
+                  );
+                })}
 
-        {/* Nhóm phải: Nút Mute & Cấu hình Admin */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={toggleMute}
-            className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors cursor-pointer"
-            title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
-          >
-            {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-600" /> : <Volume2 className="w-3.5 h-3.5" />}
-          </button>
+                {/* Kim chỉ tần số màu đỏ (Dịch chuyển mượt theo đài đang chọn) */}
+                <div
+                  className="pointer-events-none absolute top-0.5 bottom-0.5 w-[2.5px] rounded-full bg-[#D91B1B] shadow-[0_0_4px_rgba(217,27,27,0.8)] transition-all duration-500 ease-out"
+                  style={{ left: `${activeChannel.needlePercent}%` }}
+                />
+              </div>
 
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={() => setShowConfigModal(true)}
-              className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors cursor-pointer"
-              title="Cấu hình URL luồng Đài Phát thanh Đắk Lắk"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-          )}
+              {/* Khe tản âm bên phải */}
+              <div className="flex-1 flex flex-col gap-[2.5px]" aria-hidden="true">
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+                <div className="w-full h-[2px] rounded-full bg-[#522B0B]/85" />
+              </div>
+            </div>
+
+            {/* Thông báo lỗi nếu có */}
+            {errorMessage && (
+              <div className="mt-1 text-[10px] text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-300 text-center">
+                {errorMessage}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Thông tin kênh đang phát & cảnh báo */}
-      <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#0A4393]/80 border-t border-[#0A4393]/10 pt-1">
-        <div className="flex items-center gap-1.5 truncate">
-          <Radio className="w-3 h-3 text-[#0A4393] shrink-0" />
-          <span className="truncate font-medium">{activeChannel.name}</span>
-          {isBuffering ? (
-            <span className="text-amber-600 font-mono text-[9px] animate-pulse">
-              [Đang kết nối luồng...]
-            </span>
-          ) : isPlaying ? (
-            <span className="text-emerald-700 font-mono text-[9px] font-semibold">
-              [Đang phát trực tiếp]
-            </span>
-          ) : null}
-        </div>
-
-        {isDucked && (
-          <span className="text-rose-600 font-semibold text-[10px] bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200 animate-pulse">
-            ⚠️ Tạm nhường loa cho Bản tin khẩn
-          </span>
-        )}
-      </div>
-
-      {/* Thông báo lỗi nếu có */}
-      {errorMessage && (
-        <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-          {errorMessage}
-        </div>
-      )}
-
-      {/* Modal Admin Cấu hình URL luồng */}
+      {/* Modal Thông tin kênh & Cấu hình URL luồng Đài Đắk Lắk */}
       {showConfigModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3">
-          <div className="bg-white rounded-xl shadow-xl border border-[#0A4393]/30 max-w-md w-full p-4 space-y-3 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-              <h4 className="font-bold text-sm text-[#0A4393] flex items-center gap-1.5">
-                <Settings className="w-4 h-4" />
-                <span>Cấu hình luồng Radio Đài Đắk Lắk</span>
+          <div className="bg-[#FFFDF8] rounded-xl shadow-xl border-2 border-[#8F5522] max-w-md w-full p-4 space-y-3 text-[#3E1F05] animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#E5CCA3] pb-2">
+              <h4 className="font-bold text-sm text-[#5A2E0C] flex items-center gap-1.5">
+                <Radio className="w-4 h-4 text-[#8F5522]" />
+                <span>Thông tin Tần số & Cấu hình Đài Radio</span>
               </h4>
               <button
                 type="button"
                 onClick={() => setShowConfigModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1 cursor-pointer"
+                className="text-[#8F5522] hover:text-[#4A2508] text-lg leading-none p-1 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="text-xs text-gray-600 space-y-2">
-              <p>
-                Quản trị viên có thể dán đường dẫn trực tiếp định dạng <strong>.m3u8</strong> (HLS) hoặc{' '}
-                <strong>.mp3</strong> của Đài Phát thanh & Truyền hình Đắk Lắk (DRT).
-              </p>
-              <div>
-                <label className="block text-[11px] font-bold text-gray-700 mb-1">
-                  Đường dẫn luồng trực tuyến (.m3u8 hoặc .mp3):
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://.../stream.m3u8"
-                  value={customDaklakUrl}
-                  onChange={(e) => setCustomDaklakUrl(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
-                />
+            <div className="text-xs space-y-2">
+              <div className="p-2.5 rounded-lg bg-[#FAF0DA] border border-[#D7B788] space-y-1">
+                <div className="font-bold text-[#4A2508]">{activeChannel.name}</div>
+                <div className="text-[11px] text-[#6E3F19]">{activeChannel.description}</div>
               </div>
+
+              {isAdmin ? (
+                <div className="space-y-2 pt-1">
+                  <label className="block text-[11px] font-bold text-[#5A2E0C] flex items-center gap-1">
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Cấu hình đường dẫn luồng Đài Đắk Lắk (.m3u8 hoặc .mp3):</span>
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://.../stream.m3u8"
+                    value={customDaklakUrl}
+                    onChange={(e) => setCustomDaklakUrl(e.target.value)}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#C6A06C] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8F5522]"
+                  />
+                </div>
+              ) : (
+                <p className="text-[11px] text-[#6E3F19] italic">
+                  Hệ thống tự động ưu tiên nhường loa cho Bản tin cảnh báo thiên tai khẩn cấp của xã Ea Súp khi có lệnh báo động mới.
+                </p>
+              )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E5CCA3]">
               <button
                 type="button"
                 onClick={() => setShowConfigModal(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
+                className="px-3 py-1.5 text-xs font-semibold text-[#5A2E0C] hover:bg-[#FAF0DA] rounded-lg cursor-pointer"
               >
                 Đóng
               </button>
-              <button
-                type="button"
-                onClick={handleSaveDaklakUrl}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#0A4393] hover:bg-[#083576] rounded-lg flex items-center gap-1 shadow-sm cursor-pointer"
-              >
-                {saveSuccess ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Đã lưu thành công!</span>
-                  </>
-                ) : (
-                  <span>Lưu cấu hình</span>
-                )}
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={handleSaveDaklakUrl}
+                  className="px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-b from-[#6B3B19] to-[#3E1F05] hover:brightness-110 rounded-lg flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  {saveSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-300" />
+                      <span>Đã lưu thành công!</span>
+                    </>
+                  ) : (
+                    <span>Lưu cấu hình</span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -26,10 +26,10 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   compact = true,
   isAdmin = false,
 }) => {
-  // Chế độ phát thanh: Tab 1 (Loa Xã AI An Nhiên) hoặc Tab 2 (Radio Thời sự Trực tiếp HLS)
-  const [activeTab, setActiveTab] = useState<'EASUP_AI' | 'RADIO_LIVE'>('EASUP_AI');
+  // Chế độ phát thanh: Mặc định hiển thị Tab Radio Thời Sự (LIVE) theo yêu cầu
+  const [activeTab, setActiveTab] = useState<'EASUP_AI' | 'RADIO_LIVE'>('RADIO_LIVE');
 
-  // Trạng thái Loa Xã Ea Súp (AI An Nhiên)
+  // Trạng thái Loa Phóng Thanh (AI An Nhiên)
   const [isPlayingAI, setIsPlayingAI] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(22);
@@ -132,7 +132,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textToRead]);
 
-  // Hiệu ứng Domino & Auto-Ducking: Tự động kích hoạt phát thanh Loa truyền thanh số khi người dùng chọn Kịch bản MIKE FLOOD
+  // Hiệu ứng Domino & Auto-Ducking: Tự động kích hoạt phát thanh Loa Phóng Thanh khi người dùng chọn Kịch bản MIKE FLOOD
   useEffect(() => {
     if (!autoPlayTrigger || autoPlayTrigger <= 0) return;
 
@@ -340,35 +340,35 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-      {/* Yêu cầu 2: Thanh chuyển đổi 2 chế độ (Tab 1: Loa Xã Ea Súp - AI An Nhiên & Tab 2: Radio Thời Sự Trực Tiếp - LIVE) */}
+      {/* Thanh chuyển đổi 2 chế độ (Tab 1: Loa Phóng Thanh & Tab 2: Radio Thời Sự - LIVE) */}
       <div className="flex items-center justify-between gap-1 border-b border-[#0A4393]/15 pb-1">
         <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
-          {/* Tab 1: Loa Xã Ea Súp - AI An Nhiên */}
+          {/* Tab 1: Loa Phóng Thanh */}
           <button
             type="button"
             onClick={() => setActiveTab('EASUP_AI')}
-            className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 ${
+            className={`px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
               activeTab === 'EASUP_AI'
                 ? 'bg-[#0A4393] text-white shadow-xs'
-                : 'text-[#0A4393] bg-white/70 hover:bg-white hover:text-[#0A4393]'
+                : 'text-[#0A4393] bg-white/80 hover:bg-white hover:text-[#0A4393] border border-[#0A4393]/15'
             }`}
-            title="Nghe Bản tin Cảnh báo xã Ea Súp với giọng AI Neural An Nhiên chuẩn hóa hành chính"
+            title="Nghe Bản tin Cảnh báo xã Ea Súp qua Loa Phóng Thanh AI"
           >
             <Volume2 className="w-3 h-3" />
-            <span>Loa Xã Ea Súp (AI An Nhiên)</span>
+            <span>Loa Phóng Thanh</span>
             {isPlayingAI && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block ml-0.5" />
             )}
           </button>
 
-          {/* Tab 2: Radio Thời Sự Trực Tiếp - LIVE */}
+          {/* Tab 2: Radio Thời Sự (LIVE) */}
           <button
             type="button"
             onClick={() => setActiveTab('RADIO_LIVE')}
-            className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 ${
+            className={`px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
               activeTab === 'RADIO_LIVE'
                 ? 'bg-[#0A4393] text-white shadow-xs'
-                : 'text-[#0A4393] bg-white/70 hover:bg-white hover:text-[#0A4393]'
+                : 'text-[#0A4393] bg-white/80 hover:bg-white hover:text-[#0A4393] border border-[#0A4393]/15'
             }`}
             title="Nghe Radio Thời sự trực tuyến VOV1, VOV2, VOV Giao thông, Đài Đắk Lắk"
           >
@@ -387,7 +387,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
         </div>
       </div>
 
-      {/* NỘI DUNG TAB 1: Loa Xã Ea Súp - AI An Nhiên */}
+      {/* NỘI DUNG TAB 1: Loa Phóng Thanh */}
       <div className={activeTab === 'EASUP_AI' ? 'flex flex-col gap-1' : 'hidden'}>
         <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
           <button
@@ -395,7 +395,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
             onClick={togglePlayAI}
             className="shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0A4393] text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
             aria-label={isPlayingAI ? 'Tạm dừng máy đọc' : 'Bắt đầu máy đọc giọng nữ tiếng Việt'}
-            title={isPlayingAI ? 'Tạm dừng phát' : 'Máy đọc AI An Nhiên nội dung cảnh báo'}
+            title={isPlayingAI ? 'Tạm dừng phát' : 'Loa Phóng Thanh đọc nội dung cảnh báo'}
           >
             {isPlayingAI ? (
               <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -404,7 +404,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
             )}
           </button>
 
-          {/* Thanh kéo thời gian 00:00 (Giữ nguyên theo Yêu cầu 2) */}
+          {/* Thanh kéo thời gian 00:00 */}
           <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono text-[#0A4393] font-semibold">
             <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
             <input
@@ -419,7 +419,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
             <span className="shrink-0 tabular-nums">{formatTime(duration || 22)}</span>
           </div>
 
-          {/* Bộ chọn tốc độ đọc: 1X, 1.25X, 1.4X, 1.5X (Đầy đủ theo Yêu cầu 2) */}
+          {/* Bộ chọn tốc độ đọc: 1X, 1.25X, 1.4X, 1.5X */}
           <div className="shrink-0 flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded border border-[#0A4393]/30">
             {([1, 1.25, 1.4, 1.5] as const).map((rate) => (
               <button
@@ -450,7 +450,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
         </div>
       </div>
 
-      {/* NỘI DUNG TAB 2: Radio Thời Sự Trực Tiếp - LIVE (HLS Stream VOV1, VOV2, VOV GT, Đài Đắk Lắk) */}
+      {/* NỘI DUNG TAB 2: Radio Thời Sự Trực Tiếp - Giao diện Radio Cổ Điển */}
       <div className={activeTab === 'RADIO_LIVE' ? 'block' : 'hidden'}>
         <RadioStreamPlayer
           isAdmin={isAdmin}
