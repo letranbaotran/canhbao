@@ -556,122 +556,110 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
         <div className="rounded-[13px] bg-gradient-to-b from-[#5E320E] via-[#7A4519] to-[#3E1F05] p-[2px]">
           {/* MẶT ĐÀI KEM NGÀ CỔ ĐIỂN */}
           <div className="rounded-[11px] bg-gradient-to-b from-[#FFFDF8] via-[#FAF0DA] to-[#EFE0C2] px-2.5 py-2 sm:px-3 sm:py-2 border border-[#D7B788] shadow-inner">
-            {/* BỐ CỤC CHÍNH: Đảm bảo hiển thị ĐẦY ĐỦ TÊN của cả 4 kênh + nút âm thanh */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-              {/* CỤM TRÁI: Núm xoay Play/Pause + Nhãn TRỰC TIẾP + Nút Bật âm thanh + Nút ••• (trên mobile) */}
-              <div className="flex items-center justify-between md:justify-start gap-1.5 sm:gap-2 shrink-0">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  {/* Núm xoay tròn cổ điển kèm vạch chia khắc quanh viền phải */}
-                  <div className="relative flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 shrink-0">
-                    <svg
-                      viewBox="0 0 60 60"
-                      className="pointer-events-none absolute inset-0 w-full h-full"
-                      aria-hidden="true"
-                    >
-                      {[-75, -55, -35, -15, 5, 25, 45, 65].map((angle, idx) => {
-                        const rad = (angle * Math.PI) / 180;
-                        const r1 = 24;
-                        const r2 = idx % 2 === 0 ? 28.5 : 27;
-                        const x1 = 30 + r1 * Math.cos(rad);
-                        const y1 = 30 + r1 * Math.sin(rad);
-                        const x2 = 30 + r2 * Math.cos(rad);
-                        const y2 = 30 + r2 * Math.sin(rad);
-                        return (
-                          <line
-                            key={angle}
-                            x1={x1}
-                            y1={y1}
-                            x2={x2}
-                            y2={y2}
-                            stroke="#5B3210"
-                            strokeWidth={idx % 2 === 0 ? '1.6' : '1.1'}
-                            strokeLinecap="round"
-                          />
-                        );
-                      })}
-                    </svg>
+            {/* BỐ CỤC CHÍNH: Cụm Trái nhỏ gọn + Cụm Giữa 4 nút kênh xếp 2 hàng hiển thị đầy đủ thông tin */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 sm:gap-2">
+              {/* CỤM TRÁI: Núm xoay Play/Pause + Nhãn TRỰC TIẾP nhỏ gọn + Nút Loa (chỉ để biểu tượng) */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {/* Núm xoay tròn cổ điển kèm vạch chia khắc quanh viền phải */}
+                <div className="relative flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 shrink-0">
+                  <svg
+                    viewBox="0 0 60 60"
+                    className="pointer-events-none absolute inset-0 w-full h-full"
+                    aria-hidden="true"
+                  >
+                    {[-75, -55, -35, -15, 5, 25, 45, 65].map((angle, idx) => {
+                      const rad = (angle * Math.PI) / 180;
+                      const r1 = 24;
+                      const r2 = idx % 2 === 0 ? 28.5 : 27;
+                      const x1 = 30 + r1 * Math.cos(rad);
+                      const y1 = 30 + r1 * Math.sin(rad);
+                      const x2 = 30 + r2 * Math.cos(rad);
+                      const y2 = 30 + r2 * Math.sin(rad);
+                      return (
+                        <line
+                          key={angle}
+                          x1={x1}
+                          y1={y1}
+                          x2={x2}
+                          y2={y2}
+                          stroke="#5B3210"
+                          strokeWidth={idx % 2 === 0 ? '1.6' : '1.1'}
+                          strokeLinecap="round"
+                        />
+                      );
+                    })}
+                  </svg>
 
-                    <button
-                      type="button"
-                      onClick={togglePlay}
-                      disabled={isDucked}
-                      className="relative z-10 w-9 h-9 sm:w-10 sm:h-10 rounded-full p-[2.5px] bg-gradient-to-b from-[#ECC48E] via-[#A96C32] to-[#582E0A] shadow-[0_3px_6px_rgba(55,25,4,0.45),inset_0_1px_1px_#FFF6E6] active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
-                      aria-label={isPlaying ? 'Tạm dừng Radio' : 'Phát sóng Radio Thời sự'}
-                      title={isPlaying ? 'Tạm dừng tiếp sóng Radio' : 'Bấm để nghe Radio Thời sự trực tiếp'}
-                    >
-                      <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-b from-[#5E3516] via-[#43220A] to-[#271102] border border-[#7C4B22] shadow-inner text-white">
-                        {isPlaying ? (
-                          <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white text-white" />
-                        ) : (
-                          <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white text-white ml-0.5" />
-                        )}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Huy hiệu nổi TRỰC TIẾP */}
                   <button
                     type="button"
                     onClick={togglePlay}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-b from-[#FFFFFF] via-[#FAF0DC] to-[#E5CCA3] border border-[#C6A06C] shadow-[0_2px_4px_rgba(75,40,8,0.22),inset_0_1px_0_#FFFFFF] cursor-pointer active:scale-98 transition-transform shrink-0"
-                    title={
-                      isBuffering
-                        ? 'Đang kết nối luồng sóng...'
-                        : isPlaying
-                          ? `Đang phát trực tiếp: ${activeChannel.name}`
-                          : 'Bấm để phát trực tiếp'
-                    }
+                    disabled={isDucked}
+                    className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full p-[2px] bg-gradient-to-b from-[#ECC48E] via-[#A96C32] to-[#582E0A] shadow-[0_3px_6px_rgba(55,25,4,0.45),inset_0_1px_1px_#FFF6E6] active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+                    aria-label={isPlaying ? 'Tạm dừng Radio' : 'Phát sóng Radio Thời sự'}
+                    title={isPlaying ? 'Tạm dừng tiếp sóng Radio' : 'Bấm để nghe Radio Thời sự trực tiếp'}
                   >
-                    <span className="relative flex h-2 w-2">
-                      {isPlaying && (
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                    <span className="flex items-center justify-center w-full h-full rounded-full bg-gradient-to-b from-[#5E3516] via-[#43220A] to-[#271102] border border-[#7C4B22] shadow-inner text-white">
+                      {isPlaying ? (
+                        <Pause className="w-3.5 h-3.5 fill-white text-white" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
                       )}
-                      <span
-                        className={`relative inline-flex rounded-full h-2 w-2 ${
-                          isPlaying
-                            ? 'bg-[#DC2626] shadow-[0_0_5px_#DC2626]'
-                            : 'bg-[#C93B2B]/70'
-                        }`}
-                      />
                     </span>
-                    <span className="text-[10px] sm:text-[11px] font-black tracking-tight text-[#C81E1E] uppercase whitespace-nowrap">
-                      TRỰC TIẾP
-                    </span>
-                  </button>
-
-                  {/* Nút Bật / Tắt âm thanh (Hiển thị đầy đủ chữ) */}
-                  <button
-                    type="button"
-                    onClick={handleSoundButtonClick}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer border shrink-0 ${
-                      isMuted
-                        ? 'bg-gradient-to-b from-[#FDE8E8] to-[#F5C6C6] text-red-800 border-red-300 shadow-inner'
-                        : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102'
-                    }`}
-                    title={isMuted ? 'Đang tắt tiếng - Bấm để bật âm thanh' : 'Bật / Tắt âm thanh Radio'}
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-3.5 h-3.5 text-red-700 shrink-0" />
-                    ) : (
-                      <Volume2 className="w-3.5 h-3.5 text-[#5A2E0C] shrink-0" />
-                    )}
-                    <span>{isMuted ? 'Tắt âm thanh' : 'Bật âm thanh'}</span>
                   </button>
                 </div>
 
-                {/* Nút 3 chấm trên mobile */}
+                {/* Nút TRỰC TIẾP: Thiết kế nhỏ và ngắn gọn lại */}
                 <button
                   type="button"
-                  onClick={() => setShowConfigModal(true)}
-                  className="md:hidden p-1.5 rounded-lg text-[#4B2608] hover:bg-[#E7CFA8]/60 active:scale-95 transition-all cursor-pointer"
-                  title="Thông tin tần số & Cấu hình luồng Đài Phát thanh Đắk Lắk"
+                  onClick={togglePlay}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-b from-[#FFFFFF] via-[#FAF0DC] to-[#E5CCA3] border border-[#C6A06C] shadow-[0_1px_3px_rgba(75,40,8,0.2),inset_0_1px_0_#FFFFFF] cursor-pointer active:scale-98 transition-transform shrink-0"
+                  title={
+                    isBuffering
+                      ? 'Đang kết nối luồng sóng...'
+                      : isPlaying
+                        ? `Đang phát trực tiếp: ${activeChannel.name}`
+                        : 'Bấm để phát trực tiếp'
+                  }
                 >
-                  <MoreHorizontal className="w-4 h-4" />
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    {isPlaying && (
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                    )}
+                    <span
+                      className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                        isPlaying
+                          ? 'bg-[#DC2626] shadow-[0_0_4px_#DC2626]'
+                          : 'bg-[#C93B2B]/70'
+                      }`}
+                    />
+                  </span>
+                  <span className="text-[9px] font-extrabold tracking-tighter text-[#C81E1E] uppercase whitespace-nowrap leading-none">
+                    TRỰC TIẾP
+                  </span>
+                </button>
+
+                {/* Nút Bật / Tắt âm thanh: Chỉ để biểu tượng hình loa */}
+                <button
+                  type="button"
+                  onClick={handleSoundButtonClick}
+                  className={`inline-flex items-center justify-center w-7 h-7 rounded-full transition-all cursor-pointer border shrink-0 ${
+                    isMuted
+                      ? 'bg-gradient-to-b from-[#FDE8E8] to-[#F5C6C6] text-red-800 border-red-300 shadow-inner'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102 active:scale-95'
+                  }`}
+                  title={isMuted ? 'Đang tắt tiếng - Bấm để bật âm thanh' : 'Bật / Tắt âm thanh Radio'}
+                  aria-label={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-3.5 h-3.5 text-red-700" />
+                  ) : (
+                    <Volume2 className="w-3.5 h-3.5 text-[#5A2E0C]" />
+                  )}
                 </button>
               </div>
 
-              {/* CỤM GIỮA: 4 NÚT CỦA 4 KÊNH RADIO (Bố trí lưới 2x2 hoặc 4 cột rõ ràng, HIỆN ĐẦY ĐỦ TÊN KÊNH & BIỂU TƯỢNG PHÙ HỢP) */}
-              <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 xl:grid-cols-4 gap-1.5">
+              {/* CỤM GIỮA: 4 NÚT KÊNH RADIO XẾP LƯỚI 2 CỘT × 2 HÀNG HIỂN THỊ ĐẦY ĐỦ THÔNG TIN */}
+              <div className="flex-1 min-w-[210px] grid grid-cols-2 gap-1.5">
                 {channels.map((channel) => {
                   const isSelected = channel.id === selectedChannelId;
                   return (
@@ -679,7 +667,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                       key={channel.id}
                       type="button"
                       onClick={() => handleSelectChannel(channel.id)}
-                      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-gradient-to-b from-[#6B3B19] via-[#4A250A] to-[#2D1403] text-[#FFF9F0] border-2 border-[#C89456] shadow-[0_2px_5px_rgba(55,25,4,0.4),inset_0_1px_1px_rgba(255,225,185,0.35)]'
                           : 'bg-gradient-to-b from-[#FFFFFF] via-[#F9EFDB] to-[#E6CEAA] text-[#492508] border border-[#C9A472] shadow-[0_2px_3px_rgba(80,45,10,0.2),inset_0_1px_0_#FFFFFF] hover:brightness-102 active:translate-y-[0.5px]'
@@ -693,12 +681,12 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                 })}
               </div>
 
-              {/* CỤM PHẢI: Vạch ngăn dọc & Nút 3 chấm (•••) trên màn hình Desktop */}
-              <div className="hidden md:flex items-center pl-1.5 border-l border-[#D5B88E] self-stretch shrink-0">
+              {/* CỤM PHẢI: Vạch ngăn dọc & Nút 3 chấm (•••) */}
+              <div className="flex items-center pl-1 border-l border-[#D5B88E] self-stretch shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowConfigModal(true)}
-                  className="p-1.5 rounded-lg text-[#4B2608] hover:bg-[#E7CFA8]/60 active:scale-95 transition-all cursor-pointer"
+                  className="p-1 rounded-lg text-[#4B2608] hover:bg-[#E7CFA8]/60 active:scale-95 transition-all cursor-pointer"
                   title="Thông tin tần số & Cấu hình luồng Đài Phát thanh Đắk Lắk"
                   aria-label="Tùy chọn cấu hình đài Radio"
                 >
