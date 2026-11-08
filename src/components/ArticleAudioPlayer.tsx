@@ -335,11 +335,62 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
   return (
     <div
-      className="w-full"
+      className={
+        compact
+          ? 'relative z-0 isolate flex flex-col gap-1.5 bg-[#F0F6FF] px-2.5 py-1.5 rounded-lg border border-[#0A4393]/25 text-[#0A4393]'
+          : 'relative z-0 isolate px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm flex flex-col gap-2'
+      }
       role="region"
       aria-label="Cụm Loa Truyền Thanh Số Đa Năng Xã Ea Súp"
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
+
+      {/* Thanh chuyển đổi 2 chế độ (Tab 1: Loa Phóng Thanh & Tab 2: Radio Thời Sự - LIVE) */}
+      <div className="flex items-center justify-between gap-1 border-b border-[#0A4393]/15 pb-1">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
+          {/* Tab 1: Loa Phóng Thanh */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('EASUP_AI')}
+            className={`px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+              activeTab === 'EASUP_AI'
+                ? 'bg-[#0A4393] text-white shadow-xs'
+                : 'text-[#0A4393] bg-white/80 hover:bg-white hover:text-[#0A4393] border border-[#0A4393]/15'
+            }`}
+            title="Nghe Bản tin Cảnh báo xã Ea Súp qua Loa Phóng Thanh AI"
+          >
+            <Volume2 className="w-3 h-3" />
+            <span>Loa Phóng Thanh</span>
+            {isPlayingAI && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block ml-0.5" />
+            )}
+          </button>
+
+          {/* Tab 2: Radio Thời Sự (LIVE) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('RADIO_LIVE')}
+            className={`px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 cursor-pointer ${
+              activeTab === 'RADIO_LIVE'
+                ? 'bg-[#0A4393] text-white shadow-xs'
+                : 'text-[#0A4393] bg-white/80 hover:bg-white hover:text-[#0A4393] border border-[#0A4393]/15'
+            }`}
+            title="Nghe Radio Thời sự trực tuyến VOV1, VOV2, VOV Giao thông, Đài Đắk Lắk"
+          >
+            <Radio className="w-3 h-3 text-rose-500" />
+            <span>Radio Thời Sự (LIVE)</span>
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600" />
+            </span>
+          </button>
+        </div>
+
+        {/* Nhãn trạng thái nhỏ bên phải */}
+        <div className="hidden sm:flex items-center text-[9px] font-mono font-medium text-[#0A4393]/70">
+          {activeTab === 'EASUP_AI' ? 'Giọng Nữ AI' : 'HLS 24/7'}
+        </div>
+      </div>
 
       {/* ========================================================================== */}
       {/* NỘI DUNG TAB 1: LOA PHÓNG THANH GỌN BẰNG TAB RADIO + LOA LỚN NHƯ HÌNH 2     */}

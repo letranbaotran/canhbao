@@ -3974,38 +3974,62 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const currentDeltaNdvi = Number((currentAreaInfo.ndvi2026 - currentAreaInfo.ndvi2001).toFixed(2));
 
   return (
-    <div className="relative z-10 isolate w-full h-auto rounded-xl overflow-hidden border border-[#0A4393]/25 bg-white shadow-lg flex flex-col">
-      {/* Top Map Control Bar */}
-      <div className="z-10 bg-[#0A4393] border-b border-white/20 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-white">
+    <div
+      className={`relative w-full h-auto rounded-xl overflow-hidden border border-[#0A4393]/25 bg-white shadow-lg flex flex-col ${
+        isFullscreen ? 'z-[9999]' : 'z-10 isolate'
+      }`}
+    >
+      {/* Top Map Control Bar: Trên điện thoại thu gọn Nền dạng sổ xuống + Lớp Vệ Tinh nằm gọn trên 1 hàng */}
+      <div className="z-10 bg-[#0A4393] border-b border-white/20 px-2 sm:px-3 py-1.5 sm:py-2 flex flex-nowrap items-center justify-between gap-1.5 sm:gap-2 text-xs text-white">
         {/* Basemap Switcher */}
-        <div className="flex items-center gap-1.5">
-          <span className="font-semibold text-white flex items-center gap-1">
-            <Eye className="w-3.5 h-3.5 text-white" /> Nền:
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <span className="font-semibold text-white flex items-center gap-1 text-[11px] sm:text-xs whitespace-nowrap">
+            <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white shrink-0" />
+            <span>Nền:</span>
           </span>
-          {(Object.keys(BASEMAP_TILES) as Array<keyof typeof BASEMAP_TILES>).map((key) => (
-            <button
-              key={key}
-              onClick={() => handleBasemapChange(key)}
-              className={`px-2 py-1 rounded text-[11px] font-mono transition-colors ${
-                activeBasemap === key
-                  ? 'bg-white text-[#0A4393] font-bold shadow-sm'
-                  : 'bg-white/15 text-white hover:bg-white/25'
-              }`}
-            >
-              {BASEMAP_TILES[key].name}
-            </button>
-          ))}
+
+          {/* Giao diện Điện thoại (< sm): Ô chọn lớp Nền ẩn sổ xuống tương tự Lớp Vệ Tinh */}
+          <select
+            value={activeBasemap}
+            onChange={(e) => handleBasemapChange(e.target.value as keyof typeof BASEMAP_TILES)}
+            className="sm:hidden bg-white text-[#0A4393] font-bold border border-white/40 rounded px-1.5 py-0.5 text-[11px] focus:ring-2 focus:ring-white cursor-pointer shadow-xs"
+            aria-label="Chọn lớp nền bản đồ"
+          >
+            {(Object.keys(BASEMAP_TILES) as Array<keyof typeof BASEMAP_TILES>).map((key) => (
+              <option key={key} value={key} className="bg-white text-[#0A4393]">
+                {BASEMAP_TILES[key].name}
+              </option>
+            ))}
+          </select>
+
+          {/* Giao diện Máy tính (sm trở lên): Giữ 3 nút chọn trực tiếp */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            {(Object.keys(BASEMAP_TILES) as Array<keyof typeof BASEMAP_TILES>).map((key) => (
+              <button
+                key={key}
+                onClick={() => handleBasemapChange(key)}
+                className={`px-2 py-1 rounded text-[11px] font-mono transition-colors ${
+                  activeBasemap === key
+                    ? 'bg-white text-[#0A4393] font-bold shadow-sm'
+                    : 'bg-white/15 text-white hover:bg-white/25'
+                }`}
+              >
+                {BASEMAP_TILES[key].name}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* NASA GIBS Layer Selector */}
-        <div className="flex items-center gap-2">
-          <span className="text-white font-bold flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-white" /> Lớp Vệ Tinh:
+        {/* NASA GIBS Layer Selector: Thu gọn trên điện thoại để trọn 2 nút nằm trên 1 hàng */}
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1 sm:flex-initial justify-end">
+          <span className="text-white font-bold flex items-center gap-1 text-[11px] sm:text-xs whitespace-nowrap shrink-0">
+            <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white shrink-0" />
+            <span>Lớp Vệ Tinh:</span>
           </span>
           <select
             value={selectedGibsLayer}
             onChange={(e) => handleGibsChange(e.target.value)}
-            className="bg-white text-[#0A4393] font-semibold border border-white/40 rounded px-2.5 py-1 text-xs focus:ring-2 focus:ring-white cursor-pointer shadow-sm"
+            className="bg-white text-[#0A4393] font-semibold border border-white/40 rounded px-1.5 sm:px-2.5 py-0.5 sm:py-1 text-[11px] sm:text-xs max-w-[125px] xs:max-w-[148px] sm:max-w-none truncate focus:ring-2 focus:ring-white cursor-pointer shadow-xs"
             aria-label="Chọn lớp ảnh vệ tinh NASA GIBS"
           >
             {Object.entries(NASA_GIBS_LAYERS).map(([key, layer]) => (
