@@ -1,5 +1,3 @@
-import crypto from 'crypto';
-
 /**
  * BẢNG TỪ ĐIỂN CHUẨN HÓA VIẾT TẮT HÀNH CHÍNH & KỸ THUẬT EA SÚP
  */
@@ -67,5 +65,21 @@ export function normalizeTextForTTS(text: string): string {
  */
 export function generateBulletinHash(content: string): string {
   const normalized = normalizeTextForTTS(content);
-  return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto = require('crypto');
+    return nodeCrypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  } catch {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c64e6d;
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    const hex = (h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0');
+    return hex.repeat(4);
+  }
 }

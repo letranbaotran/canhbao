@@ -157,3 +157,4 @@ export function deleteCommunityReport(id: string): CommunityDisasterReport[] {
   saveReportsLocally(updated);
   return updated;
 }
+

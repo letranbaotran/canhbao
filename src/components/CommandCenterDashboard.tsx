@@ -598,6 +598,7 @@ export const CommandCenterDashboard: React.FC = () => {
                   content={bulletin.content}
                   autoPlayTrigger={dominoAutoPlayTs}
                   compact={true}
+                  isAdmin={isUserManagerOrAdmin(currentUser.role)}
                 />
               </div>
             </div>

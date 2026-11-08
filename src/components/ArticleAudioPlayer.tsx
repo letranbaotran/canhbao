@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Radio, Volume2 } from 'lucide-react';
+import { normalizeTextForTTS } from '@/utils/tts_normalizer';
+import { RadioStreamPlayer } from './RadioStreamPlayer';
 
 export interface ArticleAudioPlayerProps {
   bulletinId: string;
@@ -11,29 +13,42 @@ export interface ArticleAudioPlayerProps {
   content?: string;
   autoPlayTrigger?: number;
   compact?: boolean;
+  isAdmin?: boolean;
 }
 
 export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   bulletinId,
   title,
   audioUrl = '/storage/tts/sample_annhien_alert.mp3',
-  voiceLabel = 'Nữ (1.4X)',
+  voiceLabel = 'AI An Nhiên (1.4X)',
   content,
   autoPlayTrigger = 0,
   compact = true,
+  isAdmin = false,
 }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(22); // Ước lượng ~22s ở tốc độ 1.4X
+  // Chế độ phát thanh: Tab 1 (Loa Xã AI An Nhiên) hoặc Tab 2 (Radio Thời sự Trực tiếp HLS)
+  const [activeTab, setActiveTab] = useState<'EASUP_AI' | 'RADIO_LIVE'>('EASUP_AI');
+
+  // Trạng thái Loa Xã Ea Súp (AI An Nhiên)
+  const [isPlayingAI, setIsPlayingAI] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(22);
   const [playbackRate, setPlaybackRate] = useState<number>(1.4);
+
+  // Trạng thái Radio HLS Live & Auto-Ducking (Tự động tạm dừng khi có tin khẩn)
+  const [isRadioPlaying, setIsRadioPlaying] = useState<boolean>(false);
+  const [isRadioDucked, setIsRadioDucked] = useState<boolean>(false);
+  const wasRadioPlayingRef = useRef<boolean>(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Nội dung cần đọc: ưu tiên nội dung cảnh báo chi tiết bên dưới
-  const textToRead =
+  // Nội dung cần đọc: Được chuẩn hóa từ điển hành chính (UBMTTQ -> Ủy ban Mặt trận Tổ quốc, UBND -> Ủy ban nhân dân, HĐND -> Hội đồng nhân dân, DTTS -> dân tộc thiểu số, TK 277 / TK 293 -> Tiểu khu...)
+  const rawText =
     content ||
     title ||
     'Ủy ban nhân dân và Ban Chỉ huy Phòng chống thiên tai và Tìm kiếm cứu nạn xã Ea Súp thông báo tình hình thiên tai.';
+  const textToRead = normalizeTextForTTS(rawText);
 
   // Tìm giọng đọc nữ tiếng Việt Nam
   const getFemaleVietnameseVoice = useCallback((): SpeechSynthesisVoice | null => {
@@ -94,14 +109,14 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     }
   }, []);
 
-  // Tự động đồng bộ thời lượng và cập nhật giọng đọc ngay lập tức khi nội dung truyền thanh thay đổi từ Global Store
+  // Tự động đồng bộ thời lượng khi nội dung thay đổi
   useEffect(() => {
     const wordsCount = textToRead.split(/\s+/).length;
     const estimatedSecs = Math.max(10, Math.round((wordsCount / (170 * playbackRate)) * 60));
     setDuration(estimatedSecs);
     setCurrentTime(0);
 
-    if (isPlaying) {
+    if (isPlayingAI) {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
@@ -117,9 +132,18 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [textToRead]);
 
-  // Hiệu ứng Domino: Tự động kích hoạt phát thanh Loa truyền thanh số khi người dùng chọn Kịch bản MIKE FLOOD
+  // Hiệu ứng Domino & Auto-Ducking: Tự động kích hoạt phát thanh Loa truyền thanh số khi người dùng chọn Kịch bản MIKE FLOOD
   useEffect(() => {
     if (!autoPlayTrigger || autoPlayTrigger <= 0) return;
+
+    // Yêu cầu 4: Auto-Ducking - Tự động tạm dừng Radio VOV1 khi có bản tin cảnh báo khẩn cấp mới
+    if (isRadioPlaying) {
+      wasRadioPlayingRef.current = true;
+      setIsRadioDucked(true);
+    }
+
+    setActiveTab('EASUP_AI');
+
     const autoTimer = setTimeout(() => {
       startSpeech(playbackRate);
     }, 80);
@@ -169,11 +193,23 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setIsPlaying(false);
+    setIsPlayingAI(false);
+
+    // Nếu đã dừng bản tin khẩn, kiểm tra phục hồi Radio nếu trước đó đang phát
+    if (wasRadioPlayingRef.current) {
+      wasRadioPlayingRef.current = false;
+      setIsRadioDucked(false);
+    }
   };
 
   const startSpeech = (rate: number = playbackRate) => {
     if (typeof window === 'undefined') return;
+
+    // Yêu cầu 4: Auto-Ducking - Nếu đang nghe Radio, tạm dừng Radio để ưu tiên phát bản tin xã
+    if (isRadioPlaying) {
+      wasRadioPlayingRef.current = true;
+      setIsRadioDucked(true);
+    }
 
     if ('speechSynthesis' in window) {
       try {
@@ -185,20 +221,19 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
       const utterance = new SpeechSynthesisUtterance(textToRead);
       utterance.lang = 'vi-VN';
-      utterance.rate = rate; // Đặt chuẩn tốc độ 1.4X
+      utterance.rate = rate;
 
       const femaleVoice = getFemaleVietnameseVoice();
       if (femaleVoice) {
         utterance.voice = femaleVoice;
       }
 
-      // Ước tính thời gian đọc theo số từ và tốc độ (khoảng 170 từ/phút ở 1.0X)
       const wordsCount = textToRead.split(/\s+/).length;
       const estimatedSecs = Math.max(10, Math.round((wordsCount / (170 * rate)) * 60));
       setDuration(estimatedSecs);
 
       utterance.onstart = () => {
-        setIsPlaying(true);
+        setIsPlayingAI(true);
         const startTime = Date.now() - currentTime * 1000;
         if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = setInterval(() => {
@@ -212,19 +247,24 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
         }, 150);
       };
 
+      // Yêu cầu 4: Khi phát xong bản tin khẩn cấp của xã -> Tự động phát tiếp Radio
       utterance.onend = () => {
-        setIsPlaying(false);
+        setIsPlayingAI(false);
         setCurrentTime(0);
         if (timerRef.current) clearInterval(timerRef.current);
+
+        if (wasRadioPlayingRef.current) {
+          wasRadioPlayingRef.current = false;
+          setIsRadioDucked(false);
+        }
       };
 
       utterance.onerror = () => {
-        setIsPlaying(false);
+        setIsPlayingAI(false);
         if (timerRef.current) clearInterval(timerRef.current);
         fallbackPlayAudio(rate);
       };
 
-      // Đặt độ trễ nhỏ để Chromium / Safari giải phóng lệnh cancel trước đó
       setTimeout(() => {
         try {
           if (window.speechSynthesis.paused) {
@@ -245,13 +285,22 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     if (!audio) return;
     audio.playbackRate = rate;
     audio.play().catch(() => {
-      setIsPlaying(true);
+      setIsPlayingAI(true);
     });
-    setIsPlaying(true);
+    setIsPlayingAI(true);
+
+    audio.onended = () => {
+      setIsPlayingAI(false);
+      setCurrentTime(0);
+      if (wasRadioPlayingRef.current) {
+        wasRadioPlayingRef.current = false;
+        setIsRadioDucked(false);
+      }
+    };
   };
 
-  const togglePlay = () => {
-    if (isPlaying) {
+  const togglePlayAI = () => {
+    if (isPlayingAI) {
       stopAllAudio();
     } else {
       startSpeech(playbackRate);
@@ -260,7 +309,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
   const handleRateChange = (rate: number) => {
     setPlaybackRate(rate);
-    if (isPlaying) {
+    if (isPlayingAI) {
       stopAllAudio();
       setTimeout(() => {
         startSpeech(rate);
@@ -283,57 +332,131 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     <div
       className={
         compact
-          ? 'flex flex-row items-center gap-2 sm:gap-3 bg-[#F0F6FF] px-2.5 py-1 sm:py-1.5 rounded-lg border border-[#0A4393]/25 text-[#0A4393]'
-          : 'px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm'
+          ? 'flex flex-col gap-1.5 bg-[#F0F6FF] px-2.5 py-1.5 rounded-lg border border-[#0A4393]/25 text-[#0A4393]'
+          : 'px-2.5 py-2 sm:p-3 my-2 rounded-lg border border-[#0A4393]/25 bg-[#F0F6FF] text-[#0A4393] shadow-sm flex flex-col gap-2'
       }
       role="region"
-      aria-label="Trình máy đọc giọng nữ tiếng Việt"
+      aria-label="Cụm Loa Truyền Thanh Số Đa Năng Xã Ea Súp"
     >
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
-      {/* Main player controls: Nằm gọn trên 1 dòng cả trên điện thoại */}
-      <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
-        <button
-          onClick={togglePlay}
-          className="shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0A4393] text-white transition-all transform active:scale-95 shadow-sm"
-          aria-label={isPlaying ? 'Tạm dừng máy đọc' : 'Bắt đầu máy đọc giọng nữ tiếng Việt'}
-          title={isPlaying ? 'Tạm dừng phát' : 'Máy đọc giọng nữ tiếng Việt (1.4X) nội dung cảnh báo'}
-        >
-          {isPlaying ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5" />}
-        </button>
+      {/* Yêu cầu 2: Thanh chuyển đổi 2 chế độ (Tab 1: Loa Xã Ea Súp - AI An Nhiên & Tab 2: Radio Thời Sự Trực Tiếp - LIVE) */}
+      <div className="flex items-center justify-between gap-1 border-b border-[#0A4393]/15 pb-1">
+        <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar">
+          {/* Tab 1: Loa Xã Ea Súp - AI An Nhiên */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('EASUP_AI')}
+            className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 ${
+              activeTab === 'EASUP_AI'
+                ? 'bg-[#0A4393] text-white shadow-xs'
+                : 'text-[#0A4393] bg-white/70 hover:bg-white hover:text-[#0A4393]'
+            }`}
+            title="Nghe Bản tin Cảnh báo xã Ea Súp với giọng AI Neural An Nhiên chuẩn hóa hành chính"
+          >
+            <Volume2 className="w-3 h-3" />
+            <span>Loa Xã Ea Súp (AI An Nhiên)</span>
+            {isPlayingAI && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping inline-block ml-0.5" />
+            )}
+          </button>
 
-        {/* Progress bar thu gọn linh hoạt */}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono text-[#0A4393] font-semibold">
-          <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
-          <input
-            type="range"
-            min={0}
-            max={duration || 22}
-            value={currentTime}
-            onChange={handleSeek}
-            className="flex-1 min-w-[48px] w-full h-1.5 bg-[#0A4393]/20 rounded-lg appearance-none cursor-pointer accent-[#0A4393] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393]"
-            aria-label="Thanh trượt thời lượng máy đọc"
-          />
-          <span className="shrink-0 tabular-nums">{formatTime(duration || 22)}</span>
+          {/* Tab 2: Radio Thời Sự Trực Tiếp - LIVE */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('RADIO_LIVE')}
+            className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded transition-all flex items-center gap-1 shrink-0 ${
+              activeTab === 'RADIO_LIVE'
+                ? 'bg-[#0A4393] text-white shadow-xs'
+                : 'text-[#0A4393] bg-white/70 hover:bg-white hover:text-[#0A4393]'
+            }`}
+            title="Nghe Radio Thời sự trực tuyến VOV1, VOV2, VOV Giao thông, Đài Đắk Lắk"
+          >
+            <Radio className="w-3 h-3 text-rose-500" />
+            <span>Radio Thời Sự (LIVE)</span>
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-600" />
+            </span>
+          </button>
         </div>
 
-        {/* Speed Selector Buttons: Chỉ giữ 2 chế độ 1.25X và 1.4X */}
-        <div className="shrink-0 flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded border border-[#0A4393]/30">
-          {([1.25, 1.4] as const).map((rate) => (
-            <button
-              key={rate}
-              onClick={() => handleRateChange(rate)}
-              className={`px-1.5 py-0.5 text-[10px] sm:text-[11px] font-mono rounded transition-colors ${
-                playbackRate === rate
-                  ? 'bg-[#0A4393] text-white font-semibold shadow-xs'
-                  : 'text-[#0A4393]/70 hover:text-[#0A4393]'
-              }`}
-              title={`Tốc độ đọc ${rate}X`}
-            >
-              {rate}X
-            </button>
-          ))}
+        {/* Nhãn trạng thái nhỏ bên phải */}
+        <div className="hidden sm:flex items-center text-[9px] font-mono font-medium text-[#0A4393]/70">
+          {activeTab === 'EASUP_AI' ? 'Giọng Nữ AI' : 'HLS 24/7'}
         </div>
+      </div>
+
+      {/* NỘI DUNG TAB 1: Loa Xã Ea Súp - AI An Nhiên */}
+      <div className={activeTab === 'EASUP_AI' ? 'flex flex-col gap-1' : 'hidden'}>
+        <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
+          <button
+            type="button"
+            onClick={togglePlayAI}
+            className="shrink-0 flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#0A4393] text-white transition-all transform active:scale-95 shadow-sm cursor-pointer"
+            aria-label={isPlayingAI ? 'Tạm dừng máy đọc' : 'Bắt đầu máy đọc giọng nữ tiếng Việt'}
+            title={isPlayingAI ? 'Tạm dừng phát' : 'Máy đọc AI An Nhiên nội dung cảnh báo'}
+          >
+            {isPlayingAI ? (
+              <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            ) : (
+              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-0.5" />
+            )}
+          </button>
+
+          {/* Thanh kéo thời gian 00:00 (Giữ nguyên theo Yêu cầu 2) */}
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs font-mono text-[#0A4393] font-semibold">
+            <span className="shrink-0 tabular-nums">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min={0}
+              max={duration || 22}
+              value={currentTime}
+              onChange={handleSeek}
+              className="flex-1 min-w-[48px] w-full h-1.5 bg-[#0A4393]/20 rounded-lg appearance-none cursor-pointer accent-[#0A4393] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393]"
+              aria-label="Thanh trượt thời lượng máy đọc"
+            />
+            <span className="shrink-0 tabular-nums">{formatTime(duration || 22)}</span>
+          </div>
+
+          {/* Bộ chọn tốc độ đọc: 1X, 1.25X, 1.4X, 1.5X (Đầy đủ theo Yêu cầu 2) */}
+          <div className="shrink-0 flex items-center gap-0.5 sm:gap-1 bg-white p-0.5 rounded border border-[#0A4393]/30">
+            {([1, 1.25, 1.4, 1.5] as const).map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                onClick={() => handleRateChange(rate)}
+                className={`px-1.5 py-0.5 text-[10px] sm:text-[11px] font-mono rounded transition-colors cursor-pointer ${
+                  playbackRate === rate
+                    ? 'bg-[#0A4393] text-white font-semibold shadow-xs'
+                    : 'text-[#0A4393]/70 hover:text-[#0A4393]'
+                }`}
+                title={`Tốc độ đọc ${rate}X`}
+              >
+                {rate}X
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chú thích bản tin & lưu ý chuẩn hóa từ điển hành chính */}
+        <div className="flex items-center justify-between text-[10px] text-[#0A4393]/75 pt-0.5">
+          <span className="truncate">
+            📢 Bản tin cảnh báo: <strong>{title || 'UBND xã Ea Súp'}</strong>
+          </span>
+          <span className="shrink-0 text-[9px] font-mono bg-blue-100/60 px-1 py-0.2 rounded text-[#0A4393]">
+            Cache MP3 VPS
+          </span>
+        </div>
+      </div>
+
+      {/* NỘI DUNG TAB 2: Radio Thời Sự Trực Tiếp - LIVE (HLS Stream VOV1, VOV2, VOV GT, Đài Đắk Lắk) */}
+      <div className={activeTab === 'RADIO_LIVE' ? 'block' : 'hidden'}>
+        <RadioStreamPlayer
+          isAdmin={isAdmin}
+          isDucked={isRadioDucked}
+          onPlayingChange={(playing) => setIsRadioPlaying(playing)}
+        />
       </div>
     </div>
   );
