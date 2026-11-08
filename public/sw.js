@@ -1,5 +1,5 @@
 // Service Worker hỗ trợ Network-First khi Online & Offline-first cho Lực lượng Tuần tra Rừng Tiểu khu 293 khi mất sóng 4G
-const CACHE_NAME = 'canhbao-easup-v2';
+const CACHE_NAME = 'canhbao-easup-v3';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -29,6 +29,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  // Không can thiệp vào các luồng phát thanh trực tuyến (HLS .m3u8, .aac, .ts, .mp3), request khác tên miền hoặc API động
+  try {
+    const reqUrl = new URL(event.request.url);
+    if (
+      reqUrl.origin !== self.location.origin ||
+      reqUrl.pathname.startsWith('/api/') ||
+      reqUrl.pathname.endsWith('.m3u8') ||
+      reqUrl.pathname.endsWith('.aac') ||
+      reqUrl.pathname.endsWith('.ts') ||
+      reqUrl.pathname.endsWith('.mp3')
+    ) {
+      return;
+    }
+  } catch {
+    return;
+  }
+
   // Với yêu cầu chuyển trang HTML (navigation): Network-First để luôn cập nhật giao diện mới nhất
   if (event.request.mode === 'navigate') {
     event.respondWith(
@@ -47,7 +64,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Với các tài nguyên tĩnh: Thử mạng trước, nếu mất mạng chuyển sang dùng cache
+  // Với các tài nguyên tĩnh nội bộ: Thử mạng trước, nếu mất mạng chuyển sang dùng cache
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -57,6 +74,9 @@ self.addEventListener('fetch', (event) => {
         }
         return networkResponse;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || Response.error();
+      })
   );
 });
