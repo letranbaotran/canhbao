@@ -2,13 +2,14 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Radio, Volume2, VolumeX, Settings, Check, ExternalLink } from 'lucide-react';
+import { Play, Pause, Radio, Volume2, VolumeX, Settings, Check } from 'lucide-react';
 
 export interface RadioChannel {
   id: string;
   name: string;
   shortName: string;
   url: string;
+  backupUrl?: string;
   description: string;
   isCustom?: boolean;
 }
@@ -19,20 +20,23 @@ export const PRESET_RADIO_CHANNELS: RadioChannel[] = [
     name: 'VOV1 - Thời sự & Chính trị (Toàn quốc)',
     shortName: 'VOV1 Thời sự',
     url: 'https://str.vov.gov.vn/vovlive/vov1vov5Vietnamese.sdp_aac/playlist.m3u8',
+    backupUrl: 'https://audio-lss.vov.vn/live/vov1.m3u8',
     description: 'Kênh Thời sự - Chính trị Quốc gia phát sóng trực tuyến 24/7',
   },
   {
     id: 'vov2',
     name: 'VOV2 - Văn hóa & Đời sống',
     shortName: 'VOV2 Văn hóa',
-    url: 'https://str.vov.gov.vn/vovlive/vov2Vietnamese.sdp_aac/playlist.m3u8',
+    url: 'https://str.vov.gov.vn/vovlive/vov2.sdp_aac/playlist.m3u8',
+    backupUrl: 'https://audio-lss.vov.vn/live/vov2.m3u8',
     description: 'Kênh Văn hóa - Xã hội - Khoa giáo Đài Tiếng nói Việt Nam',
   },
   {
     id: 'vov-gt',
-    name: 'VOV Giao Thông',
+    name: 'VOV Giao Thông (Hà Nội & Toàn quốc)',
     shortName: 'VOV Giao thông',
-    url: 'https://str.vov.gov.vn/vovlive/vovGtHn.sdp_aac/playlist.m3u8',
+    url: 'https://str.vov.gov.vn/vovlive/vovGTHN.sdp_aac/playlist.m3u8',
+    backupUrl: 'https://str.vov.gov.vn/vovlive/vovgtMeKong.sdp_aac/playlist.m3u8',
     description: 'Kênh Thông tin Giao thông & Cứu nạn khẩn cấp',
   },
   {
@@ -67,13 +71,14 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Modal / Popover Admin cấu hình URL đài Đắk Lắk
+  // Modal Admin cấu hình URL đài Đắk Lắk
   const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
   const [customDaklakUrl, setCustomDaklakUrl] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const isUserPlayingRef = useRef<boolean>(false);
 
   // Nạp cấu hình kênh Đắk Lắk tùy chỉnh từ LocalStorage khi khởi tạo
   useEffect(() => {
@@ -95,140 +100,161 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
 
   const activeChannel = channels.find((c) => c.id === selectedChannelId) || channels[0];
 
-  // Khởi tạo và gắn luồng HLS hoặc Native HLS (iOS Safari)
-  const setupAudioStream = useCallback(
-    (streamUrl: string, autoPlay: boolean = false) => {
-      const audio = audioRef.current;
-      if (!audio) return;
+  // Khởi tạo luồng HLS cho audio element
+  const initStream = useCallback((streamUrl: string, autoPlayOnReady: boolean = false) => {
+    const audio = audioRef.current;
+    if (!audio) return;
 
-      setErrorMessage(null);
-      setIsBuffering(true);
+    setErrorMessage(null);
+    setIsBuffering(true);
 
-      // Dọn dẹp phiên Hls cũ nếu có
-      if (hlsRef.current) {
+    // Hủy phiên Hls cũ nếu có
+    if (hlsRef.current) {
+      try {
         hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
+      } catch {}
+      hlsRef.current = null;
+    }
 
-      // 1. Kiểm tra hỗ trợ HLS.js (Chrome, Android, Edge, Firefox, Desktop PC)
-      if (Hls.isSupported()) {
-        const hls = new Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 30,
-          maxBufferLength: 30,
-        });
-        hlsRef.current = hls;
+    // 1. Kiểm tra hỗ trợ HLS.js (Chrome, Android, Edge, Firefox, Desktop PC)
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: false, // Tắt worker để giải mã trực tiếp luồng AAC elementary ổn định trên mọi thiết bị
+        lowLatencyMode: true,
+        backBufferLength: 30,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        liveSyncDurationCount: 3,
+        liveMaxLatencyDurationCount: 8,
+        defaultAudioCodec: 'mp4a.40.2',
+      });
+      hlsRef.current = hls;
 
-        hls.loadSource(streamUrl);
-        hls.attachMedia(audio);
-
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          setIsBuffering(false);
-          if (autoPlay) {
-            audio.play().then(() => {
-              setIsPlaying(true);
-              onPlayingChange?.(true);
-            }).catch((err) => {
-              console.warn('HLS Autoplay prevented:', err);
-              setIsPlaying(false);
-              onPlayingChange?.(false);
-            });
-          }
-        });
-
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) {
-            setIsBuffering(false);
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.warn('HLS Network error, attempting recovery...');
-                hls.startLoad();
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                console.warn('HLS Media error, attempting recovery...');
-                hls.recoverMediaError();
-                break;
-              default:
-                console.error('HLS Fatal unrecoverable error:', data);
-                hls.destroy();
-                hlsRef.current = null;
-                setIsPlaying(false);
-                onPlayingChange?.(false);
-                setErrorMessage('Không kết nối được luồng phát thanh này. Vui lòng thử kênh khác.');
-                break;
-            }
-          }
-        });
-      }
-      // 2. Tương thích Native HLS cho Safari trên iPhone / iPad / macOS
-      else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-        audio.src = streamUrl;
-        const handleCanPlay = () => {
-          setIsBuffering(false);
-          if (autoPlay) {
-            audio.play().then(() => {
-              setIsPlaying(true);
-              onPlayingChange?.(true);
-            }).catch((err) => {
-              console.warn('Safari Native HLS play prevented:', err);
-              setIsPlaying(false);
-              onPlayingChange?.(false);
-            });
-          }
-          audio.removeEventListener('canplay', handleCanPlay);
-        };
-        audio.addEventListener('canplay', handleCanPlay);
-        audio.load();
-      }
-      // 3. Fallback cho luồng MP3 trực tiếp
-      else {
-        audio.src = streamUrl;
+      // Đăng ký toàn bộ event listener TRƯỚC KHI load source
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setIsBuffering(false);
-        if (autoPlay) {
+        if (autoPlayOnReady || isUserPlayingRef.current) {
           audio.play().then(() => {
             setIsPlaying(true);
             onPlayingChange?.(true);
-          }).catch(() => {
-            setIsPlaying(false);
-            onPlayingChange?.(false);
+          }).catch((err) => {
+            console.warn('Playback waiting or blocked:', err);
           });
         }
-      }
-    },
-    [onPlayingChange]
-  );
+      });
 
-  // Khi đổi kênh
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        setIsBuffering(false);
+      });
+
+      hls.on(Hls.Events.AUDIO_TRACK_LOADED, () => {
+        setIsBuffering(false);
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn('HLS Network error, attempting recovery...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn('HLS Media error, attempting recovery...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.warn('HLS Fatal error:', data.details);
+              // Thử nạp backup URL nếu có
+              if (activeChannel.backupUrl && streamUrl !== activeChannel.backupUrl) {
+                console.info('Switching to backup URL:', activeChannel.backupUrl);
+                hls.loadSource(activeChannel.backupUrl);
+                hls.startLoad();
+              } else {
+                setErrorMessage('Đang thử kết nối lại luồng phát thanh...');
+                setTimeout(() => {
+                  if (isUserPlayingRef.current) {
+                    hls.loadSource(streamUrl);
+                    hls.startLoad();
+                  }
+                }, 2000);
+              }
+              break;
+          }
+        }
+      });
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(audio);
+    }
+    // 2. Tương thích Native HLS cho Safari trên iPhone / iPad / macOS
+    else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+      audio.src = streamUrl;
+      if (autoPlayOnReady || isUserPlayingRef.current) {
+        audio.play().then(() => {
+          setIsPlaying(true);
+          setIsBuffering(false);
+          onPlayingChange?.(true);
+        }).catch((err) => {
+          console.warn('Safari Native HLS play error:', err);
+        });
+      }
+    }
+    // 3. Fallback audio trực tiếp
+    else {
+      audio.src = streamUrl;
+      if (autoPlayOnReady || isUserPlayingRef.current) {
+        audio.play().then(() => {
+          setIsPlaying(true);
+          setIsBuffering(false);
+          onPlayingChange?.(true);
+        }).catch(() => {});
+      }
+    }
+  }, [activeChannel, onPlayingChange]);
+
+  // Tự động chuẩn bị luồng khi đổi kênh
   const handleSelectChannel = (channelId: string) => {
     setSelectedChannelId(channelId);
     const target = channels.find((c) => c.id === channelId) || channels[0];
-    const shouldPlay = isPlaying;
-    setupAudioStream(target.url, shouldPlay);
+    const shouldPlay = isUserPlayingRef.current;
+    initStream(target.url, shouldPlay);
   };
 
-  // Nút Play / Pause
+  // Nút Play / Pause - Đảm bảo kích hoạt audio.play() đồng bộ ngay trong user click gesture
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (isPlaying) {
+      isUserPlayingRef.current = false;
       audio.pause();
       setIsPlaying(false);
+      setIsBuffering(false);
       onPlayingChange?.(false);
     } else {
-      // Nếu chưa khởi tạo Hls thì khởi tạo
+      isUserPlayingRef.current = true;
+      setIsPlaying(true);
+      setIsBuffering(true);
+
+      // Nếu luồng chưa được gắn thì nạp ngay
       if (!hlsRef.current && !audio.src) {
-        setupAudioStream(activeChannel.url, true);
-      } else {
-        audio.play().then(() => {
-          setIsPlaying(true);
-          onPlayingChange?.(true);
-        }).catch((err) => {
-          console.warn('Play interrupted:', err);
-          setupAudioStream(activeChannel.url, true);
-        });
+        initStream(activeChannel.url, true);
       }
+
+      // Kích hoạt play trực tiếp trong event handler của người dùng để vượt qua Autoplay Policy của trình duyệt
+      audio.play().then(() => {
+        setIsPlaying(true);
+        setIsBuffering(false);
+        onPlayingChange?.(true);
+      }).catch((err) => {
+        console.warn('Play pending buffer or recovering:', err);
+        // Nếu cần khởi động lại nạp luồng
+        if (hlsRef.current) {
+          hlsRef.current.startLoad();
+        } else {
+          initStream(activeChannel.url, true);
+        }
+      });
     }
   };
 
@@ -240,20 +266,19 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
     setIsMuted(!isMuted);
   };
 
-  // Xử lý Auto-Ducking: Khi có cảnh báo khẩn cấp từ Loa Xã
+  // Auto-Ducking: Tự động tạm dừng khi có thông báo khẩn cấp từ Loa Xã
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (isDucked && isPlaying) {
       audio.pause();
-      // Giữ nguyên cờ isPlaying hoặc thông báo đang tạm dừng ưu tiên
-    } else if (!isDucked && isPlaying) {
+    } else if (!isDucked && isUserPlayingRef.current) {
       audio.play().catch(() => {});
     }
   }, [isDucked, isPlaying]);
 
-  // Lắng nghe sự kiện tắt khẩn cấp toàn hệ thống
+  // Lắng nghe sự kiện tắt toàn bộ âm thanh cảnh báo từ hệ thống
   useEffect(() => {
     const handleStopAll = () => {
       const audio = audioRef.current;
@@ -262,7 +287,9 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
           audio.pause();
         } catch {}
       }
+      isUserPlayingRef.current = false;
       setIsPlaying(false);
+      setIsBuffering(false);
       onPlayingChange?.(false);
     };
 
@@ -270,13 +297,15 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
     return () => {
       window.removeEventListener('MUTE_OR_STOP_ALL_ALERTS', handleStopAll);
       if (hlsRef.current) {
-        hlsRef.current.destroy();
+        try {
+          hlsRef.current.destroy();
+        } catch {}
         hlsRef.current = null;
       }
     };
   }, [onPlayingChange]);
 
-  // Lưu URL Đài Đắk Lắk tùy chỉnh từ Admin
+  // Lưu cấu hình URL tùy chỉnh cho Đài Đắk Lắk
   const handleSaveDaklakUrl = () => {
     if (!customDaklakUrl.trim().startsWith('http')) {
       alert('Vui lòng nhập đường link URL hợp lệ (bắt đầu bằng http:// hoặc https://)');
@@ -298,9 +327,8 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
         setShowConfigModal(false);
       }, 1200);
 
-      // Nếu đang chọn kênh Đắk Lắk, reload lại stream
       if (selectedChannelId === 'daklak') {
-        setupAudioStream(customDaklakUrl.trim(), isPlaying);
+        initStream(customDaklakUrl.trim(), isUserPlayingRef.current);
       }
     } catch (e) {
       console.error('Failed to save custom radio url:', e);
@@ -313,15 +341,29 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
       role="region"
       aria-label="Radio Thời Sự Trực Tuyến HLS"
     >
+      {/* Audio element bắt các sự kiện chính xác */}
       <audio
         ref={audioRef}
         playsInline
-        preload="none"
+        preload="auto"
+        onPlay={() => {
+          setIsPlaying(true);
+          onPlayingChange?.(true);
+        }}
+        onPlaying={() => {
+          setIsPlaying(true);
+          setIsBuffering(false);
+          onPlayingChange?.(true);
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          onPlayingChange?.(false);
+        }}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => setIsBuffering(false)}
       />
 
-      {/* Dòng điều khiển chính: Nằm gọn trên 1 dòng linh hoạt */}
+      {/* Dòng điều khiển chính */}
       <div className="flex flex-wrap items-center justify-between gap-1.5 sm:gap-2">
         {/* Nhóm trái: Play/Pause, Huy hiệu TRỰC TIẾP, Sóng âm */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -333,7 +375,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
               isPlaying
                 ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white'
                 : 'bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859] text-white'
-            } transition-all transform active:scale-95 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393] disabled:opacity-50`}
+            } transition-all transform active:scale-95 shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A4393] disabled:opacity-50 cursor-pointer`}
             aria-label={isPlaying ? 'Tạm dừng Radio' : 'Phát sóng Radio Thời sự'}
             title={isPlaying ? 'Tạm dừng tiếp sóng Radio' : 'Phát sóng trực tuyến Radio'}
           >
@@ -344,7 +386,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
             )}
           </button>
 
-          {/* Huy hiệu TRỰC TIẾP với đèn đỏ nhấp nháy */}
+          {/* Huy hiệu TRỰC TIẾP */}
           <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-300 shadow-xs">
             <span className="relative flex h-2 w-2">
               {isPlaying && (
@@ -357,7 +399,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
             </span>
           </div>
 
-          {/* Biểu tượng sóng âm chuyển động (Equalizer animation) */}
+          {/* Sóng âm Equalizer */}
           <div
             className="flex items-end gap-0.5 h-4 px-1"
             title={isPlaying ? 'Đang phát sóng âm trực tiếp' : 'Đang dừng'}
@@ -385,7 +427,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
           </div>
         </div>
 
-        {/* Nhóm giữa: Chọn kênh Radio (VOV1, VOV2, VOV GT, Đắk Lắk) */}
+        {/* Nhóm giữa: Chọn kênh */}
         <div className="flex-1 min-w-[200px] flex items-center gap-1 overflow-x-auto py-0.5 no-scrollbar">
           {channels.map((channel) => {
             const isSelected = channel.id === selectedChannelId;
@@ -394,7 +436,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                 key={channel.id}
                 type="button"
                 onClick={() => handleSelectChannel(channel.id)}
-                className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold rounded whitespace-nowrap transition-all border ${
+                className={`px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold rounded whitespace-nowrap transition-all border cursor-pointer ${
                   isSelected
                     ? 'bg-[#0A4393] text-white border-[#0A4393] shadow-xs'
                     : 'bg-white text-[#0A4393] border-[#0A4393]/30 hover:bg-[#0A4393]/10'
@@ -407,23 +449,22 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
           })}
         </div>
 
-        {/* Nhóm phải: Nút Mute & Nút Cấu hình Admin nếu có quyền */}
+        {/* Nhóm phải: Nút Mute & Cấu hình Admin */}
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={toggleMute}
-            className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors"
+            className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors cursor-pointer"
             title={isMuted ? 'Bật âm thanh' : 'Tắt âm thanh'}
           >
             {isMuted ? <VolumeX className="w-3.5 h-3.5 text-rose-600" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
 
-          {/* Nút cấu hình luồng Đài Đắk Lắk dành cho Admin */}
           {isAdmin && (
             <button
               type="button"
               onClick={() => setShowConfigModal(true)}
-              className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors"
+              className="p-1 rounded text-[#0A4393]/80 hover:text-[#0A4393] hover:bg-white transition-colors cursor-pointer"
               title="Cấu hình URL luồng Đài Phát thanh Đắk Lắk"
             >
               <Settings className="w-3.5 h-3.5" />
@@ -432,7 +473,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
         </div>
       </div>
 
-      {/* Thông tin kênh đang phát & cảnh báo gián đoạn/buffering */}
+      {/* Thông tin kênh đang phát & cảnh báo */}
       <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-[#0A4393]/80 border-t border-[#0A4393]/10 pt-1">
         <div className="flex items-center gap-1.5 truncate">
           <Radio className="w-3 h-3 text-[#0A4393] shrink-0" />
@@ -453,12 +494,12 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
 
       {/* Thông báo lỗi nếu có */}
       {errorMessage && (
-        <div className="text-[10px] text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+        <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
           {errorMessage}
         </div>
       )}
 
-      {/* Modal Admin Cấu hình URL luồng phát thanh Đài Đắk Lắk */}
+      {/* Modal Admin Cấu hình URL luồng */}
       {showConfigModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3">
           <div className="bg-white rounded-xl shadow-xl border border-[#0A4393]/30 max-w-md w-full p-4 space-y-3 text-slate-800 animate-in fade-in zoom-in-95 duration-150">
@@ -470,7 +511,7 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
               <button
                 type="button"
                 onClick={() => setShowConfigModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1"
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none p-1 cursor-pointer"
               >
                 ✕
               </button>
@@ -493,24 +534,20 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                   className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A4393]"
                 />
               </div>
-              <div className="text-[10px] text-gray-500 bg-gray-50 p-2 rounded border border-gray-200 space-y-1">
-                <div>• Hỗ trợ luồng HLS m3u8 tiêu chuẩn hoặc luồng MP3 Icecast/Shoutcast.</div>
-                <div>• Luồng mặc định hệ thống: Tiếp sóng VOV1 dự phòng khi chưa cấu hình.</div>
-              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setShowConfigModal(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg cursor-pointer"
               >
                 Đóng
               </button>
               <button
                 type="button"
                 onClick={handleSaveDaklakUrl}
-                className="px-3 py-1.5 text-xs font-bold text-white bg-[#0A4393] hover:bg-[#083576] rounded-lg flex items-center gap-1 shadow-sm"
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[#0A4393] hover:bg-[#083576] rounded-lg flex items-center gap-1 shadow-sm cursor-pointer"
               >
                 {saveSuccess ? (
                   <>
