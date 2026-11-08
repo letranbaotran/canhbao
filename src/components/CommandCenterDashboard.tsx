@@ -559,49 +559,22 @@ export const CommandCenterDashboard: React.FC = () => {
             />
           </div>
 
-          {/* Cụm Loa Truyền Thanh Số Tinh Gọn (Ảnh 2 & Ảnh 3 được gộp lại trên cùng 1 khung, loại bỏ phần trực chiến cồng kềnh) */}
+          {/* Cụm Đài Radio & Loa Phóng Thanh Cổ Điển (Đã bỏ khung nền trắng/xanh bên ngoài theo yêu cầu) */}
           <section
             id="audio-alert-section"
             aria-label="Loa truyền thanh thông minh"
-            className="bg-white border border-[#0A4393]/25 rounded-xl px-3 py-2 shadow-sm"
+            className="w-full"
           >
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-              <div className="flex items-center gap-2 shrink-0">
-                <h2 className="text-xs font-bold text-[#0A4393] uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-                  <Radio className="w-3.5 h-3.5 text-[#0A4393] animate-pulse" />
-                  <span>Cụm Loa Truyền Thanh Số</span>
-                </h2>
-                {isAnyAlertActive && (
-                  <button
-                    type="button"
-                    onClick={handleTurnOffAlert}
-                    className="px-2.5 py-0.5 rounded bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono font-bold text-[10px] uppercase flex items-center gap-1 shadow-xs cursor-pointer select-none shrink-0"
-                    title={
-                      isUserManagerOrAdmin(currentUser.role)
-                        ? 'Bấm để tắt toàn bộ cảnh báo trên TOÀN HỆ THỐNG'
-                        : 'Bấm để tắt âm thanh trên thiết bị này'
-                    }
-                  >
-                    <VolumeX className="w-3 h-3" />
-                    <span>Tắt cảnh báo</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Toàn bộ cụm âm thanh ở Ảnh 3 được đưa lên đây, đã bỏ khu vực trực chiến ở Ảnh 2 */}
-              <div className="flex-1 min-w-0">
-                <ArticleAudioPlayer
-                  bulletinId={bulletin.id}
-                  title={bulletin.title}
-                  audioUrl={bulletin.audioUrl}
-                  voiceLabel={bulletin.voiceLabel}
-                  content={bulletin.content}
-                  autoPlayTrigger={dominoAutoPlayTs}
-                  compact={true}
-                  isAdmin={isUserManagerOrAdmin(currentUser.role)}
-                />
-              </div>
-            </div>
+            <ArticleAudioPlayer
+              bulletinId={bulletin.id}
+              title={bulletin.title}
+              audioUrl={bulletin.audioUrl}
+              voiceLabel={bulletin.voiceLabel}
+              content={bulletin.content}
+              autoPlayTrigger={dominoAutoPlayTs}
+              compact={true}
+              isAdmin={isUserManagerOrAdmin(currentUser.role)}
+            />
           </section>
 
           {/* 20 Thôn Buôn Matrix Quick Overview + Card Chi Tiết Thôn/Buôn + Báo Tin Thiên Tai Cộng Đồng - CHỈ ADMIN MỚI ĐƯỢC XEM (Ảnh 2) */}
