@@ -608,11 +608,15 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                   </button>
                 </div>
 
-                {/* Nút TRỰC TIẾP: Thiết kế nhỏ và ngắn gọn lại */}
+                {/* Nút TRỰC TIẾP: Thiết kế nhỏ gọn & Nhấp nháy rõ nét khi đang phát âm thanh trực tiếp */}
                 <button
                   type="button"
                   onClick={togglePlay}
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-gradient-to-b from-[#FFFFFF] via-[#FAF0DC] to-[#E5CCA3] border border-[#C6A06C] shadow-[0_1px_3px_rgba(75,40,8,0.2),inset_0_1px_0_#FFFFFF] cursor-pointer active:scale-98 transition-transform shrink-0"
+                  className={`relative inline-flex items-center gap-1 px-2 py-0.5 rounded-full border cursor-pointer active:scale-95 transition-all shrink-0 ${
+                    isPlaying
+                      ? 'bg-gradient-to-b from-[#FFF5F5] via-[#FFE0E0] to-[#FFC2C2] border-[#DC2626] shadow-[0_0_10px_rgba(220,38,38,0.65),inset_0_1px_0_#FFFFFF] animate-pulse'
+                      : 'bg-gradient-to-b from-[#FFFFFF] via-[#FAF0DC] to-[#E5CCA3] border-[#C6A06C] shadow-[0_1px_3px_rgba(75,40,8,0.2),inset_0_1px_0_#FFFFFF]'
+                  }`}
                   title={
                     isBuffering
                       ? 'Đang kết nối luồng sóng...'
@@ -621,19 +625,35 @@ export const RadioStreamPlayer: React.FC<RadioStreamPlayerProps> = ({
                         : 'Bấm để phát trực tiếp'
                   }
                 >
-                  <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    {isPlaying && (
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-                    )}
+                  {/* Viền sóng nhấp nháy lan tỏa quanh nút khi đang phát */}
+                  {isPlaying && (
                     <span
-                      className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+                      className="pointer-events-none absolute -inset-[1.5px] rounded-full border border-red-500/80 animate-ping opacity-40"
+                      style={{ animationDuration: '1.4s' }}
+                    />
+                  )}
+                  <span className="relative flex h-2 w-2 shrink-0 items-center justify-center">
+                    <span
+                      className={`absolute inline-flex h-full w-full rounded-full bg-red-500 ${
+                        isPlaying ? 'animate-ping opacity-90' : 'animate-ping opacity-40'
+                      }`}
+                      style={{ animationDuration: isPlaying ? '0.9s' : '2s' }}
+                    />
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
                         isPlaying
-                          ? 'bg-[#DC2626] shadow-[0_0_4px_#DC2626]'
-                          : 'bg-[#C93B2B]/70'
+                          ? 'bg-[#EF4444] shadow-[0_0_6px_2px_rgba(239,68,68,0.9)]'
+                          : 'bg-[#C93B2B]/80'
                       }`}
                     />
                   </span>
-                  <span className="text-[9px] font-extrabold tracking-tighter text-[#C81E1E] uppercase whitespace-nowrap leading-none">
+                  <span
+                    className={`text-[9px] font-extrabold tracking-tighter uppercase whitespace-nowrap leading-none ${
+                      isPlaying
+                        ? 'text-[#B91C1C] drop-shadow-[0_0_2px_rgba(239,68,68,0.4)]'
+                        : 'text-[#C81E1E]'
+                    }`}
+                  >
                     TRỰC TIẾP
                   </span>
                 </button>
