@@ -18,6 +18,9 @@ import {
   MousePointerClick,
   Trash2,
   Sparkles,
+  Maximize2,
+  Minimize2,
+  PowerOff,
 } from 'lucide-react';
 import {
   calculateDakLakLandMetrics,
@@ -39,6 +42,7 @@ export interface SavedLandParcel {
 interface LandMeasureFloatingCardProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpen?: () => void;
   leafletMapRef: React.MutableRefObject<any>;
   mapWrapperRef: React.MutableRefObject<HTMLDivElement | null>;
 }
@@ -48,9 +52,12 @@ const SAVED_PARCELS_STORAGE_KEY = 'easup_saved_land_parcels_v1';
 export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = ({
   isOpen,
   onClose,
+  onOpen,
   leafletMapRef,
   mapWrapperRef,
 }) => {
+  // Phiên đo đạc đang hoạt động (giữ nguyên con trỏ chuột, GPS và các nút chức năng ngay cả khi đóng/ẩn bảng điều khiển lớn trên điện thoại)
+  const [isMeasuringSession, setIsMeasuringSession] = useState<boolean>(false);
   // 2 Chế độ đo: MANUAL (Chấm điểm trên bản đồ vệ tinh) | GPS_WALK (Đi bộ đo bằng GPS thực địa)
   const [measureMode, setMeasureMode] = useState<'MANUAL' | 'GPS_WALK'>('MANUAL');
   const [isPinningActive, setIsPinningActive] = useState<boolean>(true);
@@ -197,16 +204,23 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     [leafletMapRef]
   );
 
-  // Đồng bộ vẽ khi danh sách đỉnh thay đổi
+  // Khi mở bảng điều khiển "Đo diện tích đất", tự động kích hoạt phiên đo đạc
   useEffect(() => {
-    if (!isOpen) return;
-    syncPolygonOnMap(vertices, isPolygonClosed, measureMode);
-  }, [vertices, isPolygonClosed, measureMode, isOpen, syncPolygonOnMap]);
+    if (isOpen) {
+      setIsMeasuringSession(true);
+    }
+  }, [isOpen]);
 
-  // Kích hoạt Geoman & sự kiện chấm điểm trên bản đồ vệ tinh khi mở công cụ
+  // Đồng bộ vẽ khi danh sách đỉnh thay đổi (vẫn hoạt động liên tục ngay cả khi đã đóng bảng điều khiển lớn để lấy không gian trên điện thoại)
+  useEffect(() => {
+    if (!isMeasuringSession) return;
+    syncPolygonOnMap(vertices, isPolygonClosed, measureMode);
+  }, [vertices, isPolygonClosed, measureMode, isMeasuringSession, syncPolygonOnMap]);
+
+  // Kích hoạt Geoman & sự kiện chấm điểm trên bản đồ vệ tinh trong suốt phiên đo (không bị ngắt khi đóng/ẩn bảng điều khiển lớn)
   useEffect(() => {
     const map = leafletMapRef.current;
-    if (!isOpen || !map) {
+    if (!isMeasuringSession || !map) {
       releaseAllMeasurementResources();
       if (measureLayerGroupRef.current && map) {
         try {
@@ -315,7 +329,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
         map.getContainer?.()?.classList.remove('easup-pinning-cursor');
       } catch {}
     };
-  }, [isOpen, measureMode, isPinningActive, isPolygonClosed, leafletMapRef, releaseAllMeasurementResources]);
+  }, [isMeasuringSession, measureMode, isPinningActive, isPolygonClosed, leafletMapRef, releaseAllMeasurementResources]);
 
   // Giải phóng toàn bộ tài nguyên khi unmount component
   useEffect(() => {
@@ -576,7 +590,8 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
         allowTaint: true,
         backgroundColor: '#0f172a',
         scale: 2,
-        ignoreElements: (el) => el.id === 'land-measure-floating-card',
+        ignoreElements: (el) =>
+          el.id === 'land-measure-floating-card' || el.id === 'land-measure-compact-bar',
       });
 
       // Vẽ thêm khung thông tin kết quả đo đất sắc nét ở góc dưới ảnh PNG
@@ -709,13 +724,204 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     showToast('Đã sao chép tọa độ & chuyển sang Cổng ý kiến cử tri ykien.easupso.com!');
   };
 
-  // Nút đóng công cụ: tự động giải phóng GPS & Geoman
-  const handleCloseTool = () => {
+  // Tắt hoàn toàn công cụ đo đất: giải phóng GPS, Geoman, xóa ranh nháp và trả lại con trỏ chuột mặc định
+  const handleStopAndExitTool = () => {
     releaseAllMeasurementResources();
+    setVertices([]);
+    setIsPolygonClosed(false);
+    setIsMeasuringSession(false);
+    if (measureLayerGroupRef.current) {
+      try {
+        measureLayerGroupRef.current.clearLayers();
+      } catch {}
+    }
     onClose();
   };
 
-  if (!isOpen) return null;
+  // Đóng/ẩn bảng điều khiển lớn để nhường không gian đo đạc trên điện thoại nhưng VẪN GIỮ con trỏ chuột, GPS và thanh nút chức năng hoạt động
+  const handleClosePanelKeepMeasuring = () => {
+    const hasActiveWork =
+      isPinningActive || isGpsTracking || measureMode === 'GPS_WALK' || vertices.length > 0;
+    if (!hasActiveWork) {
+      handleStopAndExitTool();
+      return;
+    }
+    onClose();
+  };
+
+  if (!isOpen && !isMeasuringSession) return null;
+
+  // Khi bảng điều khiển lớn đã đóng (!isOpen) nhưng đang trong phiên đo đạc (isMeasuringSession):
+  // Hiển thị Thanh nút chức năng thu gọn siêu mỏng trên bản đồ để tạo không gian đo đạc rộng rãi trên điện thoại
+  if (!isOpen && isMeasuringSession) {
+    const isActivelyPinning = measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed;
+
+    return (
+      <div
+        id="land-measure-compact-bar"
+        className="absolute bottom-[56px] left-2.5 right-2.5 sm:right-auto z-[520] max-w-[96vw] sm:max-w-[560px] bg-[#041E46]/95 backdrop-blur-md text-white border-2 border-amber-400/90 rounded-xl shadow-2xl px-2 py-1.5 flex flex-col gap-1.5 text-[10.5px] font-sans select-none animate-fadeIn"
+        role="region"
+        aria-label="Thanh điều khiển đo diện tích đất thu gọn"
+      >
+        {/* Hàng 1: Thông số diện tích thời gian thực + Nút Mở lại bảng lớn + Nút Tắt hẳn đo đất */}
+        <div className="flex items-center justify-between gap-1.5 border-b border-white/15 pb-1">
+          <button
+            type="button"
+            onClick={() => onOpen?.()}
+            className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-left min-w-0 flex-1 cursor-pointer hover:text-amber-200 transition-colors"
+            title="Nhấn để mở lại bảng điều khiển Đo diện tích đất đầy đủ"
+          >
+            <span className="inline-flex items-center gap-1 font-extrabold text-amber-300 shrink-0">
+              <Ruler className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span>{metrics.vertexCount} điểm:</span>
+            </span>
+            <span className="font-mono font-black text-white">{metrics.formatted.sqm}</span>
+            <span className="text-white/40">•</span>
+            <span className="font-mono font-black text-amber-300">{metrics.formatted.sao}</span>
+            <span className="text-white/40 hidden xs:inline">•</span>
+            <span className="font-mono font-bold text-emerald-300 hidden xs:inline">
+              {metrics.formatted.hectare}
+            </span>
+            {measureMode === 'GPS_WALK' && (
+              <span className="px-1.5 py-0.2 rounded bg-orange-600/90 text-white font-mono text-[9.5px] font-bold">
+                GPS {gpsAccuracy !== null ? `±${gpsAccuracy}m` : 'đang dò'} •{' '}
+                {metrics.walkedDistanceMeters.toFixed(1)}m
+              </span>
+            )}
+          </button>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => onOpen?.()}
+              className="px-2 py-0.5 rounded-md bg-[#0E56BD] hover:bg-[#1666D8] text-white font-bold text-[10px] flex items-center gap-1 border border-blue-300/50 shadow-xs cursor-pointer transition-all"
+              title="Mở lại bảng điều khiển Đo diện tích đất đầy đủ"
+            >
+              <Maximize2 className="w-3 h-3 shrink-0" />
+              <span>Bảng đo</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleStopAndExitTool}
+              className="px-1.5 py-0.5 rounded-md bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] flex items-center gap-0.5 border border-rose-300/60 shadow-xs cursor-pointer transition-all"
+              title="Tắt hoàn toàn chế độ đo đất và trả lại con trỏ mặc định"
+            >
+              <PowerOff className="w-3 h-3 shrink-0" />
+              <span>Tắt</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Hàng 2: Các nút chức năng đo đạc hoạt động trực tiếp trên bản đồ như khi chưa đóng bảng */}
+        <div className="flex flex-wrap items-center gap-1">
+          {/* Nút Chấm điểm vệ tinh (lõm xuống khi đang bật con trỏ chấm điểm vị trí) */}
+          <button
+            type="button"
+            onClick={() => handleSwitchMode('MANUAL')}
+            aria-pressed={isActivelyPinning}
+            className={`px-2 py-1 rounded-lg font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer ${
+              isActivelyPinning
+                ? 'translate-y-[1px] scale-[0.97] bg-[#021029] text-amber-300 border border-amber-400 shadow-[inset_0_3px_6px_rgba(0,0,0,0.85)] ring-1 ring-amber-400'
+                : 'bg-white/15 hover:bg-white/25 text-white border border-white/30'
+            }`}
+            title="Bật/tắt con trỏ chấm điểm vị trí trên bản đồ vệ tinh"
+          >
+            <MapPin
+              className={`w-3 h-3 shrink-0 ${
+                isActivelyPinning ? 'text-amber-300 animate-bounce' : 'text-white'
+              }`}
+            />
+            <span>Chấm điểm</span>
+            {isActivelyPinning && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            )}
+          </button>
+
+          {/* Nút Đi bộ đo GPS */}
+          <button
+            type="button"
+            onClick={() => {
+              if (measureMode !== 'GPS_WALK') {
+                handleSwitchMode('GPS_WALK');
+              } else {
+                handleToggleGpsWalk();
+              }
+            }}
+            className={`px-2 py-1 rounded-lg font-bold text-[10px] flex items-center gap-1 transition-all cursor-pointer ${
+              measureMode === 'GPS_WALK'
+                ? isGpsTracking
+                  ? 'bg-red-600 text-white border border-red-200 animate-pulse shadow-sm'
+                  : 'bg-[#EA580C] text-white border border-orange-200 shadow-sm'
+                : 'bg-white/15 hover:bg-white/25 text-orange-200 border border-white/30'
+            }`}
+            title="Chế độ đi bộ đo bằng GPS thực địa"
+          >
+            <Footprints className="w-3 h-3 shrink-0" />
+            <span>
+              {measureMode === 'GPS_WALK'
+                ? isGpsTracking
+                  ? 'Dừng GPS'
+                  : 'Bắt đầu GPS'
+                : 'Đo GPS'}
+            </span>
+          </button>
+
+          {/* Nút Hoàn tác 1 điểm */}
+          <button
+            type="button"
+            onClick={handleUndoVertex}
+            disabled={vertices.length === 0}
+            className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-900 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+            title="Hoàn tác 1 điểm góc ranh vừa chấm"
+          >
+            <Undo2 className="w-3 h-3 text-[#0A4393] shrink-0" />
+            <span>Hoàn tác</span>
+          </button>
+
+          {/* Nút Đóng ranh thửa */}
+          <button
+            type="button"
+            onClick={handleClosePolygon}
+            disabled={vertices.length < 3 || isPolygonClosed}
+            className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+            title="Đóng khép kín ranh thửa đất"
+          >
+            <CheckCircle2 className="w-3 h-3 shrink-0" />
+            <span>Đóng ranh</span>
+          </button>
+
+          {/* Nút Xóa đo lại */}
+          <button
+            type="button"
+            onClick={handleClearMeasurement}
+            className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+            title="Xóa các điểm hiện tại để đo lại từ đầu"
+          >
+            <RotateCcw className="w-3 h-3 shrink-0" />
+            <span>Xóa</span>
+          </button>
+
+          {/* Nút Lưu thửa đất */}
+          <button
+            type="button"
+            onClick={handleSaveParcel}
+            disabled={vertices.length < 3}
+            className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-slate-950 font-extrabold text-[10px] flex items-center gap-1 cursor-pointer transition-all"
+            title="Lưu thửa đất vừa đo"
+          >
+            <Save className="w-3 h-3 shrink-0" />
+            <span>Lưu</span>
+          </button>
+        </div>
+
+        {statusToast && (
+          <div className="px-2 py-1 rounded bg-[#0E56BD] text-amber-200 text-[10px] font-semibold text-center">
+            {statusToast}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
@@ -733,15 +939,26 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
           <Ruler className="w-4 h-4 text-amber-300 shrink-0" />
           <span>Đo Diện Tích Đất &amp; Khoanh Ranh Thửa</span>
         </div>
-        <button
-          type="button"
-          onClick={handleCloseTool}
-          className="p-1 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer"
-          title="Đóng công cụ đo đất (Tự động ngắt GPS để tiết kiệm pin)"
-          aria-label="Đóng công cụ đo đất"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleStopAndExitTool}
+            className="px-1.5 py-0.5 rounded bg-rose-600/90 hover:bg-rose-600 text-white text-[9.5px] font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
+            title="Tắt hoàn toàn chế độ đo đất và ngắt GPS"
+          >
+            <PowerOff className="w-3 h-3" />
+            <span>Tắt đo</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleClosePanelKeepMeasuring}
+            className="p-1 rounded-lg hover:bg-white/20 text-white transition-colors cursor-pointer"
+            title="Đóng bảng điều khiển để mở rộng không gian đo trên bản đồ (vẫn giữ con trỏ chấm điểm & các nút chức năng)"
+            aria-label="Đóng bảng điều khiển đo diện tích đất"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Bộ chuyển 2 Chế độ đo đất: Nút "1. Chấm điểm vệ tinh" có hiệu ứng lõm sâu 3D khi kích hoạt */}

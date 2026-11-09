@@ -4687,6 +4687,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
         <LandMeasureFloatingCard
           isOpen={isLandMeasureOpen}
           onClose={() => setIsLandMeasureOpen(false)}
+          onOpen={() => setIsLandMeasureOpen(true)}
           leafletMapRef={leafletMapRef}
           mapWrapperRef={mapWrapperRef}
         />
