@@ -2407,7 +2407,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const renderUserLocationMarker = (
     lat: number,
     lng: number,
-    withFloodAudit: boolean = false
+    withFloodAudit: boolean = false,
+    accuracyMeters?: number
   ) => {
     const map = leafletMapRef.current;
     if (!map) return;
@@ -2431,6 +2432,15 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       const group = L.featureGroup().addTo(map);
       userLocationLayerRef.current = group;
 
+      // Vòng tròn bán kính vị trí GPS trực quan
+      L.circle([lat, lng], {
+        radius: Math.max(12, Math.min(accuracyMeters || 25, 100)),
+        color: '#2563eb',
+        weight: 2,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.2,
+      }).addTo(group);
+
       const gpsIcon = L.divIcon({
         className: 'custom-map-marker',
         html: `
@@ -2446,9 +2456,14 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
 
       if (withFloodAudit) {
         marker.bindPopup(`
-          <div style="font-family:sans-serif; font-size:12px; padding:3px; max-width:260px; color:#0f172a;">
+          <div style="font-family:sans-serif; font-size:12px; padding:3px; max-width:265px; color:#0f172a;">
             <div style="background:${audit.badgeColor}; color:#ffffff; padding:5px 8px; border-radius:6px; font-weight:800; font-size:11.5px; margin-bottom:6px; text-align:center;">
               📍 KIỂM TRA NGẬP TẠI VỊ TRÍ CỦA BẠN
+            </div>
+            <div style="font-size:11px; color:#0A4393; font-family:monospace; font-weight:700; margin-bottom:4px;">
+              • Tọa độ GPS: ${lat.toFixed(6)}°B, ${lng.toFixed(6)}°Đ${
+                accuracyMeters ? ` (±${Math.round(accuracyMeters)}m)` : ''
+              }
             </div>
             <div style="font-size:11px; color:#475569; margin-bottom:5px;">
               • Vết lũ 7/2023 gần nhất: <strong>${audit.nearestMark.code} (${audit.minDistKm} km)</strong>
@@ -2461,68 +2476,95 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
             </div>
           </div>
         `);
-        setTimeout(() => {
-          marker.openPopup();
-        }, 350);
+      } else {
+        marker.bindPopup(`
+          <div style="font-family:sans-serif; font-size:12px; padding:3px; max-width:240px; color:#0f172a;">
+            <div style="background:#0A4393; color:#ffffff; padding:4px 8px; border-radius:6px; font-weight:800; font-size:11.5px; margin-bottom:5px; text-align:center;">
+              📍 VỊ TRÍ GPS ĐANG ĐỨNG
+            </div>
+            <div style="font-size:11px; color:#1e293b; font-family:monospace; line-height:1.5;">
+              <div>• Vĩ độ: <strong>${lat.toFixed(6)}°B</strong></div>
+              <div>• Kinh độ: <strong>${lng.toFixed(6)}°Đ</strong></div>
+              ${
+                accuracyMeters
+                  ? `<div>• Độ chính xác: <strong>±${Math.round(accuracyMeters)}m</strong></div>`
+                  : ''
+              }
+            </div>
+          </div>
+        `);
       }
 
-      map.flyTo([lat, lng], 14, { duration: 1.0 });
+      // Phóng bản đồ (Zoom cấp 17) về sát ngay vị trí tọa độ GPS vừa xác định
+      map.flyTo([lat, lng], 17, { animate: true, duration: 1.0 });
+
+      setTimeout(() => {
+        try {
+          marker.openPopup();
+        } catch {}
+      }, 450);
     });
   };
 
-  const handleLocateUser = () => {
+  const acquireGpsAndZoomToUser = (withFloodAudit: boolean) => {
     if (typeof window === 'undefined') return;
     setIsLocating(true);
+    setLocateMessage('Đang xác định tọa độ GPS đang đứng...');
+
+    const clearLocateNotice = (msg?: string) => {
+      if (msg) {
+        setLocateMessage(msg);
+        setTimeout(() => setLocateMessage(null), 2800);
+      } else {
+        setLocateMessage(null);
+      }
+    };
 
     if (!('geolocation' in navigator)) {
       setIsLocating(false);
-      renderUserLocationMarker(13.0682, 107.8845, false);
+      clearLocateNotice('Thiết bị không hỗ trợ GPS, hiển thị tâm xã Ea Súp.');
+      renderUserLocationMarker(13.0682, 107.8845, withFloodAudit);
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false);
-        const { latitude, longitude } = pos.coords;
-        renderUserLocationMarker(latitude, longitude, false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        clearLocateNotice(
+          `Đã định vị GPS: ${latitude.toFixed(5)}°B, ${longitude.toFixed(5)}°Đ`
+        );
+        renderUserLocationMarker(latitude, longitude, withFloodAudit, accuracy);
       },
       () => {
-        setIsLocating(false);
-        renderUserLocationMarker(13.0682, 107.8845, false);
+        // Thử lại nhanh với định vị hỗn hợp (Wi-Fi / Trạm phát sóng) nếu GPS phần cứng phản hồi chậm
+        navigator.geolocation.getCurrentPosition(
+          (posFallback) => {
+            setIsLocating(false);
+            const { latitude, longitude, accuracy } = posFallback.coords;
+            clearLocateNotice(
+              `Đã định vị GPS: ${latitude.toFixed(5)}°B, ${longitude.toFixed(5)}°Đ`
+            );
+            renderUserLocationMarker(latitude, longitude, withFloodAudit, accuracy);
+          },
+          () => {
+            setIsLocating(false);
+            clearLocateNotice('Vui lòng bật quyền vị trí GPS trên trình duyệt.');
+            renderUserLocationMarker(13.0682, 107.8845, withFloodAudit);
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 7000, maximumAge: 10000 }
     );
   };
 
+  const handleLocateUser = () => {
+    acquireGpsAndZoomToUser(false);
+  };
+
   const handleCheckGpsFloodRisk = () => {
-    if (typeof window === 'undefined') return;
-    setIsLocating(true);
-
-    if (!('geolocation' in navigator)) {
-      setIsLocating(false);
-      renderUserLocationMarker(13.0682, 107.8845, true);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsLocating(false);
-        const { latitude, longitude } = pos.coords;
-        // Nếu người dùng đang mở trang từ tỉnh/thành phố khác ngoài bán kính 35km của Ea Súp,
-        // hỗ trợ kiểm tra trực tiếp tại tọa độ GPS hoặc tâm đối chiếu Thôn Đoàn Kết xã Ea Súp
-        const distFromEaSup = Math.hypot(latitude - 13.065, longitude - 107.89);
-        if (distFromEaSup > 0.35) {
-          renderUserLocationMarker(13.0682, 107.8845, true);
-        } else {
-          renderUserLocationMarker(latitude, longitude, true);
-        }
-      },
-      () => {
-        setIsLocating(false);
-        renderUserLocationMarker(13.0682, 107.8845, true);
-      },
-      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
-    );
+    acquireGpsAndZoomToUser(true);
   };
 
   // ================= QUẢN LÝ NHIỀU LỚP BẢN ĐỒ KMZ (ban_ve,_mat_cat.kmz) =================
@@ -4560,12 +4602,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
               ref={checkLocationBtnRef}
               type="button"
               onClick={() => {
-                if (showGpsFloodAssessment && !isLocating) {
-                  setShowGpsFloodAssessment(false);
-                } else {
-                  setShowGpsFloodAssessment(true);
-                  handleCheckGpsFloodRisk();
-                }
+                setShowGpsFloodAssessment(true);
+                handleCheckGpsFloodRisk();
               }}
               disabled={isLocating}
               className="w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5"
