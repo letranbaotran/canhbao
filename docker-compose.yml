@@ -6,7 +6,7 @@ services:
     container_name: easup_web
     restart: unless-stopped
     ports:
-      - '8066:3000'
+      - '127.0.0.1:8066:3000'
     env_file:
       - .env
     environment:

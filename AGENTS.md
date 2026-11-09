@@ -33,7 +33,8 @@
 | 6 | `tests/unit/tts_normalizer.test.ts` | 5/5 | **PASS** | Bung từ viết tắt UBMTTQ, UBND, PCTT & TKCN, TK 277, chuyển ngày tiếng Việt, băm SHA-256 |
 | 7 | `tests/unit/iot_security.test.ts` | 4/4 | **PASS** | Xác thực chữ ký HMAC-SHA256, chống sửa đổi gói tin, chống Replay attack 5 phút |
 | 8 | `tests/unit/delta_ndvi.test.ts` | 3/3 | **PASS** | Tính Delta-NDVI, cảnh báo mất rừng diện tích >= 500m² và lọc nhiễu bóng mây |
-| **Tổng** | **8 Test Suites** | **34/34** | **100% PASS** | **Hoàn thành toàn diện mọi quy chuẩn TDD** |
+| 9 | `tests/unit/land_measurement.test.ts` | 3/3 | **PASS** | Đo diện tích Geodesic (m², Sào Tây Nguyên 1.000m², Ha), lọc nhiễu GPS <12m / >=2.5m, xuất GeoJSON/KML |
+| **Tổng** | **9 Test Suites** | **37/37** | **100% PASS** | **Hoàn thành toàn diện mọi quy chuẩn TDD** |
 
 ### 2.2. Bảng Tổng Hợp Đóng Gói Sản Xuất (Next.js 15 - `npm run build`)
 - **Trạng thái**: Compiled successfully in 1.89s
@@ -95,3 +96,14 @@ docker compose exec web npx ts-node prisma/seed.ts
 ### 5.2. Chế độ Ngoại tuyến PWA Phục vụ Tuần tra Rừng
 - Service Worker `public/sw.js` tự động lưu đệm lớp bản đồ vector và ranh giới Tiểu khu 277.
 - Lực lượng Kiểm lâm và Dân quân khi tuần tra vào rừng sâu giáp ranh vùng mất sóng 4G vẫn định vị được tọa độ GPS và xem ranh giới tiểu khu.
+
+### 5.3. Phân hệ Công cụ Đo Diện Tích Đất & Khoanh Ranh Thửa Thực Địa (`LandMeasureFloatingCard`)
+- **Vị trí kích hoạt**: Nút tròn nổi **"Đo Đất"** (biểu tượng thước đo) nằm ngay cạnh nút **"Kiểm tra vị trí của tôi"** ở góc dưới bên trái bản đồ vệ tinh.
+- **2 Chế độ đo đạc chuyên dụng**:
+  1. **Chấm điểm trên bản đồ vệ tinh (Thủ công)**: Tích hợp `@geoman-io/leaflet-geoman-free` (`snappable: true, snapDistance: 20`), hỗ trợ kéo sửa đỉnh trực tiếp và 4 thao tác: *Hoàn tác 1 điểm*, *Đóng ranh thửa*, *Xóa đo lại*, *Lưu thửa đất*.
+  2. **Đi bộ đo bằng GPS (Thực địa)**: Sử dụng `navigator.geolocation.watchPosition` (`enableHighAccuracy: true, maximumAge: 1000, timeout: 5000`) với bộ lọc khử nhiễu chỉ nhận tín hiệu `accuracy < 12m` và tự động chấm đỉnh mới khi di chuyển `>= 2.5m`.
+- **Quy đổi đơn vị chuẩn Đắk Lắk & Tây Nguyên (`@turf/area`, `@turf/length`)**:
+  - Hiển thị song song: **Mét vuông (`m²`)**, **Sào Tây Nguyên (`1 Sào = 1.000 m²`)**, **Hecta (`1 Ha = 10.000 m²`)**, và **Chu vi bờ rào (`m`)**.
+- **Tiện ích xuất dữ liệu & Bảo vệ tài nguyên**:
+  - Đặt tên thửa đất/vườn cây, chụp ảnh kết quả `.png` qua `html2canvas`, xuất file `.geojson` / `.kml`, và gửi phản ánh ranh đất sang Cổng ý kiến cử tri `https://ykien.easupso.com`.
+  - Tự động gọi `clearWatch` GPS và `map.pm.disableDraw()` khi đóng công cụ; khóa cứng cổng nội bộ Docker Compose `127.0.0.1:8066:3000`.

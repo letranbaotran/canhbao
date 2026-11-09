@@ -80,7 +80,9 @@ import {
   ChevronLeft,
   Waves,
   Camera,
+  Ruler,
 } from 'lucide-react';
+import { LandMeasureFloatingCard } from './LandMeasureFloatingCard';
 
 export interface KmzLayerManifestItem {
   id: string;
@@ -605,6 +607,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapWrapperRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isLandMeasureOpen, setIsLandMeasureOpen] = useState<boolean>(false);
   const leafletMapRef = useRef<any>(null);
   const hoThuongMarkerRef = useRef<any>(null);
   const mikeFloodOverlayRef = useRef<any>(null);
@@ -4579,6 +4582,24 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
               </span>
             </button>
 
+            {/* Nút 1.5: Đo Đất (Nút tròn nổi bên cạnh nút "Kiểm tra vị trí của tôi" với biểu tượng cây thước đo và nhãn "Đo Đất") */}
+            <button
+              type="button"
+              onClick={() => setIsLandMeasureOpen((prev) => !prev)}
+              className={`w-[46px] h-[46px] sm:w-[48px] sm:h-[48px] rounded-full ${
+                isLandMeasureOpen
+                  ? 'bg-amber-600 ring-2 ring-amber-300'
+                  : 'bg-[#0A4393] hover:bg-[#083576] active:bg-[#062859]'
+              } text-white border-2 border-white shadow-xl flex flex-col items-center justify-center text-center transition-all transform active:scale-95 cursor-pointer select-none shrink-0 p-0.5`}
+              title="Công cụ Đo diện tích đất & Khoanh ranh thửa thực địa (Sào Tây Nguyên, Ha, m², Chu vi)"
+              aria-label="Đo Đất"
+            >
+              <Ruler className="w-4 h-4 text-amber-300 mb-0.5 shrink-0" />
+              <span className="text-[8px] sm:text-[8.5px] font-black leading-none tracking-tighter text-white block">
+                Đo Đất
+              </span>
+            </button>
+
             {/* Nút 2: Báo Tin / Gửi Tin hiện trường - BẤT KỲ TÀI KHOẢN NÀO ĐĂNG NHẬP ĐỀU HIỆN (ẢNH 1) */}
             {Boolean(currentUserEmail) && (
               <button
@@ -4661,6 +4682,14 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
             </div>
           )}
         </div>
+
+        {/* CÔNG CỤ ĐO DIỆN TÍCH ĐẤT & KHOANH RANH THỬA THỰC ĐỊA (LandMeasureFloatingCard) */}
+        <LandMeasureFloatingCard
+          isOpen={isLandMeasureOpen}
+          onClose={() => setIsLandMeasureOpen(false)}
+          leafletMapRef={leafletMapRef}
+          mapWrapperRef={mapWrapperRef}
+        />
 
         {/* KHUNG QUẢN LÝ LỚP BẢN ĐỒ (Hỗ trợ kéo thả tự do khắp bản đồ hoặc đổi bên nhanh) */}
         {showLayerManager && (
