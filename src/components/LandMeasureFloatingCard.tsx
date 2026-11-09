@@ -53,6 +53,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
 }) => {
   // 2 Chế độ đo: MANUAL (Chấm điểm trên bản đồ vệ tinh) | GPS_WALK (Đi bộ đo bằng GPS thực địa)
   const [measureMode, setMeasureMode] = useState<'MANUAL' | 'GPS_WALK'>('MANUAL');
+  const [isPinningActive, setIsPinningActive] = useState<boolean>(true);
   const [vertices, setVertices] = useState<[number, number][]>([]);
   const [isPolygonClosed, setIsPolygonClosed] = useState<boolean>(false);
   const [parcelName, setParcelName] = useState<string>('');
@@ -109,10 +110,16 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     setIsGpsTracking(false);
 
     const map = leafletMapRef.current;
-    if (map && map.pm) {
+    if (map) {
       try {
-        map.pm.disableDraw();
-        map.pm.disableGlobalEditMode();
+        const container = map.getContainer?.();
+        if (container) {
+          container.classList.remove('easup-pinning-cursor');
+        }
+        if (map.pm) {
+          map.pm.disableDraw();
+          map.pm.disableGlobalEditMode();
+        }
       } catch {}
     }
   }, [leafletMapRef]);
@@ -211,6 +218,20 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
 
     let isCancelled = false;
 
+    const isActivelyPinning = measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed;
+
+    // Đồng bộ con trỏ chuột dạng Ghim Chấm Điểm Vị Trí trên toàn vùng bản đồ vệ tinh
+    try {
+      const container = map.getContainer?.();
+      if (container) {
+        if (isActivelyPinning) {
+          container.classList.add('easup-pinning-cursor');
+        } else {
+          container.classList.remove('easup-pinning-cursor');
+        }
+      }
+    } catch {}
+
     const initGeomanAndListeners = async () => {
       await import('leaflet');
       await import('@geoman-io/leaflet-geoman-free');
@@ -235,7 +256,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
             },
           });
 
-          if (measureMode === 'MANUAL' && !isPolygonClosed) {
+          if (isActivelyPinning) {
             currentMap.pm.enableDraw('Polygon', {
               snappable: true,
               snapDistance: 20,
@@ -252,7 +273,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
 
     // Lắng nghe sự kiện chấm điểm trực tiếp trên bản đồ ở Chế độ 1 (Thủ công)
     const handleMapClick = (e: any) => {
-      if (measureMode !== 'MANUAL' || isPolygonClosed) return;
+      if (!isActivelyPinning) return;
       if (!e?.latlng) return;
       const newPt: [number, number] = [
         Number(e.latlng.lat.toFixed(6)),
@@ -274,6 +295,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
             ]);
             setVertices(pts);
             setIsPolygonClosed(true);
+            setIsPinningActive(false);
           }
           // Xóa layer tạm của Geoman vì đã có measureLayerGroupRef quản lý đồng bộ
           map.removeLayer(e.layer);
@@ -289,8 +311,11 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
       isCancelled = true;
       map.off('click', handleMapClick);
       map.off('pm:create', handlePmCreate);
+      try {
+        map.getContainer?.()?.classList.remove('easup-pinning-cursor');
+      } catch {}
     };
-  }, [isOpen, measureMode, isPolygonClosed, leafletMapRef, releaseAllMeasurementResources]);
+  }, [isOpen, measureMode, isPinningActive, isPolygonClosed, leafletMapRef, releaseAllMeasurementResources]);
 
   // Giải phóng toàn bộ tài nguyên khi unmount component
   useEffect(() => {
@@ -299,12 +324,37 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     };
   }, [releaseAllMeasurementResources]);
 
-  // Chuyển chế độ giữa Chấm điểm Thủ công & Đi bộ GPS
+  // Chuyển chế độ giữa Chấm điểm Thủ công & Đi bộ GPS (Bấm vào "1. Chấm điểm vệ tinh" sẽ lõm xuống & đổi con trỏ chuột sang dạng chấm điểm vị trí)
   const handleSwitchMode = (nextMode: 'MANUAL' | 'GPS_WALK') => {
-    if (nextMode === measureMode) return;
+    if (nextMode === 'MANUAL') {
+      if (measureMode === 'MANUAL') {
+        if (isPolygonClosed) {
+          setIsPolygonClosed(false);
+          setIsPinningActive(true);
+          showToast('Đã bật chế độ chấm điểm vị trí trên bản đồ vệ tinh.');
+        } else {
+          const nextPinning = !isPinningActive;
+          setIsPinningActive(nextPinning);
+          showToast(
+            nextPinning
+              ? 'Đã bật chế độ chấm điểm vị trí trên bản đồ vệ tinh.'
+              : 'Đã tạm tắt con trỏ chấm điểm.'
+          );
+        }
+        return;
+      }
+      releaseAllMeasurementResources();
+      setMeasureMode('MANUAL');
+      setIsPolygonClosed(false);
+      setIsPinningActive(true);
+      showToast('Đã bật chế độ chấm điểm vị trí trên bản đồ vệ tinh.');
+      return;
+    }
+
     releaseAllMeasurementResources();
-    setMeasureMode(nextMode);
+    setMeasureMode('GPS_WALK');
     setIsPolygonClosed(false);
+    setIsPinningActive(false);
   };
 
   // CHẾ ĐỘ 1 - Nút 1: Hoàn tác 1 điểm
@@ -337,6 +387,7 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
       } catch {}
     }
     setIsPolygonClosed(true);
+    setIsPinningActive(false);
     showToast('Đã đóng ranh thửa đất! Bạn có thể kéo các đỉnh để tinh chỉnh.');
   };
 
@@ -345,6 +396,9 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     releaseAllMeasurementResources();
     setVertices([]);
     setIsPolygonClosed(false);
+    if (measureMode === 'MANUAL') {
+      setIsPinningActive(true);
+    }
     setGpsAccuracy(null);
     setGpsRejectedCount(0);
 
@@ -690,28 +744,43 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
         </button>
       </div>
 
-      {/* Bộ chuyển 2 Chế độ đo đất */}
+      {/* Bộ chuyển 2 Chế độ đo đất: Nút "1. Chấm điểm vệ tinh" có hiệu ứng lõm sâu 3D khi kích hoạt */}
       <div className="p-1.5 bg-[#F0F6FF] border-b border-[#0A4393]/20 grid grid-cols-2 gap-1.5 shrink-0">
         <button
           type="button"
           onClick={() => handleSwitchMode('MANUAL')}
-          className={`py-1.5 px-2 rounded-lg font-bold text-[10.5px] flex items-center justify-center gap-1 transition-all cursor-pointer ${
-            measureMode === 'MANUAL'
-              ? 'bg-[#0A4393] text-white shadow-sm'
-              : 'bg-white text-[#0A4393] border border-[#0A4393]/25 hover:bg-blue-50'
+          aria-pressed={measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed}
+          className={`py-1.5 px-2 rounded-lg font-bold text-[10.5px] flex items-center justify-center gap-1 transition-all duration-150 cursor-pointer select-none ${
+            measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed
+              ? 'translate-y-[2px] scale-[0.97] bg-[#041E46] text-amber-300 border-t-2 border-l-2 border-[#010B1C] border-b border-r border-blue-400/50 shadow-[inset_0_4px_8px_rgba(0,0,0,0.8),inset_0_1px_2px_rgba(0,0,0,0.65)] ring-2 ring-amber-400/90'
+              : measureMode === 'MANUAL'
+                ? 'bg-gradient-to-b from-[#1659C2] to-[#0A4393] text-white border-b-[3px] border-[#052350] shadow-md hover:brightness-105'
+                : 'bg-white text-[#0A4393] border border-b-[3px] border-[#0A4393]/30 hover:bg-blue-50 shadow-xs'
           }`}
+          title={
+            measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed
+              ? 'Đang bật chế độ chấm điểm vị trí (Nhấn để tạm tắt con trỏ chấm điểm)'
+              : 'Nhấn để bật con trỏ chấm điểm vị trí trên bản đồ vệ tinh'
+          }
         >
-          <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
+          {measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed ? (
+            <MapPin className="w-3.5 h-3.5 text-amber-300 animate-bounce shrink-0" />
+          ) : (
+            <MousePointerClick className="w-3.5 h-3.5 shrink-0" />
+          )}
           <span>1. Chấm điểm vệ tinh</span>
+          {measureMode === 'MANUAL' && isPinningActive && !isPolygonClosed && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0 ml-0.5" />
+          )}
         </button>
 
         <button
           type="button"
           onClick={() => handleSwitchMode('GPS_WALK')}
-          className={`py-1.5 px-2 rounded-lg font-bold text-[10.5px] flex items-center justify-center gap-1 transition-all cursor-pointer ${
+          className={`py-1.5 px-2 rounded-lg font-bold text-[10.5px] flex items-center justify-center gap-1 transition-all duration-150 cursor-pointer select-none ${
             measureMode === 'GPS_WALK'
-              ? 'bg-[#EA580C] text-white shadow-sm'
-              : 'bg-white text-[#9A3412] border border-orange-300 hover:bg-orange-50'
+              ? 'translate-y-[2px] scale-[0.97] bg-[#9A3412] text-amber-200 border-t-2 border-l-2 border-[#431407] border-b border-r border-orange-300/50 shadow-[inset_0_4px_8px_rgba(0,0,0,0.75)] ring-2 ring-amber-400/80'
+              : 'bg-white text-[#9A3412] border border-b-[3px] border-orange-300 hover:bg-orange-50 shadow-xs'
           }`}
         >
           <Footprints className="w-3.5 h-3.5 shrink-0" />
@@ -1025,3 +1094,4 @@ export const LandMeasureFloatingCard: React.FC<LandMeasureFloatingCardProps> = (
     </div>
   );
 };
+
