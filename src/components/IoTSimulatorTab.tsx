@@ -27,6 +27,8 @@ import {
   DEFAULT_IOT_DATA,
   stopAllAlertsSystemWide,
   stopAlertsLocallyForGuest,
+  interpolateHydroByZ,
+  interpolateHydroByQ,
   type IoTTelemetryData,
 } from '@/services/telemetryStore';
 
@@ -82,11 +84,6 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     setFormData(currentData);
   }, [currentData]);
 
-  const calculateCapacity = (elevation: number) => {
-    const cap = 80 + ((elevation - 200) / 10) * 66;
-    return Math.round(Math.max(60, Math.min(160, cap)));
-  };
-
   const handleSelectMikeScenario = (
     id: Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'> | 'NONE'
   ) => {
@@ -105,58 +102,69 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     setApiResult(null);
   };
 
-  const applyScenario = (
-    type: 'DEFAULT' | 'FIRE_ALERT' | 'FLOOD_ALERT' | 'CAGE_VIOLATION' | 'OXYGEN_DEPLETION'
-  ) => {
-    if (type === 'DEFAULT') {
-      handleSelectMikeScenario('NONE');
-      return;
-    }
-    if (type === 'FLOOD_ALERT') {
-      handleSelectMikeScenario('KB1_1');
-      return;
-    }
-
-    let updated: IoTTelemetryData;
-    switch (type) {
-      case 'FIRE_ALERT':
-        updated = {
-          ...formData,
-          tk293: { temperature: 52.6, humidity: 24, smokeCo: 86, windSpeed: 7.2 },
-        };
-        setActiveStation('TK293');
-        break;
-      case 'CAGE_VIOLATION':
-        updated = {
-          ...formData,
-          hoHa: { status: 'Vi phạm nghiêm trọng', turbidity: 16.4, illegalCages: 3, capacityPct: 88 },
-        };
-        setActiveStation('HO_HA');
-        break;
-      case 'OXYGEN_DEPLETION':
-      default:
-        updated = {
-          ...formData,
-          hoTrungChuyen: {
-            dissolvedOxygen: 2.7,
-            ph: 6.2,
-            overflowRisk: 'Cao',
-            dykeStatus: 'Nguy cơ sạt lở',
-          },
-        };
-        setActiveStation('HO_TRUNG_CHUYEN');
-        break;
-    }
-    setFormData(updated);
-    setIotData(updated, {
-      broadcast: true,
-      scenarioName: type,
-      triggerDominoAudio: true,
-    });
-    setApiResult(null);
-  };
-
   const handleFieldChange = (station: keyof IoTTelemetryData, field: string, value: any) => {
+    // 1. Kéo Cao trình Hồ Thượng Z: Nội suy 2 chiều tự động sang Q, W, RiseRate và Hồ Ea Súp Hạ
+    if (station === 'hoThuong' && field === 'elevation') {
+      const numElev = Number(Number(value).toFixed(2));
+      const interp = interpolateHydroByZ(numElev);
+      const isWarning = interp.q >= 100 || numElev >= 217.54;
+      const updated: IoTTelemetryData = {
+        ...formData,
+        hoThuong: {
+          ...formData.hoThuong,
+          elevation: numElev,
+          discharge: interp.q,
+          capacity: interp.w,
+          riseRate: interp.riseRate,
+        },
+        hoHa: {
+          ...formData.hoHa,
+          elevation: interp.hoHaZ,
+          discharge: interp.hoHaQ,
+          capacityM: interp.hoHaW,
+          capacityPct: interp.hoHaPct,
+        },
+      };
+      setFormData(updated);
+      setIotData(updated, {
+        broadcast: true,
+        scenarioId: isWarning ? 'CUSTOM_SLIDER' : 'NONE',
+        triggerDominoAudio: isWarning,
+      });
+      return;
+    }
+
+    // 2. Kéo Lưu lượng xả Hồ Thượng Q: Nội suy 2 chiều tự động sang Z, W, RiseRate và Hồ Ea Súp Hạ
+    if (station === 'hoThuong' && field === 'discharge') {
+      const numQ = Math.round(Number(value));
+      const interp = interpolateHydroByQ(numQ);
+      const isWarning = numQ >= 100 || interp.z >= 217.54;
+      const updated: IoTTelemetryData = {
+        ...formData,
+        hoThuong: {
+          ...formData.hoThuong,
+          discharge: numQ,
+          elevation: interp.z,
+          capacity: interp.w,
+          riseRate: interp.riseRate,
+        },
+        hoHa: {
+          ...formData.hoHa,
+          elevation: interp.hoHaZ,
+          discharge: interp.hoHaQ,
+          capacityM: interp.hoHaW,
+          capacityPct: interp.hoHaPct,
+        },
+      };
+      setFormData(updated);
+      setIotData(updated, {
+        broadcast: true,
+        scenarioId: isWarning ? 'CUSTOM_SLIDER' : 'NONE',
+        triggerDominoAudio: isWarning,
+      });
+      return;
+    }
+
     const updated = {
       ...formData,
       [station]: {
@@ -164,26 +172,23 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
         [field]: value,
       },
     };
-    if (station === 'hoThuong' && field === 'elevation') {
-      const numElev = Number(value);
-      updated.hoThuong.capacity = calculateCapacity(numElev);
-      if (numElev >= 210) {
-        updated.hoThuong.riseRate = Math.max(updated.hoThuong.riseRate, 34);
-        updated.hoThuong.discharge = Math.max(updated.hoThuong.discharge, 580);
-      } else if (numElev >= 208) {
-        updated.hoThuong.riseRate = Math.max(updated.hoThuong.riseRate, 20);
-        updated.hoThuong.discharge = Math.max(updated.hoThuong.discharge, 280);
-      }
-    }
+
     if (station === 'hoHa' && field === 'illegalCages') {
       updated.hoHa.status = Number(value) > 0 ? 'Vi phạm nghiêm trọng' : 'An toàn';
     }
+
     setFormData(updated);
     const isHydroChange = station === 'hoThuong';
+    const isWarningTrigger =
+      isHydroChange &&
+      (updated.hoThuong.discharge >= 100 ||
+        updated.hoThuong.elevation >= 217.54 ||
+        updated.hoThuong.riseRate > 30);
+
     setIotData(updated, {
       broadcast: true,
-      scenarioId: isHydroChange ? 'CUSTOM_SLIDER' : scenarioId,
-      triggerDominoAudio: isHydroChange && updated.hoThuong.elevation >= 208.0,
+      scenarioId: isHydroChange ? (isWarningTrigger ? 'CUSTOM_SLIDER' : 'NONE') : scenarioId,
+      triggerDominoAudio: isWarningTrigger,
     });
   };
 
@@ -210,21 +215,21 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
     }
 
     if (activeStation === 'HO_THUONG') {
-      const { elevation, riseRate } = formData.hoThuong;
-      if (elevation >= 210.0 || riseRate >= 30 || (scenarioId !== 'NONE' && scenarioId !== 'KB4_1')) {
+      const { elevation, discharge, riseRate } = formData.hoThuong;
+      if (discharge >= 600 || elevation >= 217.85 || riseRate > 30 || (scenarioId !== 'NONE' && scenarioId !== 'KB4_1')) {
         return {
           text: `🚨 Báo động Lũ Khẩn Cấp (${hydraulicModel.code}): MBL Ea Súp ${hydraulicModel.mblEaSup}m, ngập ${hydraulicModel.totalFloodedAreaHa.toLocaleString('en-US')} ha (${hydraulicModel.affectedHouseholds.toLocaleString('en-US')} hộ)!`,
           color: 'text-rose-700 bg-rose-50 border-rose-500 font-bold',
         };
       }
-      if (elevation >= 208.0 || riseRate >= 15 || scenarioId === 'KB4_1') {
+      if (discharge >= 100 || elevation >= 217.54 || riseRate >= 15 || scenarioId === 'KB4_1') {
         return {
-          text: `⚠ Cảnh báo Ngập Hạ Du (${hydraulicModel.code}): MBL Ea Súp ${hydraulicModel.mblEaSup}m, ngập ${hydraulicModel.totalFloodedAreaHa.toLocaleString('en-US')} ha.`,
+          text: `⚠ Cảnh báo Ngập Hạ Du (${hydraulicModel.code}): MBL Ea Súp ${hydraulicModel.mblEaSup}m, ngập ${hydraulicModel.totalFloodedAreaHa.toLocaleString('en-US')} ha (${hydraulicModel.affectedHouseholds} hộ).`,
           color: 'text-amber-800 bg-amber-50 border-amber-500 font-semibold',
         };
       }
       return {
-        text: '✓ Mực nước an toàn (dưới Báo động I), hồ chứa vận hành ổn định.',
+        text: '✓ Mực nước an toàn (dưới Báo động I), hồ chứa vận hành điều tiết ổn định. Nước nằm trong lòng dẫn sông Ea Súp, giao thông thông suốt.',
         color: 'text-[#0A4393] bg-[#F0F6FF] border-[#0A4393]/30 font-semibold',
       };
     }
@@ -397,15 +402,36 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
               >
                 KỊCH BẢN ĐÃ KIỂM ĐỊNH
               </label>
-              <button
-                type="button"
-                onClick={handleTurnOffAllAlertsAndReset}
-                className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-mono font-black tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-md hover:shadow-lg cursor-pointer ring-2 ring-rose-400 select-none animate-pulse hover:animate-none"
-                title="Bấm để đặt lại toàn bộ thông số và tắt hoàn toàn âm thanh còi hú, phát thanh AI"
-              >
-                <VolumeX className="w-4 h-4 shrink-0" />
-                <span>TẮT CẢNH BÁO</span>
-              </button>
+              {(() => {
+                const isWarningActive =
+                  formData.hoThuong.discharge >= 100 ||
+                  formData.hoThuong.elevation >= 217.54 ||
+                  formData.hoThuong.riseRate > 30 ||
+                  (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER');
+                return (
+                  <button
+                    type="button"
+                    onClick={handleTurnOffAllAlertsAndReset}
+                    className={`px-3.5 py-1.5 rounded-lg text-white text-xs font-mono font-black tracking-wider uppercase transition-all flex items-center gap-1.5 shadow-md select-none cursor-pointer ${
+                      isWarningActive
+                        ? formData.hoThuong.discharge >= 600 || formData.hoThuong.elevation >= 217.85
+                          ? 'bg-rose-600 hover:bg-rose-700 ring-2 ring-rose-400 animate-pulse hover:animate-none'
+                          : formData.hoThuong.discharge >= 350
+                          ? 'bg-orange-600 hover:bg-orange-700 ring-2 ring-orange-400 animate-pulse hover:animate-none'
+                          : 'bg-amber-600 hover:bg-amber-700 ring-2 ring-amber-400 animate-pulse hover:animate-none'
+                        : 'bg-slate-600 hover:bg-slate-700 ring-1 ring-slate-400'
+                    }`}
+                    title={
+                      isWarningActive
+                        ? 'Hệ thống đang phát Báo động Trực chiến! Bấm vào đây để TẮT CẢNH BÁO và đưa về trạng thái An toàn (Hồ Thượng 216.30m, 45 m³/s)'
+                        : 'Hệ thống đang ở trạng thái Vận hành An toàn (dưới Báo động I). Bấm để đặt lại số liệu mặc định nếu cần'
+                    }
+                  >
+                    <VolumeX className="w-4 h-4 shrink-0" />
+                    <span>{isWarningActive ? 'ĐANG CẢNH BÁO TRỰC CHIẾN' : 'TẮT CẢNH BÁO'}</span>
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Dropdown chọn nhanh hoặc cụm nút 5 kịch bản */}
@@ -725,11 +751,13 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Mực nước hồ:</span>
+                      <span>Mực nước hồ (Z):</span>
                       <strong
                         className={
-                          formData.hoThuong.elevation >= 210
+                          formData.hoThuong.elevation >= 217.85
                             ? 'text-rose-600 font-bold'
+                            : formData.hoThuong.elevation >= 217.54
+                            ? 'text-amber-600 font-bold'
                             : 'text-[#0A4393]'
                         }
                       >
@@ -738,15 +766,20 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                     </div>
                     <input
                       type="range"
-                      min={200}
-                      max={214}
-                      step={0.2}
+                      min={205.40}
+                      max={219.80}
+                      step={0.01}
                       value={formData.hoThuong.elevation}
                       onChange={(e) =>
                         handleFieldChange('hoThuong', 'elevation', parseFloat(e.target.value))
                       }
                       className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
                     />
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>MNC: 205.40m</span>
+                      <span>MNDBT: 217.58m</span>
+                      <span>Đỉnh: 219.80m</span>
+                    </div>
                   </div>
 
                   <div>
@@ -767,51 +800,77 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                     </div>
                     <input
                       type="range"
-                      min={-10}
+                      min={0}
                       max={50}
-                      step={2}
+                      step={1}
                       value={formData.hoThuong.riseRate}
                       onChange={(e) =>
                         handleFieldChange('hoThuong', 'riseRate', parseInt(e.target.value))
                       }
                       className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
                     />
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>0 cm/h</span>
+                      <span>Ngưỡng lũ: 30 cm/h</span>
+                      <span>50 cm/h</span>
+                    </div>
                   </div>
 
                   <div>
                     <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Lưu lượng xả:</span>
-                      <strong className="text-[#0A4393]">{formData.hoThuong.discharge} m³/s</strong>
+                      <span>Lưu lượng xả (Q):</span>
+                      <strong
+                        className={
+                          formData.hoThuong.discharge >= 600
+                            ? 'text-rose-600 font-bold'
+                            : formData.hoThuong.discharge >= 100
+                            ? 'text-amber-600 font-bold'
+                            : 'text-[#0A4393]'
+                        }
+                      >
+                        {formData.hoThuong.discharge} m³/s
+                      </strong>
                     </div>
                     <input
                       type="range"
                       min={0}
-                      max={1200}
-                      step={20}
+                      max={Math.max(1628, formData.hoThuong.discharge)}
+                      step={1}
                       value={formData.hoThuong.discharge}
                       onChange={(e) =>
                         handleFieldChange('hoThuong', 'discharge', parseInt(e.target.value))
                       }
                       className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
                     />
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>0 m³/s</span>
+                      <span>BĐ I: 100</span>
+                      <span>P=1%: 1075</span>
+                      <span>Max: 1628</span>
+                    </div>
                   </div>
 
                   <div>
                     <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Dung tích nước:</span>
+                      <span>Dung tích nước (W):</span>
                       <strong className="text-[#0A4393]">
-                        {formData.hoThuong.capacity} / 146 triệu m³
+                        {formData.hoThuong.capacity} / 146.9 triệu m³
                       </strong>
                     </div>
                     <div className="w-full bg-[#E6F0FA] h-2 rounded-full overflow-hidden mt-1.5">
                       <div
                         className={`h-full ${
-                          formData.hoThuong.capacity >= 146 ? 'bg-rose-600' : 'bg-[#0A4393]'
+                          formData.hoThuong.capacity >= 146.9 ? 'bg-rose-600' : 'bg-[#0A4393]'
                         }`}
                         style={{
-                          width: `${Math.min(100, (formData.hoThuong.capacity / 146) * 100)}%`,
+                          width: `${Math.min(100, (formData.hoThuong.capacity / 146.9) * 100)}%`,
                         }}
                       />
+                    </div>
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>Chết: 11.0M</span>
+                      <span>MNDBT: 146.9M</span>
+                      <span>Gia cường: 158.5M</span>
                     </div>
                   </div>
                 </div>
@@ -821,59 +880,75 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Lồng nuôi cá trái phép:</span>
-                      <strong
-                        className={
-                          formData.hoHa.illegalCages > 0
-                            ? 'text-rose-600 font-bold'
-                            : 'text-[#0A4393]'
-                        }
-                      >
-                        {formData.hoHa.illegalCages} lồng
-                      </strong>
+                      <span>Mực nước Hồ Hạ (Z):</span>
+                      <strong className="text-[#0A4393]">{formData.hoHa.elevation ?? 196.35} m</strong>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleFieldChange(
-                            'hoHa',
-                            'illegalCages',
-                            Math.max(0, formData.hoHa.illegalCages - 1)
-                          )
-                        }
-                        className="px-2.5 py-0.5 rounded bg-[#F0F6FF] hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393] font-bold text-xs"
-                      >
-                        -
-                      </button>
-                      <input
-                        type="range"
-                        min={0}
-                        max={5}
-                        value={formData.hoHa.illegalCages}
-                        onChange={(e) =>
-                          handleFieldChange('hoHa', 'illegalCages', parseInt(e.target.value))
-                        }
-                        className="flex-1 accent-rose-600 h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleFieldChange('hoHa', 'illegalCages', formData.hoHa.illegalCages + 1)
-                        }
-                        className="px-2.5 py-0.5 rounded bg-[#F0F6FF] hover:bg-[#E6F0FA] border border-[#0A4393]/30 text-[#0A4393] font-bold text-xs"
-                      >
-                        +
-                      </button>
+                    <input
+                      type="range"
+                      min={193.40}
+                      max={198.20}
+                      step={0.01}
+                      value={formData.hoHa.elevation ?? 196.35}
+                      onChange={(e) =>
+                        handleFieldChange('hoHa', 'elevation', parseFloat(e.target.value))
+                      }
+                      className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>MNC: 193.40m</span>
+                      <span>MNDBT: 196.50m</span>
+                      <span>Đỉnh: 198.20m</span>
                     </div>
                   </div>
 
                   <div>
                     <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Độ trong của nước:</span>
+                      <span>Lưu lượng xả Hồ Hạ (Q):</span>
+                      <strong className="text-[#0A4393]">{formData.hoHa.discharge ?? 15} m³/s</strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={200}
+                      step={1}
+                      value={formData.hoHa.discharge ?? 15}
+                      onChange={(e) =>
+                        handleFieldChange('hoHa', 'discharge', parseInt(e.target.value))
+                      }
+                      className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                      <span>0 m³/s</span>
+                      <span>Mặc định: 15</span>
+                      <span>200 m³/s</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-slate-700 mb-1">
+                      <span>Dung tích Hồ Hạ (W):</span>
+                      <strong className="text-[#0A4393]">
+                        {formData.hoHa.capacityM ?? 8.85} / 9.25 triệu m³ ({formData.hoHa.capacityPct}%)
+                      </strong>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={140}
+                      value={formData.hoHa.capacityPct}
+                      onChange={(e) =>
+                        handleFieldChange('hoHa', 'capacityPct', parseInt(e.target.value))
+                      }
+                      className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-slate-700 mb-1">
+                      <span>Độ trong (Độ đục):</span>
                       <strong
                         className={
-                          formData.hoHa.turbidity > 5 ? 'text-amber-600' : 'text-[#0A4393]'
+                          formData.hoHa.turbidity > 5 ? 'text-amber-600 font-bold' : 'text-[#0A4393]'
                         }
                       >
                         {formData.hoHa.turbidity} NTU
@@ -892,21 +967,55 @@ export const IoTSimulatorTab: React.FC<IoTSimulatorTabProps> = ({
                     />
                   </div>
 
-                  <div className="col-span-2">
-                    <div className="flex justify-between text-slate-700 mb-1">
-                      <span>Mực nước hồ hiện tại:</span>
-                      <strong className="text-[#0A4393]">{formData.hoHa.capacityPct}%</strong>
+                  <div className="col-span-2 p-2 rounded-lg bg-rose-50 border border-rose-200">
+                    <div className="flex justify-between items-center text-slate-700 mb-1">
+                      <span className="font-semibold text-rose-900">
+                        Lồng nuôi cá trái phép (CẤM TUYỆT ĐỐI HỒ HẠ):
+                      </span>
+                      <strong
+                        className={
+                          formData.hoHa.illegalCages > 0
+                            ? 'text-rose-600 font-black'
+                            : 'text-emerald-700 font-bold'
+                        }
+                      >
+                        {formData.hoHa.illegalCages} lồng {formData.hoHa.illegalCages === 0 ? '(An toàn)' : '(Vi phạm!)'}
+                      </strong>
                     </div>
-                    <input
-                      type="range"
-                      min={20}
-                      max={100}
-                      value={formData.hoHa.capacityPct}
-                      onChange={(e) =>
-                        handleFieldChange('hoHa', 'capacityPct', parseInt(e.target.value))
-                      }
-                      className="w-full accent-[#0A4393] h-1.5 bg-[#E6F0FA] rounded cursor-pointer"
-                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleFieldChange(
+                            'hoHa',
+                            'illegalCages',
+                            Math.max(0, formData.hoHa.illegalCages - 1)
+                          )
+                        }
+                        className="px-2.5 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="range"
+                        min={0}
+                        max={5}
+                        value={formData.hoHa.illegalCages}
+                        onChange={(e) =>
+                          handleFieldChange('hoHa', 'illegalCages', parseInt(e.target.value))
+                        }
+                        className="flex-1 accent-rose-600 h-1.5 bg-rose-100 rounded cursor-pointer"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleFieldChange('hoHa', 'illegalCages', formData.hoHa.illegalCages + 1)
+                        }
+                        className="px-2.5 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

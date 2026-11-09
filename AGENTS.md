@@ -21,7 +21,7 @@
 ### 2.1. Bảng Tổng Hợp Kiểm Thử Đơn Vị (Vitest - `npm test`)
 - **Trạng thái**: PASS (100% GREEN)
 - **Mã thoát (Exit Code)**: `0`
-- **Thời lượng thực thi**: `0.80s`
+- **Thời lượng thực thi**: `2.52s`
 
 | STT | Test Suite | Số test | Kết quả | Trọng tâm kiểm thử |
 |---|---|---|---|---|
@@ -34,16 +34,20 @@
 | 7 | `tests/unit/iot_security.test.ts` | 4/4 | **PASS** | Xác thực chữ ký HMAC-SHA256, chống sửa đổi gói tin, chống Replay attack 5 phút |
 | 8 | `tests/unit/delta_ndvi.test.ts` | 3/3 | **PASS** | Tính Delta-NDVI, cảnh báo mất rừng diện tích >= 500m² và lọc nhiễu bóng mây |
 | 9 | `tests/unit/land_measurement.test.ts` | 3/3 | **PASS** | Đo diện tích Geodesic (m², Sào Tây Nguyên 1.000m², Ha), lọc nhiễu GPS <12m / >=2.5m, xuất GeoJSON/KML |
-| **Tổng** | **9 Test Suites** | **37/37** | **100% PASS** | **Hoàn thành toàn diện mọi quy chuẩn TDD** |
+| 10 | `tests/unit/hydro_piecewise_interpolation.test.ts` | 5/5 | **PASS** | Đồng bộ 11 mốc thực tế Chi nhánh Thủy lợi, nội suy 2 chiều Z <-> Q, an toàn Q < 100 m³/s, cấm lồng bè Hồ Hạ |
+| **Tổng** | **10 Test Suites** | **42/42** | **100% PASS** | **Hoàn thành toàn diện mọi quy chuẩn TDD** |
 
 ### 2.2. Bảng Tổng Hợp Đóng Gói Sản Xuất (Next.js 15 - `npm run build`)
-- **Trạng thái**: Compiled successfully in 1.89s
+- **Trạng thái**: Compiled successfully in 1.83s
 - **Mã thoát (Exit Code)**: `0`
 - **Cấu hình**: Standalone output cho Docker container
 - **Tối ưu hóa**: Toàn bộ Route tĩnh (Static) & API động (Dynamic) đạt chuẩn không cảnh báo:
-  - `○ /` (Static Command Center): `9.96 kB`
-  - `ƒ /api/iot/telemetry` (Dynamic API): `126 B`
-  - `ƒ /api/tts/generate` (Dynamic API): `126 B`
+  - `○ /` (Static Command Center): `541 kB` (First load: `643 kB`)
+  - `ƒ /api/auth/users` (Dynamic API): `135 B`
+  - `ƒ /api/iot/telemetry` (Dynamic API): `135 B`
+  - `ƒ /api/tts/generate` (Dynamic API): `135 B`
+  - `ƒ /api/kml/layers` (Dynamic API): `135 B`
+  - `ƒ /api/villages/coordinates` (Dynamic API): `135 B`
 
 ---
 
@@ -107,3 +111,16 @@ docker compose exec web npx ts-node prisma/seed.ts
 - **Tiện ích xuất dữ liệu & Bảo vệ tài nguyên**:
   - Đặt tên thửa đất/vườn cây, chụp ảnh kết quả `.png` qua `html2canvas`, xuất file `.geojson` / `.kml`, và gửi phản ánh ranh đất sang Cổng ý kiến cử tri `https://ykien.easupso.com`.
   - Tự động gọi `clearWatch` GPS và `map.pm.disableDraw()` khi đóng công cụ; khóa cứng cổng nội bộ Docker Compose `127.0.0.1:8066:3000`.
+
+### 5.4. Đồng bộ Thủy văn Thực tế Chi nhánh Ea Súp & Mô hình Thủy lực 2D MIKE FLOOD
+- **Thông số vận hành chuẩn mực (Quyết định 1694/QĐ-UBND, TB 130, 131, 135/TB-TL & BC 1775/BC-CTTL)**:
+  - **Hồ Ea Súp Thượng**: Cao trình mặc định $Z = 216.30\text{ m}$, Lưu lượng xả $Q = 45\text{ m}^3\text{/s}$ (mở 01 cửa tràn điều tiết), Dung tích $W = 120.5 / 146.9\text{ triệu m}^3$, Tốc độ dâng $+2\text{ cm/h}$.
+  - **Hồ Ea Súp Hạ**: Cao trình mặc định $Z = 196.35\text{ m}$, Lưu lượng xả $Q = 15\text{ m}^3\text{/s}$, Dung tích $W = 8.85 / 9.25\text{ triệu m}^3$ ($95.7\%$), Độ đục $4.3\text{ NTU}$, Lồng bè vi phạm $0$.
+  - **4 Nút mốc Đồng bộ Loa AI trên Bảng 1**:
+    1. `216.30m (45 m³/s)` — Trạng thái An toàn (Dưới Báo động I).
+    2. `217.54m (100 m³/s)` — Bắt đầu Cảnh báo Cấp 1 (Báo động I - theo TB 135/TB-TL).
+    3. `217.85m (600 m³/s)` — Xả lũ khẩn cấp Cấp 3 (Báo động III - mở 03 cửa tràn theo BC 1775/BC-CTTL).
+    4. `218.62m (792 m³/s)` — Lưu lượng xả thiết kế tràn cửa van P=1% (theo TB 131/TB-TL).
+- **Thuật toán Nội suy Tuyến tính Từng đoạn 2 chiều ($Z \leftrightarrow Q \leftrightarrow W$) qua 11 điểm mốc**:
+  - $Q < 100\text{ m}^3\text{/s}$: Nút trạng thái `TẮT CẢNH BÁO` (xanh/xám), MBL Ea Súp $< 185.00\text{ m}$, 5 mức ngập đều $0\text{ ha}$ ($0.0\%$), Dân cư $0$ hộ, Giao thông $0\text{ km}$.
+  - $Q \ge 100\text{ m}^3\text{/s}$: Nút chuyển sang `ĐANG CẢNH BÁO TRỰC CHIẾN` (Vàng $\rightarrow$ Cam $\rightarrow$ Đỏ), kích hoạt giọng đọc AI An Nhiên và biểu đồ 5 mức ngập nội suy tương thích MIKE FLOOD 4 cấp độ.

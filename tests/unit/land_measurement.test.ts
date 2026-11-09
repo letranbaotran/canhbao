@@ -60,3 +60,4 @@ describe('Công cụ Đo diện tích đất & Khoanh ranh thửa thực địa 
     expect(kmlStr).toContain('<Polygon>');
   });
 });
+

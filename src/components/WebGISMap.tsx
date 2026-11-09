@@ -921,7 +921,8 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     const affectedVillages = hydraulicModel.affectedVillages || [];
     const isFloodAlertActive =
       affectedVillages.length > 0 &&
-      (iotData.hoThuong.elevation >= 208.5 ||
+      (iotData.hoThuong.discharge >= 100 ||
+        iotData.hoThuong.elevation >= 217.54 ||
         iotData.hoThuong.riseRate >= 15 ||
         hydraulicModel.totalFloodedAreaHa > 0 ||
         (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER'));
@@ -1307,12 +1308,18 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   useEffect(() => {
     if (!hoThuongMarkerRef.current) return;
     const elev = iotData.hoThuong.elevation;
-    const statusText = elev >= 210 ? 'Báo động Đỏ Cấp 3' : elev >= 208 ? 'Cảnh báo Cấp 2' : 'An toàn';
+    const discharge = iotData.hoThuong.discharge;
+    const statusText =
+      elev >= 217.85 || discharge >= 600
+        ? 'Báo động Đỏ Cấp 3'
+        : elev >= 217.54 || discharge >= 100
+        ? 'Cảnh báo Cấp 1'
+        : 'An toàn';
     hoThuongMarkerRef.current.setPopupContent(`
       <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
         <h4 style="font-weight:bold; color:#1d4ed8; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Thượng (Đại thủy nông)</h4>
         <p style="margin:0 0 4px 0; font-size:11px; color:#64748b;">Tọa độ: 13.043116°B, 107.937218°Đ</p>
-        <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146 triệu m³. Tràn xả lũ tự do cao trình 210.0m. Mực nước hiện tại: <strong>${elev}m (${statusText})</strong>.</p>
+        <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146.9 triệu m³. Ngưỡng tràn cửa van 209.58m, MNDBT 217.58m. Mực nước hiện tại: <strong>${elev}m (${statusText}, xả ${discharge} m³/s)</strong>.</p>
       </div>
     `);
   }, [iotData.hoThuong.elevation]);
@@ -1893,7 +1900,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:240px; color:#1e293b;">
             <h4 style="font-weight:bold; color:#1d4ed8; margin:0 0 4px 0; font-size:13px;">Hồ Ea Súp Thượng (Đại thủy nông)</h4>
             <p style="margin:0 0 4px 0; font-size:11px; color:#64748b;">Tọa độ: 13.043116°B, 107.937218°Đ</p>
-            <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146 triệu m³. Tràn xả lũ tự do cao trình 210.0m. Mực nước trực chiến: <strong>206.8m</strong>.</p>
+            <p style="margin:0 0 6px 0; line-height:1.4;">Dung tích 146.9 triệu m³. Ngưỡng tràn cửa van 209.58m, MNDBT 217.58m. Mực nước trực chiến: <strong>216.30m (45 m³/s)</strong>.</p>
           </div>
         `);
       hoThuongMarkerRef.current = hoThuongMarker;

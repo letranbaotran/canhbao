@@ -234,3 +234,4 @@ export function buildParcelKMLString(
   </Document>
 </kml>`;
 }
+

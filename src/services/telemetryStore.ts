@@ -13,16 +13,19 @@ export interface IoTTelemetryData {
     windSpeed: number; // m/s
   };
   hoThuong: {
-    elevation: number; // m
-    discharge: number; // m³/s
-    capacity: number; // M m³
+    elevation: number; // m (Z: 205.40 - 219.80m)
+    discharge: number; // m³/s (Q: 0 - 1628m³/s, cực đại vỡ đập tới 7201m³/s)
+    capacity: number; // M m³ (W: 11.0 - 175.0M m³, MNDBT 146.9M m³)
     riseRate: number; // cm/h
   };
   hoHa: {
     status: 'An toàn' | 'Cảnh báo ô nhiễm' | 'Vi phạm nghiêm trọng';
     turbidity: number; // NTU
     illegalCages: number; // Số lồng bè vi phạm
-    capacityPct: number; // % dung tích
+    capacityPct: number; // % dung tích (MNDBT 9.25M m³)
+    elevation: number; // Cao trình (m, MNC 193.40m, MNDBT 196.50m)
+    discharge: number; // Lưu lượng xả (m³/s)
+    capacityM: number; // Dung tích thực tế (M m³)
   };
   hoTrungChuyen: {
     dissolvedOxygen: number; // mg/L
@@ -35,21 +38,24 @@ export interface IoTTelemetryData {
 export const DEFAULT_IOT_DATA: IoTTelemetryData = {
   tk293: {
     temperature: 32.4,
-    humidity: 58,
-    smokeCo: 12,
+    humidity: 57,
+    smokeCo: 11,
     windSpeed: 2.8,
   },
   hoThuong: {
-    elevation: 206.8,
-    discharge: 0,
-    capacity: 118,
+    elevation: 216.30,
+    discharge: 45,
+    capacity: 120.5,
     riseRate: 2,
   },
   hoHa: {
     status: 'An toàn',
-    turbidity: 4.2,
+    turbidity: 4.3,
     illegalCages: 0,
-    capacityPct: 82,
+    capacityPct: 95.7,
+    elevation: 196.35,
+    discharge: 15,
+    capacityM: 8.85,
   },
   hoTrungChuyen: {
     dissolvedOxygen: 6.8,
@@ -129,6 +135,135 @@ export const CORE_FLOOD_AFFECTED_VILLAGES = [
   'Thôn Bình Lợi',
 ] as const;
 
+export interface HydroPiecewiseBenchmark {
+  q: number; // m³/s
+  z: number; // m
+  w: number; // M m³
+  riseRate: number; // cm/h
+  hoHaZ: number; // m
+  hoHaQ: number; // m³/s
+  hoHaW: number; // M m³
+  hoHaPct: number; // %
+}
+
+export const HYDRO_PIECEWISE_BENCHMARKS: HydroPiecewiseBenchmark[] = [
+  { q: 0, z: 215.50, w: 110.0, riseRate: 0, hoHaZ: 195.80, hoHaQ: 0, hoHaW: 7.80, hoHaPct: 84.3 },
+  { q: 20, z: 215.97, w: 116.0, riseRate: 1, hoHaZ: 195.97, hoHaQ: 5, hoHaW: 8.20, hoHaPct: 88.6 },
+  { q: 45, z: 216.30, w: 120.5, riseRate: 2, hoHaZ: 196.35, hoHaQ: 15, hoHaW: 8.85, hoHaPct: 95.7 },
+  { q: 100, z: 217.54, w: 142.5, riseRate: 6, hoHaZ: 196.40, hoHaQ: 25, hoHaW: 9.05, hoHaPct: 97.8 },
+  { q: 350, z: 217.58, w: 146.9, riseRate: 12, hoHaZ: 196.45, hoHaQ: 50, hoHaW: 9.25, hoHaPct: 100.0 },
+  { q: 600, z: 217.85, w: 151.5, riseRate: 22, hoHaZ: 196.51, hoHaQ: 65, hoHaW: 9.35, hoHaPct: 101.1 },
+  { q: 766, z: 217.95, w: 153.0, riseRate: 23, hoHaZ: 196.53, hoHaQ: 69, hoHaW: 9.40, hoHaPct: 101.6 },
+  { q: 792, z: 218.10, w: 154.5, riseRate: 24, hoHaZ: 196.54, hoHaQ: 83, hoHaW: 9.50, hoHaPct: 102.7 },
+  { q: 1075, z: 218.46, w: 158.51, riseRate: 25, hoHaZ: 196.95, hoHaQ: 124.5, hoHaW: 10.83, hoHaPct: 117.1 },
+  { q: 1202, z: 219.08, w: 170.12, riseRate: 32, hoHaZ: 197.34, hoHaQ: 143.0, hoHaW: 12.36, hoHaPct: 133.6 },
+  { q: 1628, z: 219.47, w: 175.0, riseRate: 38, hoHaZ: 197.35, hoHaQ: 152.0, hoHaW: 12.45, hoHaPct: 134.6 },
+];
+
+/**
+ * Nội suy tuyến tính từng đoạn theo Cao trình Z (205.40m -> 219.80m)
+ */
+export function interpolateHydroByZ(z: number): HydroPiecewiseBenchmark {
+  const clampedZ = Math.max(205.40, Math.min(219.80, Number(z.toFixed(2))));
+
+  // Vùng dưới ngưỡng mốc 0 (205.40 -> 215.50m: Đóng tràn hoàn toàn Q=0)
+  if (clampedZ <= 215.50) {
+    const ratio = Math.max(0, (clampedZ - 205.40) / (215.50 - 205.40));
+    return {
+      q: 0,
+      z: clampedZ,
+      w: Number((11.0 + ratio * (110.0 - 11.0)).toFixed(1)),
+      riseRate: 0,
+      hoHaZ: Number((193.40 + ratio * (195.80 - 193.40)).toFixed(2)),
+      hoHaQ: 0,
+      hoHaW: Number((1.0 + ratio * (7.80 - 1.0)).toFixed(2)),
+      hoHaPct: Number((10.8 + ratio * (84.3 - 10.8)).toFixed(1)),
+    };
+  }
+
+  // Vùng trên mốc cao nhất (> 219.47m đến đỉnh đập 219.80m)
+  const last = HYDRO_PIECEWISE_BENCHMARKS[HYDRO_PIECEWISE_BENCHMARKS.length - 1];
+  if (clampedZ >= last.z) {
+    const extraRatio = Math.min(1.0, (clampedZ - last.z) / (219.80 - last.z));
+    return {
+      q: Math.round(last.q + extraRatio * 400),
+      z: clampedZ,
+      w: Number((last.w + extraRatio * 5.0).toFixed(1)),
+      riseRate: Math.round(last.riseRate + extraRatio * 12),
+      hoHaZ: Number((last.hoHaZ + extraRatio * 0.45).toFixed(2)),
+      hoHaQ: Number((last.hoHaQ + extraRatio * 21.5).toFixed(1)),
+      hoHaW: Number((last.hoHaW + extraRatio * 0.5).toFixed(2)),
+      hoHaPct: Number((last.hoHaPct + extraRatio * 5.0).toFixed(1)),
+    };
+  }
+
+  // Tìm đoạn giữa 2 mốc
+  for (let i = 0; i < HYDRO_PIECEWISE_BENCHMARKS.length - 1; i++) {
+    const p1 = HYDRO_PIECEWISE_BENCHMARKS[i];
+    const p2 = HYDRO_PIECEWISE_BENCHMARKS[i + 1];
+    if (clampedZ >= p1.z && clampedZ <= p2.z) {
+      const span = p2.z - p1.z;
+      const ratio = span > 0 ? (clampedZ - p1.z) / span : 0;
+      return {
+        q: Math.round(p1.q + ratio * (p2.q - p1.q)),
+        z: clampedZ,
+        w: Number((p1.w + ratio * (p2.w - p1.w)).toFixed(1)),
+        riseRate: Math.round(p1.riseRate + ratio * (p2.riseRate - p1.riseRate)),
+        hoHaZ: Number((p1.hoHaZ + ratio * (p2.hoHaZ - p1.hoHaZ)).toFixed(2)),
+        hoHaQ: Number((p1.hoHaQ + ratio * (p2.hoHaQ - p1.hoHaQ)).toFixed(1)),
+        hoHaW: Number((p1.hoHaW + ratio * (p2.hoHaW - p1.hoHaW)).toFixed(2)),
+        hoHaPct: Number((p1.hoHaPct + ratio * (p2.hoHaPct - p1.hoHaPct)).toFixed(1)),
+      };
+    }
+  }
+
+  return HYDRO_PIECEWISE_BENCHMARKS[2]; // Fallback mốc mặc định Q=45
+}
+
+/**
+ * Nội suy tuyến tính từng đoạn theo Lưu lượng xả Q (0 -> 1628 m³/s, hoặc cực đại vỡ đập)
+ */
+export function interpolateHydroByQ(q: number): HydroPiecewiseBenchmark {
+  const clampedQ = Math.max(0, Math.min(7500, Number(q)));
+
+  // Nếu là kịch bản vỡ đập lớn (Q > 1628 m³/s)
+  if (clampedQ > 1628) {
+    const last = HYDRO_PIECEWISE_BENCHMARKS[HYDRO_PIECEWISE_BENCHMARKS.length - 1];
+    return {
+      q: clampedQ,
+      z: 219.80,
+      w: 175.0,
+      riseRate: clampedQ >= 7000 ? 48 : 50,
+      hoHaZ: 198.20,
+      hoHaQ: 173.5,
+      hoHaW: 12.80,
+      hoHaPct: 138.4,
+    };
+  }
+
+  // Tìm đoạn giữa 2 mốc chuẩn
+  for (let i = 0; i < HYDRO_PIECEWISE_BENCHMARKS.length - 1; i++) {
+    const p1 = HYDRO_PIECEWISE_BENCHMARKS[i];
+    const p2 = HYDRO_PIECEWISE_BENCHMARKS[i + 1];
+    if (clampedQ >= p1.q && clampedQ <= p2.q) {
+      const span = p2.q - p1.q;
+      const ratio = span > 0 ? (clampedQ - p1.q) / span : 0;
+      return {
+        q: clampedQ,
+        z: Number((p1.z + ratio * (p2.z - p1.z)).toFixed(2)),
+        w: Number((p1.w + ratio * (p2.w - p1.w)).toFixed(1)),
+        riseRate: Math.round(p1.riseRate + ratio * (p2.riseRate - p1.riseRate)),
+        hoHaZ: Number((p1.hoHaZ + ratio * (p2.hoHaZ - p1.hoHaZ)).toFixed(2)),
+        hoHaQ: Number((p1.hoHaQ + ratio * (p2.hoHaQ - p1.hoHaQ)).toFixed(1)),
+        hoHaW: Number((p1.hoHaW + ratio * (p2.hoHaW - p1.hoHaW)).toFixed(2)),
+        hoHaPct: Number((p1.hoHaPct + ratio * (p2.hoHaPct - p1.hoHaPct)).toFixed(1)),
+      };
+    }
+  }
+
+  return HYDRO_PIECEWISE_BENCHMARKS[2]; // Fallback mốc mặc định Q=45
+}
+
 export const MIKE_FLOOD_SCENARIOS: Record<
   Exclude<MikeFloodScenarioId, 'NONE' | 'CUSTOM_SLIDER'>,
   MikeFloodScenarioMeta
@@ -143,9 +278,9 @@ export const MIKE_FLOOD_SCENARIOS: Record<
     diffBd3EaSup: 0.11,
     mblEaRok: 169.08,
     diffBd3EaRok: 0.08,
-    hoThuongElevation: 208.6,
-    hoThuongDischarge: 320,
-    hoThuongRiseRate: 22,
+    hoThuongElevation: 217.95,
+    hoThuongDischarge: 766,
+    hoThuongRiseRate: 23,
     totalFloodedAreaHa: 1413.17,
     affectedHouseholds: 419,
     affectedPeople: 1676,
@@ -175,9 +310,9 @@ export const MIKE_FLOOD_SCENARIOS: Record<
     diffBd3EaSup: 0.56,
     mblEaRok: 169.45,
     diffBd3EaRok: 0.45,
-    hoThuongElevation: 210.4,
-    hoThuongDischarge: 580,
-    hoThuongRiseRate: 34,
+    hoThuongElevation: 218.46,
+    hoThuongDischarge: 1075,
+    hoThuongRiseRate: 25,
     totalFloodedAreaHa: 1613.76,
     affectedHouseholds: 533,
     affectedPeople: 2132,
@@ -215,9 +350,9 @@ export const MIKE_FLOOD_SCENARIOS: Record<
     diffBd3EaSup: 0.83,
     mblEaRok: 169.72,
     diffBd3EaRok: 0.72,
-    hoThuongElevation: 211.2,
-    hoThuongDischarge: 760,
-    hoThuongRiseRate: 40,
+    hoThuongElevation: 219.08,
+    hoThuongDischarge: 1202,
+    hoThuongRiseRate: 32,
     totalFloodedAreaHa: 1663.48,
     affectedHouseholds: 592,
     affectedPeople: 2368,
@@ -247,8 +382,8 @@ export const MIKE_FLOOD_SCENARIOS: Record<
     diffBd3EaSup: 4.82,
     mblEaRok: 172.65,
     diffBd3EaRok: 3.65,
-    hoThuongElevation: 213.6,
-    hoThuongDischarge: 1200,
+    hoThuongElevation: 219.80,
+    hoThuongDischarge: 6632,
     hoThuongRiseRate: 50,
     totalFloodedAreaHa: 2512.06,
     affectedHouseholds: 1026,
@@ -288,8 +423,8 @@ export const MIKE_FLOOD_SCENARIOS: Record<
     diffBd3EaSup: 5.15,
     mblEaRok: 172.9,
     diffBd3EaRok: 3.9,
-    hoThuongElevation: 213.8,
-    hoThuongDischarge: 1150,
+    hoThuongElevation: 219.80,
+    hoThuongDischarge: 7201,
     hoThuongRiseRate: 48,
     totalFloodedAreaHa: 2547.26,
     affectedHouseholds: 1064,
@@ -387,7 +522,7 @@ function ensureRealtimeSubscription() {
 
 /**
  * Nội suy động trạng thái thủy lực MIKE FLOOD khi người dùng chọn Kịch bản chuẩn
- * hoặc kéo thanh trượt mực nước Hồ Thượng / tốc độ nước dâng bất kỳ.
+ * hoặc kéo thanh trượt mực nước Hồ Thượng / lưu lượng xả bất kỳ.
  */
 export function computeActiveHydraulicModel(
   iotData: IoTTelemetryData,
@@ -398,31 +533,35 @@ export function computeActiveHydraulicModel(
   }
 
   const elev = iotData.hoThuong.elevation;
+  const discharge = iotData.hoThuong.discharge;
   const riseRate = iotData.hoThuong.riseRate;
 
-  // Nếu ở mức an toàn bình thường (< 207.5m và tốc độ dâng thấp) và chưa chọn kịch bản
-  if (scenarioId === 'NONE' && elev <= 207.2 && riseRate < 15) {
-    const mblEaSup = Number((184.2 + (elev - 206.8) * 1.2).toFixed(2));
-    const mblEaRok = Number((165.3 + (elev - 206.8) * 0.9).toFixed(2));
+  // 1. TRẠNG THÁI AN TOÀN: Khi lưu lượng xả Q < 100 m³/s và cao trình Z < 217.54m (và chưa chọn kịch bản lũ)
+  if (scenarioId === 'NONE' || (discharge < 100 && elev < 217.54)) {
+    const safeQ = Math.max(0, Math.min(99, discharge));
+    const mblEaSup = Number((184.20 + (safeQ / 100) * 0.75).toFixed(2)); // Luôn < 185.00m (Dưới BĐ I)
+    const mblEaRok = Number((165.20 + (safeQ / 100) * 0.70).toFixed(2)); // Luôn < 166.00m (Dưới BĐ I)
     return {
       id: 'NONE',
-      code: 'TRỰC CHIẾN',
+      code: 'AN TOÀN',
       shortTitle: 'Vận hành An toàn (Dưới Báo động I)',
-      fullName: 'Trạng thái vận hành điều tiết bình thường (Dưới ngưỡng Báo động I)',
+      fullName: 'Trạng thái vận hành điều tiết bình thường (Dưới Báo động I)',
       probabilityLabel: 'An toàn',
       mblEaSup,
       diffBd3EaSup: Number((mblEaSup - 189.0).toFixed(2)),
       mblEaRok,
       diffBd3EaRok: Number((mblEaRok - 169.0).toFixed(2)),
       hoThuongElevation: elev,
-      hoThuongDischarge: iotData.hoThuong.discharge,
+      hoThuongDischarge: discharge,
       hoThuongRiseRate: riseRate,
       totalFloodedAreaHa: 0,
       affectedHouseholds: 0,
       affectedPeople: 0,
       ql14cFloodedKm: 0,
       tl681FloodedKm: 0,
-      infrastructureNotes: ['Nước nằm trong lòng dẫn sông Ea Súp, giao thông thông suốt'],
+      infrastructureNotes: [
+        '✓ Mực nước an toàn (dưới Báo động I), hồ chứa vận hành điều tiết ổn định. Nước nằm trong lòng dẫn sông Ea Súp, giao thông thông suốt',
+      ],
       depthDistribution: {
         under0_5m: 0,
         from0_5to1m: 0,
@@ -435,63 +574,159 @@ export function computeActiveHydraulicModel(
     };
   }
 
-  // Nội suy theo cao trình thanh trượt (từ 200m -> 214m)
-  const factor = Math.max(0.08, Math.min(1.35, (elev - 206.8) / (210.4 - 206.8)));
-  const base = MIKE_FLOOD_SCENARIOS.KB1_1;
-  const under0_5m = Number((base.depthDistribution.under0_5m * factor).toFixed(2));
-  const from0_5to1m = Number((base.depthDistribution.from0_5to1m * factor).toFixed(2));
-  const from1to2m = Number((base.depthDistribution.from1to2m * factor).toFixed(2));
-  const from2to3m = Number((base.depthDistribution.from2to3m * factor).toFixed(2));
-  const over3m = Number((base.depthDistribution.over3m * factor).toFixed(2));
-  const totalFloodedAreaHa = Number(
-    (under0_5m + from0_5to1m + from1to2m + from2to3m + over3m).toFixed(2)
-  );
+  // 2. TRẠNG THÁI CẢNH BÁO TRỰC CHIẾN (Q >= 100 m³/s hoặc Z >= 217.54m)
+  // Phân chia theo 4 cấp độ lưu lượng xả và cao trình
+  let totalFloodedAreaHa = 0;
+  let affectedHouseholds = 0;
+  let affectedPeople = 0;
+  let ql14cFloodedKm = 0;
+  let tl681FloodedKm = 0;
+  let mblEaSup = 185.0;
+  let mblEaRok = 166.0;
+  let code = 'CẢNH BÁO';
+  let shortTitle = 'Cảnh báo Ngập lũ Hạ du';
+  let fullName = 'Cảnh báo Ngập lụt Hạ du Sông Ea Súp';
+  let infrastructureNotes: string[] = [];
+  let depthDist: FloodDepthDistribution = {
+    under0_5m: 0,
+    from0_5to1m: 0,
+    from1to2m: 0,
+    from2to3m: 0,
+    over3m: 0,
+  };
+  let affectedVillages: string[] = [];
+  let criticalVillages: string[] = [];
 
-  const mblEaSup = Number((185.2 + factor * 4.36).toFixed(2));
-  const mblEaRok = Number((166.2 + factor * 3.25).toFixed(2));
-  const affectedHouseholds = Math.round(base.affectedHouseholds * factor);
-  const affectedPeople = affectedHouseholds * 4;
+  if (discharge < 350) {
+    // CẤP ĐỘ 1: 100 <= Q < 350 m³/s (Bắt đầu ngập nông vùng trũng ven sông)
+    const r = (discharge - 100) / (350 - 100);
+    totalFloodedAreaHa = Number((28.5 + r * (485.0 - 28.5)).toFixed(2));
+    affectedHouseholds = Math.round(15 + r * (110 - 15));
+    ql14cFloodedKm = Number((0 + r * 0.4).toFixed(2));
+    tl681FloodedKm = Number((0 + r * 3.2).toFixed(2));
+    mblEaSup = Number((185.00 + r * (187.00 - 185.00)).toFixed(2)); // Báo động I -> Báo động II
+    mblEaRok = Number((166.00 + r * (167.50 - 166.00)).toFixed(2));
+    code = 'CẤP 1 (BĐ I)';
+    shortTitle = `Cảnh báo Lũ Cấp 1 (Xả ${discharge} m³/s)`;
+    fullName = `Cảnh báo Lũ Cấp 1 (Báo động I): Hồ Thượng xả ${discharge} m³/s (TB 135/TB-TL)`;
+    infrastructureNotes = [
+      'Ngập nông vùng trũng mép suối Ea Súp tại Thôn Đoàn Kết và Thôn 8',
+      'Các trục đường giao thông chính thông suốt, giao thông nội đồng bị ngập cục bộ',
+    ];
+    depthDist = {
+      under0_5m: Number((totalFloodedAreaHa * 0.75).toFixed(2)),
+      from0_5to1m: Number((totalFloodedAreaHa * 0.25).toFixed(2)),
+      from1to2m: 0,
+      from2to3m: 0,
+      over3m: 0,
+    };
+    affectedVillages = ['Thôn Đoàn Kết', 'Thôn 8'];
+    criticalVillages = ['Thôn Đoàn Kết'];
+  } else if (discharge < 600) {
+    // CẤP ĐỘ 2: 350 <= Q < 600 m³/s (Mở 02 cửa tràn - TB 130 & 131/TB-TL)
+    const r = (discharge - 350) / (600 - 350);
+    totalFloodedAreaHa = Number((485.0 + r * (1150.0 - 485.0)).toFixed(2));
+    affectedHouseholds = Math.round(110 + r * (340 - 110));
+    ql14cFloodedKm = Number((0.4 + r * (1.1 - 0.4)).toFixed(2));
+    tl681FloodedKm = Number((3.2 + r * (8.5 - 3.2)).toFixed(2));
+    mblEaSup = Number((187.00 + r * (188.95 - 187.00)).toFixed(2)); // Báo động II -> Dưới BĐ III
+    mblEaRok = Number((167.50 + r * (168.90 - 167.50)).toFixed(2));
+    code = 'CẤP 2 (BĐ II)';
+    shortTitle = `Cảnh báo Lũ Cấp 2 (Mở 02 cửa tràn ${discharge} m³/s)`;
+    fullName = `Cảnh báo Lũ Cấp 2 (Báo động II): Mở 02 cửa tràn xả ${discharge} m³/s`;
+    infrastructureNotes = [
+      'Mở 02 cửa tràn đón lũ theo Thông báo số 130 & 131/TB-TL',
+      'Ngập cục bộ Tỉnh lộ 681 qua Thôn Đoàn Kết và khu vực trũng Thôn 8, Thôn Bình Lợi',
+    ];
+    depthDist = {
+      under0_5m: Number((totalFloodedAreaHa * 0.45).toFixed(2)),
+      from0_5to1m: Number((totalFloodedAreaHa * 0.35).toFixed(2)),
+      from1to2m: Number((totalFloodedAreaHa * 0.20).toFixed(2)),
+      from2to3m: 0,
+      over3m: 0,
+    };
+    affectedVillages = ['Thôn Đoàn Kết', 'Thôn 8', 'Thôn Bình Lợi', 'Thôn 5', 'Thôn 6'];
+    criticalVillages = ['Thôn Đoàn Kết', 'Thôn 8'];
+  } else if (discharge < 1075) {
+    // CẤP ĐỘ 3: 600 <= Q < 1075 m³/s (Mở 03 cửa tràn xả lũ khẩn cấp - BC 1775/BC-CTTL, bao gồm KB4.1 tại 766 m³/s)
+    const kb4 = MIKE_FLOOD_SCENARIOS.KB4_1;
+    const kb1 = MIKE_FLOOD_SCENARIOS.KB1_1;
+    const r = (discharge - 600) / (1075 - 600);
+    totalFloodedAreaHa = Number((1150.0 + r * (kb1.totalFloodedAreaHa - 1150.0)).toFixed(2));
+    affectedHouseholds = Math.round(340 + r * (kb1.affectedHouseholds - 340));
+    ql14cFloodedKm = Number((1.1 + r * (kb1.ql14cFloodedKm - 1.1)).toFixed(2));
+    tl681FloodedKm = Number((8.5 + r * (kb1.tl681FloodedKm - 8.5)).toFixed(2));
+    mblEaSup = Number((189.00 + r * (kb1.mblEaSup - 189.00)).toFixed(2)); // Vượt Báo động III
+    mblEaRok = Number((169.00 + r * (kb1.mblEaRok - 169.00)).toFixed(2));
+    code = 'CẤP 3 (BĐ III)';
+    shortTitle = `Xả lũ Khẩn cấp Cấp 3 (Mở 03 cửa tràn ${discharge} m³/s)`;
+    fullName = `Xả lũ Khẩn cấp Cấp 3 (Báo động III): Mở 03 cửa tràn xả ${discharge} m³/s (BC 1775/BC-CTTL)`;
+    infrastructureNotes = [
+      'Xả lũ khẩn cấp mở 03 cửa tràn theo Báo cáo khẩn số 1775/BC-CTTL',
+      `Ngập Quốc lộ 14C (${ql14cFloodedKm} km) và Tỉnh lộ 681 (${tl681FloodedKm} km)`,
+      'Nguy cơ ngập mép sân Bệnh viện Đa khoa và các điểm trường hạ lưu',
+    ];
+    depthDist = {
+      under0_5m: Number((kb4.depthDistribution.under0_5m * (totalFloodedAreaHa / kb4.totalFloodedAreaHa)).toFixed(2)),
+      from0_5to1m: Number((kb4.depthDistribution.from0_5to1m * (totalFloodedAreaHa / kb4.totalFloodedAreaHa)).toFixed(2)),
+      from1to2m: Number((kb4.depthDistribution.from1to2m * (totalFloodedAreaHa / kb4.totalFloodedAreaHa)).toFixed(2)),
+      from2to3m: Number((kb4.depthDistribution.from2to3m * (totalFloodedAreaHa / kb4.totalFloodedAreaHa)).toFixed(2)),
+      over3m: Number((kb4.depthDistribution.over3m * (totalFloodedAreaHa / kb4.totalFloodedAreaHa)).toFixed(2)),
+    };
+    affectedVillages = [...CORE_FLOOD_AFFECTED_VILLAGES];
+    criticalVillages = ['Thôn Đoàn Kết', 'Thôn 8', 'Thôn Bình Lợi', 'Thôn 5', 'Thôn 6'];
+  } else {
+    // CẤP ĐỘ 4: Q >= 1075 m³/s (Xả lũ tần suất thiết kế P=1%, kiểm tra P=0.2% hoặc Vỡ đập)
+    const kb1 = MIKE_FLOOD_SCENARIOS.KB1_1;
+    const kb2 = MIKE_FLOOD_SCENARIOS.KB2_1;
+    const r = Math.min(1.0, (discharge - 1075) / (6632 - 1075));
+    totalFloodedAreaHa = Number((kb1.totalFloodedAreaHa + r * (kb2.totalFloodedAreaHa - kb1.totalFloodedAreaHa)).toFixed(2));
+    affectedHouseholds = Math.round(kb1.affectedHouseholds + r * (kb2.affectedHouseholds - kb1.affectedHouseholds));
+    ql14cFloodedKm = Number((kb1.ql14cFloodedKm + r * (kb2.ql14cFloodedKm - kb1.ql14cFloodedKm)).toFixed(2));
+    tl681FloodedKm = Number((kb1.tl681FloodedKm + r * (kb2.tl681FloodedKm - kb1.tl681FloodedKm)).toFixed(2));
+    mblEaSup = Number((kb1.mblEaSup + r * (kb2.mblEaSup - kb1.mblEaSup)).toFixed(2));
+    mblEaRok = Number((kb1.mblEaRok + r * (kb2.mblEaRok - kb1.mblEaRok)).toFixed(2));
+    code = discharge >= 6000 ? 'KHẨN CẤP VỠ ĐẬP' : 'CẤP 4 (LŨ THIẾT KẾ)';
+    shortTitle = `Lũ Lớn Cực Đoan Cấp 4 (${discharge} m³/s)`;
+    fullName = `Báo động Đặc biệt Nguy hiểm: Lưu lượng lũ xả đạt ${discharge} m³/s`;
+    infrastructureNotes = [
+      'Ngập sâu Bệnh viện Đa khoa Ea Súp (1 - 2m) và Trường Mầm non Hoa Phượng (2 - 3m)',
+      `Tê liệt Quốc lộ 14C (${ql14cFloodedKm} km) và Tỉnh lộ 681 (${tl681FloodedKm} km)`,
+      'Yêu cầu sơ tán khẩn cấp toàn bộ các thôn buôn hạ du theo phương án cấp 4',
+    ];
+    depthDist = {
+      under0_5m: Number((kb1.depthDistribution.under0_5m * (1 - r) + kb2.depthDistribution.under0_5m * r).toFixed(2)),
+      from0_5to1m: Number((kb1.depthDistribution.from0_5to1m * (1 - r) + kb2.depthDistribution.from0_5to1m * r).toFixed(2)),
+      from1to2m: Number((kb1.depthDistribution.from1to2m * (1 - r) + kb2.depthDistribution.from1to2m * r).toFixed(2)),
+      from2to3m: Number((kb1.depthDistribution.from2to3m * (1 - r) + kb2.depthDistribution.from2to3m * r).toFixed(2)),
+      over3m: Number((kb1.depthDistribution.over3m * (1 - r) + kb2.depthDistribution.over3m * r).toFixed(2)),
+    };
+    affectedVillages = [...kb2.affectedVillages];
+    criticalVillages = [...kb2.criticalVillages];
+  }
 
-  const isHighFlood = elev >= 209.5 || riseRate >= 25;
-  const affectedVillages =
-    elev >= 207.4 || riseRate >= 12 ? [...CORE_FLOOD_AFFECTED_VILLAGES] : ['Thôn Đoàn Kết', 'Thôn 8'];
-  const criticalVillages = isHighFlood
-    ? ['Thôn Đoàn Kết', 'Thôn 5', 'Thôn 6', 'Thôn 7', 'Thôn 8', 'Thôn Bình Lợi']
-    : ['Thôn Đoàn Kết'];
+  affectedPeople = affectedHouseholds * 4;
 
   return {
     id: 'CUSTOM_SLIDER',
-    code: 'MÔ PHỎNG ĐỘNG',
-    shortTitle: `Mô phỏng Thủy lực Động (Hồ Thượng ${elev}m)`,
-    fullName: `Mô phỏng Nội suy MIKE FLOOD theo cao trình Hồ Thượng ${elev}m`,
-    probabilityLabel: 'Nội suy Động',
+    code,
+    shortTitle,
+    fullName,
+    probabilityLabel: `Xả ${discharge} m³/s`,
     mblEaSup,
     diffBd3EaSup: Number((mblEaSup - 189.0).toFixed(2)),
     mblEaRok,
     diffBd3EaRok: Number((mblEaRok - 169.0).toFixed(2)),
     hoThuongElevation: elev,
-    hoThuongDischarge: iotData.hoThuong.discharge,
+    hoThuongDischarge: discharge,
     hoThuongRiseRate: riseRate,
     totalFloodedAreaHa,
     affectedHouseholds,
     affectedPeople,
-    ql14cFloodedKm: Number((base.ql14cFloodedKm * factor).toFixed(2)),
-    tl681FloodedKm: Number((base.tl681FloodedKm * factor).toFixed(2)),
-    infrastructureNotes: isHighFlood
-      ? [
-          'Cảnh báo ngập Bệnh viện Đa khoa Ea Súp & Trường MN Hoa Phượng',
-          `Ngập QL14C (${(base.ql14cFloodedKm * factor).toFixed(2)} km) & Tỉnh lộ 681 (${(
-            base.tl681FloodedKm * factor
-          ).toFixed(2)} km)`,
-        ]
-      : ['Cảnh báo ngập cục bộ vùng trũng ven sông Ea Súp và Thôn Đoàn Kết'],
-    depthDistribution: {
-      under0_5m,
-      from0_5to1m,
-      from1to2m,
-      from2to3m,
-      over3m,
-    },
+    ql14cFloodedKm,
+    tl681FloodedKm,
+    infrastructureNotes,
+    depthDistribution: depthDist,
     affectedVillages,
     criticalVillages,
   };
@@ -580,7 +815,7 @@ export function setTelemetryData(
  * Lệnh TẮT CẢNH BÁO TOÀN HỆ THỐNG dành riêng cho Admin và Cán bộ Quản lý:
  * 1. Tắt còi hú Web Audio & giọng đọc AI trên mọi thiết bị kết nối.
  * 2. Đặt lại kịch bản MIKE FLOOD về 'NONE' (an toàn).
- * 3. Đặt lại toàn bộ thông số IoT về mặc định an toàn.
+ * 3. Đặt lại toàn bộ thông số IoT về mặc định an toàn vận hành thực tế (Hồ Thượng 216.30m, 45 m³/s).
  * 4. Phát lệnh MQTT WSS & BroadcastChannel đến toàn bộ thiết bị đang mở hệ thống.
  */
 export function stopAllAlertsSystemWide(): void {
@@ -590,20 +825,25 @@ export function stopAllAlertsSystemWide(): void {
     ...DEFAULT_IOT_DATA,
     hoThuong: {
       ...DEFAULT_IOT_DATA.hoThuong,
-      elevation: 206.8,
+      elevation: 216.30,
       riseRate: 2,
       discharge: 45,
-      capacity: 92.5,
+      capacity: 120.5,
     },
     tk293: {
       ...DEFAULT_IOT_DATA.tk293,
       temperature: 32.4,
-      smokeCo: 12,
-      humidity: 58,
+      smokeCo: 11,
+      humidity: 57,
       windSpeed: 2.8,
     },
     hoHa: {
       ...DEFAULT_IOT_DATA.hoHa,
+      elevation: 196.35,
+      discharge: 15,
+      capacityM: 8.85,
+      capacityPct: 95.7,
+      turbidity: 4.3,
       illegalCages: 0,
       status: 'An toàn',
     },
@@ -659,13 +899,21 @@ export function applyMikeFloodScenario(
   alarmSystem.setMuted(false);
 
   const meta = MIKE_FLOOD_SCENARIOS[scenarioId];
+  const hoHaInterp = interpolateHydroByQ(meta.hoThuongDischarge);
   const nextData: IoTTelemetryData = {
     ...currentTelemetryState,
     hoThuong: {
       elevation: meta.hoThuongElevation,
       discharge: meta.hoThuongDischarge,
-      capacity: meta.hoThuongElevation >= 210 ? 146 : 139,
+      capacity: meta.hoThuongElevation >= 219 ? 175.0 : meta.hoThuongElevation >= 218.4 ? 158.5 : 153.0,
       riseRate: meta.hoThuongRiseRate,
+    },
+    hoHa: {
+      ...currentTelemetryState.hoHa,
+      elevation: hoHaInterp.hoHaZ,
+      discharge: hoHaInterp.hoHaQ,
+      capacityM: hoHaInterp.hoHaW,
+      capacityPct: hoHaInterp.hoHaPct,
     },
     hoTrungChuyen: {
       ...currentTelemetryState.hoTrungChuyen,
@@ -684,45 +932,84 @@ export function applyMikeFloodScenario(
 
 /**
  * Cập nhật nhanh cao trình mực nước Hồ Ea Súp Thượng từ cả Tab Trực chiến hoặc Tab Mô phỏng
- * để đồng bộ tức thời 100% với Cụm Loa Truyền Thanh Số và Bản đồ WebGIS.
+ * và tự động nội suy hai chiều Z -> Q, W, Dâng, Hồ Ea Súp Hạ để đồng bộ tức thời 100%.
  */
 export function updateHoThuongElevation(elevation: number): IoTTelemetryData {
-  const roundedElev = Number(elevation.toFixed(1));
-  let riseRate = 2;
-  let discharge = 15;
-  let capacity = 128;
-  let mappedScenario: MikeFloodScenarioId = 'CUSTOM_SLIDER';
+  const roundedElev = Number(elevation.toFixed(2));
+  const interp = interpolateHydroByZ(roundedElev);
 
-  if (roundedElev === 206.8) {
+  let mappedScenario: MikeFloodScenarioId = 'NONE';
+  let triggerDominoAudio = false;
+
+  if (roundedElev >= 219.0) {
+    mappedScenario = 'CUSTOM_SLIDER';
+    triggerDominoAudio = true;
+  } else if (roundedElev >= 217.54 || interp.q >= 100) {
+    mappedScenario = 'CUSTOM_SLIDER';
+    triggerDominoAudio = true;
+  } else {
     mappedScenario = 'NONE';
-  } else if (roundedElev === 208.6) {
-    mappedScenario = 'KB4_1';
-    riseRate = 22;
-    discharge = 320;
-    capacity = 139;
-  } else if (roundedElev >= 210.0) {
-    mappedScenario = 'KB1_1';
-    riseRate = 34;
-    discharge = 580;
-    capacity = 146;
+    triggerDominoAudio = false;
   }
 
   return setTelemetryData(
     (prev) => ({
       ...prev,
       hoThuong: {
-        ...prev.hoThuong,
-        elevation: roundedElev,
-        riseRate,
-        discharge,
-        capacity,
+        elevation: interp.z,
+        discharge: interp.q,
+        capacity: interp.w,
+        riseRate: interp.riseRate,
+      },
+      hoHa: {
+        ...prev.hoHa,
+        elevation: interp.hoHaZ,
+        discharge: interp.hoHaQ,
+        capacityM: interp.hoHaW,
+        capacityPct: interp.hoHaPct,
       },
     }),
     {
       broadcast: true,
       scenarioId: mappedScenario,
-      scenarioName: `Đồng bộ Mực nước Hồ Thượng ${roundedElev}m`,
-      triggerDominoAudio: roundedElev > 207.5,
+      scenarioName: `Đồng bộ Mực nước Hồ Thượng ${roundedElev}m (Q=${interp.q} m³/s)`,
+      triggerDominoAudio,
+    }
+  );
+}
+
+/**
+ * Cập nhật lưu lượng xả Hồ Ea Súp Thượng và tự động nội suy hai chiều Q -> Z, W, Dâng, Hồ Ea Súp Hạ
+ */
+export function updateHoThuongDischarge(discharge: number): IoTTelemetryData {
+  const roundedQ = Math.round(discharge);
+  const interp = interpolateHydroByQ(roundedQ);
+
+  const isWarning = roundedQ >= 100 || interp.z >= 217.54;
+  const mappedScenario: MikeFloodScenarioId = isWarning ? 'CUSTOM_SLIDER' : 'NONE';
+
+  return setTelemetryData(
+    (prev) => ({
+      ...prev,
+      hoThuong: {
+        elevation: interp.z,
+        discharge: interp.q,
+        capacity: interp.w,
+        riseRate: interp.riseRate,
+      },
+      hoHa: {
+        ...prev.hoHa,
+        elevation: interp.hoHaZ,
+        discharge: interp.hoHaQ,
+        capacityM: interp.hoHaW,
+        capacityPct: interp.hoHaPct,
+      },
+    }),
+    {
+      broadcast: true,
+      scenarioId: mappedScenario,
+      scenarioName: `Đồng bộ Lưu lượng xả Hồ Thượng ${roundedQ} m³/s (Z=${interp.z}m)`,
+      triggerDominoAudio: isWarning,
     }
   );
 }
@@ -748,9 +1035,9 @@ export function buildDynamicBulletin(
 
   const isFireAlert = temp > 45 || smoke > 50;
   const isFloodCritical =
-    elev >= 210 || riseRate > 30 || (scenarioId !== 'NONE' && scenarioId !== 'KB4_1');
+    discharge >= 600 || elev >= 217.85 || riseRate > 30 || (scenarioId !== 'NONE' && scenarioId !== 'KB4_1');
   const isFloodWarning =
-    !isFloodCritical && (elev >= 208.0 || riseRate >= 15 || scenarioId === 'KB4_1');
+    !isFloodCritical && (discharge >= 100 || elev >= 217.54 || riseRate >= 15 || scenarioId === 'KB4_1');
   const isCageAlert = cages > 0;
   const isFishAlert =
     doVal < 4.0 ||
@@ -788,7 +1075,7 @@ export function buildDynamicBulletin(
     );
   } else {
     parts.push(
-      `Mực nước Hồ Ea Súp Thượng hiện đang ở cao trình ${elev} mét (biến thiên +${riseRate} cm/giờ, lưu lượng vận hành ${discharge} m³/s, mực nước Mốc báo lũ Ea Súp ${hydraulic.mblEaSup} mét - dưới Báo động 1, trạng thái an toàn).`
+      `Mực nước Hồ Ea Súp Thượng hiện đang ở cao trình ${elev} mét (biến thiên +${riseRate} cm/giờ, lưu lượng vận hành điều tiết ${discharge} m³/s, mực nước Mốc báo lũ Ea Súp ${hydraulic.mblEaSup} mét - dưới Báo động 1, trạng thái an toàn).`
     );
   }
 
@@ -821,10 +1108,10 @@ export function buildDynamicBulletin(
     scenarioId !== 'NONE'
       ? `Bản tin Khẩn cấp ${hydraulic.code}: MBL Ea Súp ${hydraulic.mblEaSup}m • Ngập ${hydraulic.totalFloodedAreaHa.toLocaleString('en-US')} ha (${hydraulic.affectedHouseholds} hộ)`
       : alertLevel === 'CRITICAL'
-      ? `Bản tin Báo động Khẩn cấp: Hồ Ea Súp Thượng (${elev}m) & Cảnh báo Trực chiến Toàn Xã`
+      ? `Bản tin Báo động Khẩn cấp: Hồ Ea Súp Thượng (${elev}m, ${discharge} m³/s) & Cảnh báo Trực chiến Toàn Xã`
       : alertLevel === 'WARNING'
-      ? `Bản tin Cảnh báo Cấp độ 2: Mực nước Hồ Ea Súp Thượng (${elev}m) và An toàn Hạ du`
-      : `Bản tin Trực chiến Thời gian thực: Hồ Ea Súp Thượng (${elev}m) & Hệ thống Quan trắc An toàn`;
+      ? `Bản tin Cảnh báo Cấp độ: Mực nước Hồ Ea Súp Thượng (${elev}m, ${discharge} m³/s) và An toàn Hạ du`
+      : `Bản tin Trực chiến Thời gian thực: Hồ Ea Súp Thượng (${elev}m, ${discharge} m³/s) & Hệ thống Quan trắc An toàn`;
 
   return {
     id: `EASUP-LIVE-${scenarioId}-${String(elev).replace('.', '_')}-${temp}-${smoke}`,
@@ -913,6 +1200,7 @@ export function useTelemetryStore() {
     setIotData: setTelemetryData,
     applyMikeFloodScenario,
     updateHoThuongElevation,
+    updateHoThuongDischarge,
     triggerVillageBroadcast,
     bulletin,
   };

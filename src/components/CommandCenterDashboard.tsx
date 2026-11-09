@@ -349,7 +349,15 @@ export const CommandCenterDashboard: React.FC = () => {
 
   // Tính toán điều kiện chuyển sang màu đỏ (Báo động đỏ)
   const isTk293Red = iotData.tk293.temperature > 45 || iotData.tk293.smokeCo > 50;
-  const isHoThuongRed = iotData.hoThuong.elevation >= 210 || iotData.hoThuong.riseRate > 30;
+  const isHoThuongRed =
+    iotData.hoThuong.discharge >= 600 ||
+    iotData.hoThuong.elevation >= 217.85 ||
+    iotData.hoThuong.riseRate > 30;
+  const isHoThuongYellow =
+    !isHoThuongRed &&
+    (iotData.hoThuong.discharge >= 100 ||
+      iotData.hoThuong.elevation >= 217.54 ||
+      iotData.hoThuong.riseRate >= 15);
   const isHoHaRed = iotData.hoHa.illegalCages > 0;
   const isHoTrungChuyenRed =
     iotData.hoTrungChuyen.dissolvedOxygen < 4.0 ||
@@ -359,7 +367,7 @@ export const CommandCenterDashboard: React.FC = () => {
   const isAnyRedAlert = isTk293Red || isHoThuongRed || isHoHaRed || isHoTrungChuyenRed;
   const isAnyAlertActive =
     isAnyRedAlert ||
-    iotData.hoThuong.elevation >= 208.5 ||
+    isHoThuongYellow ||
     (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER') ||
     hydraulicModel.affectedVillages.length > 0;
 
@@ -1064,19 +1072,24 @@ export const CommandCenterDashboard: React.FC = () => {
                         Đồng bộ Loa AI:
                       </span>
                       <div className="flex items-center gap-1 flex-wrap">
-                        {[206.8, 208.6, 210.8].map((lvl) => (
+                        {[
+                          { lvl: 216.30, label: '216.30m', desc: '216.30m (45 m³/s) — Trạng thái An toàn (Dưới Báo động I)' },
+                          { lvl: 217.54, label: '217.54m', desc: '217.54m (100 m³/s) — Bắt đầu Cảnh báo Cấp 1 (BĐ I - theo TB 135/TB-TL)' },
+                          { lvl: 217.85, label: '217.85m', desc: '217.85m (600 m³/s) — Xả lũ khẩn cấp Cấp 3 (BĐ III - mở 03 cửa tràn theo BC 1775/BC-CTTL)' },
+                          { lvl: 218.62, label: '218.62m', desc: '218.62m (792 m³/s) — Lưu lượng xả thiết kế tràn cửa van P=1% (theo TB 131/TB-TL)' },
+                        ].map((m) => (
                           <button
-                            key={lvl}
+                            key={m.lvl}
                             type="button"
-                            onClick={() => updateHoThuongElevation(lvl)}
+                            onClick={() => updateHoThuongElevation(m.lvl)}
                             className={`px-1.5 py-0.5 rounded font-mono font-bold transition-all cursor-pointer ${
-                              iotData.hoThuong.elevation === lvl
+                              Math.abs(iotData.hoThuong.elevation - m.lvl) < 0.05
                                 ? 'bg-[#0A4393] text-white ring-1 ring-white shadow-xs'
                                 : 'bg-white text-[#0A4393] border border-[#0A4393]/30 hover:bg-[#E6F0FA]'
                             }`}
-                            title={`Đặt mực nước Hồ Thượng ${lvl}m & đồng bộ Cụm Loa Truyền Thanh Số`}
+                            title={m.desc}
                           >
-                            {lvl}m
+                            {m.label}
                           </button>
                         ))}
                       </div>
@@ -1103,9 +1116,23 @@ export const CommandCenterDashboard: React.FC = () => {
 
                     <div className={`mt-1.5 grid grid-cols-2 gap-1.5 text-[11px] ${isHoHaRed ? 'text-rose-100' : 'text-slate-700'}`}>
                       <div>
-                        Trạng thái:{' '}
+                        Cao trình:{' '}
+                        <strong className={isHoHaRed ? 'text-white font-black' : 'text-[#0A4393]'}>
+                          {iotData.hoHa.elevation ?? 196.35} m
+                        </strong>
+                      </div>
+
+                      <div>
+                        Lưu lượng xả:{' '}
                         <strong className={isHoHaRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
-                          {iotData.hoHa.status}
+                          {iotData.hoHa.discharge ?? 15} m³/s
+                        </strong>
+                      </div>
+
+                      <div>
+                        Dung tích:{' '}
+                        <strong className={isHoHaRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
+                          {iotData.hoHa.capacityM ?? 8.85} / 9.25M m³ ({iotData.hoHa.capacityPct}%)
                         </strong>
                       </div>
 
@@ -1134,7 +1161,10 @@ export const CommandCenterDashboard: React.FC = () => {
                       </div>
 
                       <div>
-                        Mực nước: <strong className={isHoHaRed ? 'text-white' : 'text-[#0A4393]'}>{iotData.hoHa.capacityPct}%</strong>
+                        Trạng thái:{' '}
+                        <strong className={isHoHaRed ? 'text-white font-bold' : 'text-[#0A4393]'}>
+                          {iotData.hoHa.status}
+                        </strong>
                       </div>
 
                       {/* Mini Progress Bar động dung tích nước Hồ Hạ */}
