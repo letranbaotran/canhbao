@@ -257,8 +257,9 @@ select:disabled {
   }
 }
 
+/* Nhấp nháy đúng 5 giây (5 chu kỳ x 1s) khi bật cảnh báo rồi dừng để người dùng lăn chuột, rà soát bản đồ mượt mà */
 .flood-warning-pulsing-path {
-  animation: flood-boundary-pulse 1s infinite ease-in-out !important;
+  animation: flood-boundary-pulse 1s ease-in-out 5 !important;
 }
 
 /* Hiệu ứng nhịp số liệu thời gian thực (Live Telemetry stream) */

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   KEY_MONITORING_TARGETS,
   EASUP_VILLAGES,
@@ -742,16 +742,20 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     }
   }, [systemLayers, enabledKmzLayers, activeLayerTab, villageSubTab, villageVisibility]);
 
-  // Phân loại danh sách lớp ranh thôn buôn KML/GeoJSON
-  const villageKmzItems = kmzManifest.filter(
-    (m) =>
-      m.id !== 'KMZ_BAN_VE_MAT_CAT' &&
-      !m.label.toLowerCase().includes('ngập lụt') &&
-      m.category !== 'Nhóm lớp hệ thống' &&
-      m.category !== 'SYSTEM' &&
-      m.category !== 'LỚP BẢN ĐỒ LŨ ĐÃ KIỂM CHỨNG' &&
-      m.category !== 'FLOOD' &&
-      !m.id.includes('MIKE_FLOOD')
+  // Phân loại danh sách lớp ranh thôn buôn KML/GeoJSON (Memoize để tránh tạo mảng mới mỗi lần render làm gián đoạn lăn chuột bản đồ)
+  const villageKmzItems = useMemo(
+    () =>
+      kmzManifest.filter(
+        (m) =>
+          m.id !== 'KMZ_BAN_VE_MAT_CAT' &&
+          !m.label.toLowerCase().includes('ngập lụt') &&
+          m.category !== 'Nhóm lớp hệ thống' &&
+          m.category !== 'SYSTEM' &&
+          m.category !== 'LỚP BẢN ĐỒ LŨ ĐÃ KIỂM CHỨNG' &&
+          m.category !== 'FLOOD' &&
+          !m.id.includes('MIKE_FLOOD')
+      ),
+    [kmzManifest]
   );
 
   // Thanh 21 Thôn / Buôn & TK 249 trượt bên trái bản đồ
@@ -845,6 +849,31 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
   const villageBoundaryPathsRef = useRef<
     Record<string, Array<{ path: any; originalStyle: any }>>
   >({});
+  const lastHandledAlertSignatureRef = useRef<string>('SAFE');
+  const lastFlownAlertCodeRef = useRef<string>('SAFE');
+  const alertPulseTimeoutRef = useRef<any>(null);
+
+  // Hàm dừng hiệu ứng nhấp nháy sau 5 giây nhưng vẫn giữ lớp vùng cảnh báo nổi bật trên bản đồ để lăn chuột, rà soát mượt mà
+  const stopAllFloodPathBlinking = useCallback(() => {
+    Object.values(villageBoundaryPathsRef.current).forEach((items) => {
+      items.forEach(({ path }) => {
+        try {
+          if ((path as any)._path) {
+            (path as any)._path.classList.remove('flood-warning-pulsing-path');
+          }
+        } catch {}
+      });
+    });
+    if (mikeFloodOverlayRef.current && typeof mikeFloodOverlayRef.current.eachLayer === 'function') {
+      try {
+        mikeFloodOverlayRef.current.eachLayer((layer: any) => {
+          if (layer?._path) {
+            layer._path.classList.remove('flood-warning-pulsing-path');
+          }
+        });
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     if (!isFloodScenarioSidebarOpen) return;
@@ -884,7 +913,7 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     applyMikeFloodScenario(key, { broadcast: isManager });
   };
 
-  // Đồng bộ 2 chiều: Khi kịch bản lũ hoặc mực nước Hồ Thượng / tốc độ dâng thay đổi -> Bật và nhấp nháy ranh thôn nằm trong vùng lũ
+  // Đồng bộ 2 chiều: Khi kịch bản lũ hoặc mực nước Hồ Thượng / tốc độ dâng thay đổi -> Bật lớp vùng cảnh báo, nhấp nháy đúng 5 giây rồi dừng để vẫn lăn chuột, rà soát, thao tác trên bản đồ
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!mapLoaded) return;
@@ -898,6 +927,13 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
         (scenarioId !== 'NONE' && scenarioId !== 'CUSTOM_SLIDER'));
 
     if (!isFloodAlertActive || affectedVillages.length === 0) {
+      if (alertPulseTimeoutRef.current) {
+        clearTimeout(alertPulseTimeoutRef.current);
+        alertPulseTimeoutRef.current = null;
+      }
+      lastHandledAlertSignatureRef.current = 'SAFE';
+      lastFlownAlertCodeRef.current = 'SAFE';
+
       // Khi không còn tình huống cảnh báo: Phục hồi toàn bộ các lớp bản đồ về nguyên trạng
       if (preAlertLayersSnapshotRef.current) {
         restoreMapToPreAlertState();
@@ -916,6 +952,12 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       }
       return;
     }
+
+    const alertSignature = `${scenarioId}:${hydraulicModel.code}:${hydraulicModel.totalFloodedAreaHa}:${affectedVillages.join(',')}:${villageKmzItems.length > 0 ? 'LOADED' : 'INIT'}`;
+    if (lastHandledAlertSignatureRef.current === alertSignature) {
+      return;
+    }
+    lastHandledAlertSignatureRef.current = alertSignature;
 
     // Khi phát sinh tình huống cảnh báo: Ghi nhớ trạng thái các lớp trước cảnh báo
     if (!preAlertLayersSnapshotRef.current) {
@@ -948,16 +990,20 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       });
     });
 
-    // Cập nhật state villageVisibility để tick xanh đồng bộ trong bảng 21 thôn
+    // Cập nhật state villageVisibility để tick xanh đồng bộ trong bảng 21 thôn (chỉ cập nhật khi có thay đổi)
     setVillageVisibility((prev) => {
+      let changed = false;
       const next = { ...prev };
       affectedVillages.forEach((v) => {
-        next[v] = true;
+        if (!next[v]) {
+          next[v] = true;
+          changed = true;
+        }
       });
-      return next;
+      return changed ? next : prev;
     });
 
-    // 3. Nhấp nháy ranh thôn cảnh báo theo từng thôn
+    // 3. Cho lớp ranh thôn vùng cảnh báo nổi lên & nhấp nháy trong 5 giây rồi dừng
     setTimeout(() => {
       Object.entries(villageBoundaryPathsRef.current).forEach(([vilName, items]) => {
         const isAffected = affectedVillages.includes(vilName);
@@ -967,9 +1013,12 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
               path.setStyle({
                 color: '#e11d48',
                 fillColor: '#f43f5e',
-                fillOpacity: 0.52,
-                weight: 4.2,
+                fillOpacity: 0.45,
+                weight: 3.8,
               });
+              if (typeof path.bringToFront === 'function') {
+                path.bringToFront();
+              }
               if ((path as any)._path) {
                 (path as any)._path.classList.add('flood-warning-pulsing-path');
               }
@@ -984,11 +1033,21 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       });
     }, 200);
 
-    // Zoom bao quát vùng ngập
-    if (map) {
-      map.flyTo([13.072, 107.892], 13.5, { duration: 1.2 });
+    // Tự động dừng hiệu ứng nhấp nháy sau đúng 5 giây (5000ms) để người dùng thoải mái lăn chuột, rà soát và thao tác trên bản đồ
+    if (alertPulseTimeoutRef.current) {
+      clearTimeout(alertPulseTimeoutRef.current);
     }
-  }, [scenarioId, hydraulicModel, iotData.hoThuong.elevation, iotData.hoThuong.riseRate, mapLoaded, villageKmzItems]);
+    alertPulseTimeoutRef.current = setTimeout(() => {
+      stopAllFloodPathBlinking();
+      alertPulseTimeoutRef.current = null;
+    }, 5000);
+
+    // Chỉ bay camera bao quát vùng ngập đúng 1 lần khi kích hoạt kịch bản mới (không khóa camera để người dùng tự do lăn chuột zoom/pan)
+    if (map && lastFlownAlertCodeRef.current !== hydraulicModel.code) {
+      lastFlownAlertCodeRef.current = hydraulicModel.code;
+      map.flyTo([13.072, 107.892], 13.5, { duration: 1.0 });
+    }
+  }, [scenarioId, hydraulicModel, iotData.hoThuong.elevation, iotData.hoThuong.riseRate, mapLoaded, villageKmzItems, stopAllFloodPathBlinking]);
 
   // Bật/tắt chế độ toàn màn hình bản đồ thuần CSS Viewport (Ảnh 2: Loại bỏ hoàn toàn browser toast hướng dẫn trên mobile)
   const handleToggleFullscreen = useCallback(() => {
@@ -1273,16 +1332,24 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
       }
 
       // 1. Tự động bật lớp Bản đồ Ngập lụt vệ tinh
-      setSelectedGibsLayer('FLOOD_SURFACE');
+      setSelectedGibsLayer((prev) => (prev === 'FLOOD_SURFACE' ? prev : 'FLOOD_SURFACE'));
 
-      // 2. Tự động bật các lớp KML vùng ngập lụt trong trình quản lý lớp
-      kmzManifest.forEach((item) => {
-        if (
-          item.label.toLowerCase().includes('ngập') ||
-          item.rawName.toLowerCase().includes('ngap')
-        ) {
-          setEnabledKmzLayers((prev) => ({ ...prev, [item.id]: true }));
-        }
+      // 2. Tự động bật các lớp KML vùng ngập lụt trong trình quản lý lớp (chỉ cập nhật khi có thay đổi)
+      setEnabledKmzLayers((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        kmzManifest.forEach((item) => {
+          if (
+            item.label.toLowerCase().includes('ngập') ||
+            item.rawName.toLowerCase().includes('ngap')
+          ) {
+            if (!next[item.id]) {
+              next[item.id] = true;
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
       });
 
       // 3. Vẽ lớp phủ thủy lực MIKE FLOOD 2D trực quan trên hạ du sông Ea Súp & 9 thôn trọng điểm
@@ -1344,6 +1411,23 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
           fillColor,
           fillOpacity,
         }).addTo(floodGroup);
+
+        // Cho lớp bản đồ vùng cảnh báo nổi lên và nhấp nháy đúng 5 giây rồi dừng
+        setTimeout(() => {
+          try {
+            if ((floodPoly as any)._path) {
+              (floodPoly as any)._path.classList.add('flood-warning-pulsing-path');
+            }
+          } catch {}
+        }, 50);
+
+        setTimeout(() => {
+          try {
+            if ((floodPoly as any)._path) {
+              (floodPoly as any)._path.classList.remove('flood-warning-pulsing-path');
+            }
+          } catch {}
+        }, 5050);
 
         floodPoly.bindPopup(`
           <div style="font-family:sans-serif; font-size:12px; padding:4px; max-width:280px; color:#0f172a;">
@@ -1560,6 +1644,12 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
     }
 
     // Xóa snapshot sau khi đã phục hồi xong
+    if (alertPulseTimeoutRef.current) {
+      clearTimeout(alertPulseTimeoutRef.current);
+      alertPulseTimeoutRef.current = null;
+    }
+    lastHandledAlertSignatureRef.current = 'SAFE';
+    lastFlownAlertCodeRef.current = 'SAFE';
     preAlertLayersSnapshotRef.current = null;
   }, [gibsOpacity]);
 
@@ -2680,6 +2770,11 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
                   (polyLine as any)._path.classList.add('flood-warning-pulsing-path');
                 }
               }, 60);
+              setTimeout(() => {
+                if ((polyLine as any)._path) {
+                  (polyLine as any)._path.classList.remove('flood-warning-pulsing-path');
+                }
+              }, 5060);
             }
           }
         }
@@ -2742,6 +2837,11 @@ export const WebGISMap: React.FC<WebGISMapProps> = ({ onOpenCommunityReport }) =
                   (polygon as any)._path.classList.add('flood-warning-pulsing-path');
                 }
               }, 60);
+              setTimeout(() => {
+                if ((polygon as any)._path) {
+                  (polygon as any)._path.classList.remove('flood-warning-pulsing-path');
+                }
+              }, 5060);
             }
           }
         }

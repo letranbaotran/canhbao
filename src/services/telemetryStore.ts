@@ -1,6 +1,6 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore, useMemo } from 'react';
 import { realtimeSync } from '@/services/realtimeSyncService';
 import { getVillageScenarioImpact } from '@/data/village_disaster_profiles';
 import { stopAllEmergencyAlerts, alarmSystem } from '@/utils/alarmSound';
@@ -896,8 +896,14 @@ export function useTelemetryStore() {
     getServerCustomVillageBulletinSnapshot
   );
 
-  const hydraulicModel = computeActiveHydraulicModel(iotData, scenarioId);
-  const bulletin = villageOverride ?? buildDynamicBulletin(iotData, scenarioId);
+  const hydraulicModel = useMemo(
+    () => computeActiveHydraulicModel(iotData, scenarioId),
+    [iotData, scenarioId]
+  );
+  const bulletin = useMemo(
+    () => villageOverride ?? buildDynamicBulletin(iotData, scenarioId),
+    [villageOverride, iotData, scenarioId]
+  );
 
   return {
     iotData,
